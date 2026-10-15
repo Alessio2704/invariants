@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./runner": "./dist/runner.js"
+    "./runner": "./dist/runner.js",
+    "./loader": "./dist/loader.js"
   },
   "scripts": {
     "build": "tsc",

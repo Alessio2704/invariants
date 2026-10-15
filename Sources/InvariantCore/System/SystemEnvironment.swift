@@ -31,10 +31,16 @@ public struct SystemEnvironment: Sendable {
     currentVersionURL.appendingPathComponent("kit-ts")
   }
 
-  /// Default production root at `/usr/local/invariants`.
+  /// Default production root at `/usr/local/invariants` (or `INVARIANTS_PREFIX` if set).
   public init() {
-    self.rootURL = URL(fileURLWithPath: "/usr/local/invariants")
-    self.binURL = URL(fileURLWithPath: "/usr/local/bin/invariants")
+    if let envPrefix = ProcessInfo.processInfo.environment["INVARIANTS_PREFIX"], !envPrefix.isEmpty {
+      let root = URL(fileURLWithPath: envPrefix)
+      self.rootURL = root
+      self.binURL = root.appendingPathComponent("bin/invariants")
+    } else {
+      self.rootURL = URL(fileURLWithPath: "/usr/local/invariants")
+      self.binURL = URL(fileURLWithPath: "/usr/local/bin/invariants")
+    }
   }
 
   /// Internal test seam allowing unit and scenario tests to inject a sandboxed root.

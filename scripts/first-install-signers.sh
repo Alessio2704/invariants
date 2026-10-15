@@ -68,7 +68,7 @@ fi
 
 KEY_CONTENT="$(cat "$KEY")"
 TMP_SIGNERS="$(mktemp)"
-printf "owner namespaces=\"invariants\" %s\n" "$KEY_CONTENT" > "$TMP_SIGNERS"
+printf "owner namespaces=\"git,invariants\" %s\n" "$KEY_CONTENT" > "$TMP_SIGNERS"
 
 echo "Discovered public key for invariants signing:" >&2
 echo "  File: $KEY" >&2

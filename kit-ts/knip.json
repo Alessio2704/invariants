@@ -1,5 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/index.ts", "src/runner.ts"],
-  "project": ["src/**/*.ts"]
+  "entry": [
+    "src/index.ts",
+    "src/runner.ts",
+    "src/loader.ts"
+  ],
+  "project": [
+    "src/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "@vitest/coverage-v8"
+  ]
 }

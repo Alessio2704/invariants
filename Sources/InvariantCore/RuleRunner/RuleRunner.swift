@@ -214,6 +214,12 @@ public struct RuleRunner: Sendable {
     if FileManager.default.fileExists(atPath: environment.kitSwiftURL.path) {
       return environment.kitSwiftURL
     }
+    if let execURL = Bundle.main.executableURL {
+      let candidate = execURL.deletingLastPathComponent().appendingPathComponent("kit-swift")
+      if FileManager.default.fileExists(atPath: candidate.path) {
+        return candidate
+      }
+    }
     // In local development / tests: use current repo root
     return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
   }
@@ -278,6 +284,12 @@ public struct RuleRunner: Sendable {
     let installed = environment.kitTsURL.appendingPathComponent("dist/runner.js")
     if FileManager.default.fileExists(atPath: installed.path) {
       return installed
+    }
+    if let execURL = Bundle.main.executableURL {
+      let candidate = execURL.deletingLastPathComponent().appendingPathComponent("kit-ts/dist/runner.js")
+      if FileManager.default.fileExists(atPath: candidate.path) {
+        return candidate
+      }
     }
     // Local repo fallback
     let localDist = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
