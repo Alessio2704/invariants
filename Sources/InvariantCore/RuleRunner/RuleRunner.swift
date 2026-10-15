@@ -56,7 +56,9 @@ public struct RuleRunner: Sendable {
       cachesURL = fm.temporaryDirectory.appendingPathComponent("invariants_cache/\(engineVersion)/\(ruleTreeHash)")
     }
 
-    let binaryURL = cachesURL.appendingPathComponent(".build/release/RuleExecutable")
+    let releaseBin = cachesURL.appendingPathComponent(".build/release/RuleExecutable")
+    let debugBin = cachesURL.appendingPathComponent(".build/debug/RuleExecutable")
+    let binaryURL = fm.fileExists(atPath: releaseBin.path) ? releaseBin : debugBin
     if !fm.fileExists(atPath: binaryURL.path) {
       try await buildSwiftRule(
         ruleDirectory: ruleDirectory,
@@ -191,12 +193,12 @@ public struct RuleRunner: Sendable {
       throw RuleRunnerError.executableBuildFailed("Failed to write Package.swift: \(error.localizedDescription)")
     }
 
-    // Build with xcrun swift build -c release
+    // Build with xcrun swift build
     let buildOutput: ProcessOutput
     do {
       buildOutput = try await runner.run(
         executableURL: SubprocessRunner.xcrunURL,
-        arguments: ["swift", "build", "-c", "release", "--package-path", cacheDirectory.path],
+        arguments: ["swift", "build", "--package-path", cacheDirectory.path],
         workingDirectory: cacheDirectory,
         timeoutSeconds: timeoutSeconds
       )
