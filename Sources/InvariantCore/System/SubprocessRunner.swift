@@ -34,12 +34,34 @@ public struct SubprocessRunner: Sendable {
 
   /// Resolves the absolute path to node.
   public static func resolveNodeURL() -> URL? {
+    let fm = FileManager.default
+
+    // 1. Query /usr/bin/which node
+    let whichProcess = Process()
+    whichProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+    whichProcess.arguments = ["node"]
+    let pipe = Pipe()
+    whichProcess.standardOutput = pipe
+    whichProcess.standardError = Pipe()
+    if (try? whichProcess.run()) != nil {
+      whichProcess.waitUntilExit()
+      if whichProcess.terminationStatus == 0 {
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let path = String(bytes: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+          if !path.isEmpty && fm.fileExists(atPath: path) {
+            return URL(fileURLWithPath: path)
+          }
+        }
+      }
+    }
+
+    // 2. Standard location candidates
     let candidates = [
       "/opt/homebrew/bin/node",
       "/usr/local/bin/node",
       "/usr/bin/node",
     ]
-    for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
+    for candidate in candidates where fm.fileExists(atPath: candidate) {
       return URL(fileURLWithPath: candidate)
     }
     return nil

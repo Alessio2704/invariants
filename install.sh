@@ -46,8 +46,10 @@ fi
 $SUDO /bin/sh -c "set -e
   mkdir -p '$PREFIX/versions/$V' '$PREFIX/floors'
   cp '$WORK/.build/release/invariants' '$PREFIX/versions/$V/'
-  mkdir -p '$PREFIX/versions/$V/kit-swift'
-  cp -R '$WORK/Sources/InvariantKit' '$WORK/Package.swift' '$WORK/Package.resolved' '$PREFIX/versions/$V/kit-swift/'
+  mkdir -p '$PREFIX/versions/$V/kit-swift/Sources'
+  cp -R '$WORK/Sources/InvariantKit' '$PREFIX/versions/$V/kit-swift/Sources/'
+  cp '$WORK/templates/kit-swift/Package.swift' '$PREFIX/versions/$V/kit-swift/Package.swift'
+  cp '$WORK/Package.resolved' '$PREFIX/versions/$V/kit-swift/Package.resolved'
   mkdir -p '$PREFIX/versions/$V/kit-ts'
   cp -R '$WORK/kit-ts/dist' '$WORK/kit-ts/node_modules' '$PREFIX/versions/$V/kit-ts/'
   [ -f '$PREFIX/allowed_signers' ] || cp '$SIGNERS' '$PREFIX/allowed_signers'

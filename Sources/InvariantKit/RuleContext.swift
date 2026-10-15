@@ -181,10 +181,10 @@ public final class RuleContext: @unchecked Sendable {
       tempDbDir = FileManager.default.temporaryDirectory.appendingPathComponent("invariants_db_\(UUID().uuidString)")
     }
 
-    let libPath =
-      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/libIndexStore.dylib"
-    guard FileManager.default.fileExists(atPath: libPath) else {
-      throw RuleError.evaluationError("libIndexStore.dylib not found at \(libPath)")
+    guard let libPath = Self.locateLibIndexStore() else {
+      throw RuleError.evaluationError(
+        "libIndexStore.dylib not found in active developer toolchain. Run xcode-select or install Command Line Tools."
+      )
     }
 
     let db: IndexStoreDB
@@ -213,5 +213,66 @@ public final class RuleContext: @unchecked Sendable {
     }
 
     return db
+  }
+
+  private static func locateLibIndexStore() -> String? {
+    let fm = FileManager.default
+
+    // 1. Try querying xcode-select -p
+    let pipe = Pipe()
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
+    proc.arguments = ["-p"]
+    proc.standardOutput = pipe
+    proc.standardError = Pipe()
+    if (try? proc.run()) != nil {
+      proc.waitUntilExit()
+      if proc.terminationStatus == 0 {
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let rawDev = String(bytes: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let devPath = rawDev, !devPath.isEmpty {
+          let candidate = URL(fileURLWithPath: devPath)
+            .appendingPathComponent("Toolchains/XcodeDefault.xctoolchain/usr/lib/libIndexStore.dylib").path
+          if fm.fileExists(atPath: candidate) {
+            return candidate
+          }
+        }
+      }
+    }
+
+    // 2. Try querying xcrun --find swift
+    let xcrunPipe = Pipe()
+    let xcrunProc = Process()
+    xcrunProc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+    xcrunProc.arguments = ["--find", "swift"]
+    xcrunProc.standardOutput = xcrunPipe
+    xcrunProc.standardError = Pipe()
+    if (try? xcrunProc.run()) != nil {
+      xcrunProc.waitUntilExit()
+      if xcrunProc.terminationStatus == 0 {
+        let data = xcrunPipe.fileHandleForReading.readDataToEndOfFile()
+        let rawSwift = String(bytes: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let swiftPath = rawSwift, !swiftPath.isEmpty {
+          let candidate = URL(fileURLWithPath: swiftPath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("lib/libIndexStore.dylib").path
+          if fm.fileExists(atPath: candidate) {
+            return candidate
+          }
+        }
+      }
+    }
+
+    // 3. Fallback standard toolchain locations
+    let standardCandidates = [
+      "/Library/Developer/CommandLineTools/usr/lib/libIndexStore.dylib",
+      "/usr/lib/libIndexStore.dylib",
+    ]
+    for cand in standardCandidates where fm.fileExists(atPath: cand) {
+      return cand
+    }
+
+    return nil
   }
 }

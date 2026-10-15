@@ -61,4 +61,56 @@ describe("TS Rule Runner process contract", () => {
     expect(violations[0].code).toBe("NO-HELLO");
     expect(violations[0].file).toBe("sample.ts");
   });
+
+  it("executes TypeScript rule (.ts) importing @invariants/kit via bundled loader", () => {
+    const testFile = path.join(tmpDir, "target.ts");
+    fs.writeFileSync(testFile, 'export const val = "secret";\n');
+
+    const ruleFile = path.join(tmpDir, "rule.ts");
+    fs.writeFileSync(
+      ruleFile,
+      `import { defineRule } from "@invariants/kit";
+
+interface ConfigItem {
+  key: string;
+}
+
+export default defineRule({
+  check(ctx) {
+    const item: ConfigItem = { key: "secret" };
+    return [
+      {
+        code: "NO-SECRET",
+        file: "target.ts",
+        line: 1,
+        column: 1,
+        message: \`Secret found: \${item.key}\`,
+        fix: "Remove secret",
+      },
+    ];
+  },
+});
+`,
+    );
+
+    const requestFile = path.join(tmpDir, "request.json");
+    fs.writeFileSync(
+      requestFile,
+      JSON.stringify({
+        mode: "fixture",
+        repoRoot: tmpDir,
+        ruleDir: tmpDir,
+        files: ["target.ts"],
+      }),
+    );
+
+    const stdout = execFileSync(process.execPath, [runnerPath, ruleFile, requestFile], {
+      encoding: "utf8",
+    });
+
+    const violations = JSON.parse(stdout);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].code).toBe("NO-SECRET");
+    expect(violations[0].message).toBe("Secret found: secret");
+  });
 });

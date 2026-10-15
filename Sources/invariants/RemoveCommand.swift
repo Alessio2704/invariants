@@ -65,8 +65,19 @@ struct RemoveCommand: AsyncParsableCommand {
       }
     }
 
+    if CLIHelpers.isInteractive {
+      let confirm = CLIHelpers.promptConfirmation(
+        question: "Deactivate and remove invariant '\(id)' from registry v\(registry.version + 1)?",
+        default: true
+      )
+      if !confirm {
+        print("Aborted.")
+        return
+      }
+    }
+
     // 3. Resolve key and sign
-    guard let keyURL = CLIHelpers.resolveSigningKey(customPath: key) else {
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
       fputs("Error: No SSH signing key found. Specify --key <path>\n", stderr)
       throw ExitCode(1)
     }

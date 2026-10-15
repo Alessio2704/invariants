@@ -28,6 +28,8 @@ struct DevCommand: AsyncParsableCommand {
 
     let env = SystemEnvironment.standard
     let kitSwiftPath = fm.fileExists(atPath: env.kitSwiftURL.path) ? env.kitSwiftURL.path : repoRootURL.path
+    let kitPackageName =
+      URL(fileURLWithPath: kitSwiftPath).lastPathComponent == "kit-swift" ? "kit-swift" : "invariants"
 
     let devPackage = """
       // swift-tools-version: 6.0
@@ -43,7 +45,7 @@ struct DevCommand: AsyncParsableCommand {
               .target(
                   name: "InvariantsDev",
                   dependencies: [
-                      .product(name: "InvariantKit", package: "invariants")
+                      .product(name: "InvariantKit", package: "\(kitPackageName)")
                   ],
                   path: "."
               )

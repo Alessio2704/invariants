@@ -11,8 +11,8 @@ struct InitCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Unique identifier for this repository.")
   var repo: String?
 
-  @Option(name: .long, help: "Default branch name (default: main).")
-  var branch: String = "main"
+  @Option(name: .long, help: "Default branch name (default: auto-detected or main).")
+  var branch: String?
 
   @Option(name: .long, help: "Relative path to Swift index store (e.g. build/Index.noindex/DataStore).")
   var swiftIndex: String?
@@ -42,43 +42,28 @@ struct InitCommand: AsyncParsableCommand {
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
     let gitClient = GitClient()
+    let runner = SubprocessRunner()
 
     print("Initializing invariants in \(repoRootURL.lastPathComponent) (repo ID: '\(repoId)')...")
 
-    // 1. Detect project inputs
-    var detectedSwiftIndex = swiftIndex
-    if detectedSwiftIndex == nil {
-      // Scan for standard index store locations
-      let candidates = [
-        "build/Index.noindex/DataStore",
-        ".build/debug/index/store",
-        ".build/arm64-apple-macosx/debug/index/store",
-        ".build/index/store",
-      ]
-      for candidate in candidates where fm.fileExists(atPath: repoRootURL.appendingPathComponent(candidate).path) {
-        detectedSwiftIndex = candidate
-        break
-      }
-    }
+    // 1. Offer Touch ID for sudo
+    await Self.offerTouchIDForSudo(runner: runner)
 
-    var detectedTsconfigs = tsconfig
-    if detectedTsconfigs.isEmpty {
-      if fm.fileExists(atPath: repoRootURL.appendingPathComponent("tsconfig.json").path) {
-        detectedTsconfigs.append("tsconfig.json")
-      }
-    }
+    // 2. Detect project inputs interactively or via flags
+    let configuredSwiftIndex = selectSwiftIndex(repoRootURL: repoRootURL)
+    let configuredTsconfigs = selectTsconfigs(repoRootURL: repoRootURL)
 
     var projectConfig = ProjectConfig()
-    if let idx = detectedSwiftIndex {
+    if let idx = configuredSwiftIndex {
       projectConfig.swift = SwiftProjectConfig(indexStore: idx)
       print("Configured Swift indexStore: \(idx)")
     }
-    if !detectedTsconfigs.isEmpty {
-      projectConfig.ts = TSProjectConfig(tsconfig: detectedTsconfigs)
-      print("Configured TS tsconfig: \(detectedTsconfigs.joined(separator: ", "))")
+    if !configuredTsconfigs.isEmpty {
+      projectConfig.ts = TSProjectConfig(tsconfig: configuredTsconfigs)
+      print("Configured TS tsconfig: \(configuredTsconfigs.joined(separator: ", "))")
     }
 
-    // 2. Setup hook shims
+    // 3. Setup hook shims
     let githooksDir = repoRootURL.appendingPathComponent(".githooks")
     try fm.createDirectory(at: githooksDir, withIntermediateDirectories: true)
 
@@ -133,11 +118,11 @@ struct InitCommand: AsyncParsableCommand {
     try prePushShim.data(using: .utf8)?.write(to: prePushURL, options: .atomic)
     try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: prePushURL.path)
 
-    // 3. Configure core.hooksPath
+    // 4. Configure core.hooksPath
     try await gitClient.setHooksPath(repoRoot: repoRootURL, path: ".githooks")
     print("Configured git core.hooksPath=.githooks")
 
-    // 4. Update .gitignore
+    // 5. Update .gitignore
     let gitignoreURL = repoRootURL.appendingPathComponent(".gitignore")
     var gitignoreContent = (try? String(contentsOf: gitignoreURL, encoding: .utf8)) ?? ""
     if !gitignoreContent.contains("invariants/.dev/") {
@@ -148,7 +133,7 @@ struct InitCommand: AsyncParsableCommand {
       try gitignoreContent.data(using: .utf8)?.write(to: gitignoreURL, options: .atomic)
     }
 
-    // 5. Create Registry v1
+    // 6. Create Registry v1
     let registry = Registry(
       repo: repoId,
       version: 1,
@@ -157,11 +142,13 @@ struct InitCommand: AsyncParsableCommand {
       rules: [:]
     )
 
-    // 6. Resolve signing key & Sign
-    guard let keyURL = CLIHelpers.resolveSigningKey(customPath: key) else {
-      fputs("Error: No SSH signing key found. Specify --key <path> or configure ~/.ssh/id_ed25519\n", stderr)
+    // 7. Resolve signing key & ensure in allowed_signers
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
+      fputs("Error: No SSH signing key selected. Specify --key <path> or configure git user.signingkey\n", stderr)
       throw ExitCode(1)
     }
+
+    try await Self.ensureAllowedSigners(keyURL: keyURL, environment: env, runner: runner)
 
     print("Signing registry v1 with \(keyURL.lastPathComponent)...")
     try await registryManager.saveAndSign(
@@ -170,7 +157,7 @@ struct InitCommand: AsyncParsableCommand {
       keyURL: keyURL
     )
 
-    // 7. Commit setup
+    // 8. Commit setup
     var paths = [
       ".githooks/pre-commit",
       ".githooks/pre-push",
@@ -188,5 +175,176 @@ struct InitCommand: AsyncParsableCommand {
     )
 
     print("✓ Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
+  }
+
+  // MARK: - Helper Methods
+
+  private func selectSwiftIndex(repoRootURL: URL) -> String? {
+    if let swiftIndex {
+      return swiftIndex
+    }
+    let candidates = Self.discoverSwiftIndexCandidates(repoRootURL: repoRootURL)
+    guard !candidates.isEmpty else { return nil }
+
+    if CLIHelpers.isInteractive {
+      print("\nDiscovered Swift Index candidates:")
+      for (idx, cand) in candidates.enumerated() {
+        print("  [\(idx + 1)] \(cand)")
+      }
+      let choice = CLIHelpers.prompt(
+        question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)")
+      if let num = Int(choice), num >= 1, num <= candidates.count {
+        return candidates[num - 1]
+      }
+      if !choice.isEmpty {
+        return choice
+      }
+      return nil
+    }
+
+    return candidates.first
+  }
+
+  private func selectTsconfigs(repoRootURL: URL) -> [String] {
+    if !tsconfig.isEmpty {
+      return tsconfig
+    }
+    let candidates = Self.discoverTsconfigCandidates(repoRootURL: repoRootURL)
+    guard !candidates.isEmpty else { return [] }
+
+    if CLIHelpers.isInteractive {
+      let joined = candidates.joined(separator: ", ")
+      let confirm = CLIHelpers.promptConfirmation(question: "Use discovered tsconfig paths (\(joined))?", default: true)
+      if confirm {
+        return candidates
+      }
+      let custom = CLIHelpers.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
+      return custom.isEmpty ? [] : [custom]
+    }
+
+    return candidates
+  }
+
+  static func discoverSwiftIndexCandidates(repoRootURL: URL) -> [String] {
+    let fm = FileManager.default
+    var candidates: [String] = []
+    let rootPath = repoRootURL.path
+
+    if let enumerator = fm.enumerator(
+      at: repoRootURL,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles]
+    ) {
+      while let fileURL = enumerator.nextObject() as? URL {
+        let path = fileURL.path
+        if path.contains("/node_modules/") || path.contains("/.build/") || path.contains("/invariants/.dev/") {
+          enumerator.skipDescendants()
+          continue
+        }
+        if path.hasSuffix("Index.noindex/DataStore") {
+          var rel = String(path.dropFirst(rootPath.count))
+          if rel.hasPrefix("/") { rel = String(rel.dropFirst()) }
+          candidates.append(rel)
+        }
+      }
+    }
+    let spmStore = repoRootURL.appendingPathComponent(".build/debug/index/store")
+    if fm.fileExists(atPath: spmStore.path) {
+      candidates.append(".build/debug/index/store")
+    }
+    return Array(Set(candidates)).sorted()
+  }
+
+  static func discoverTsconfigCandidates(repoRootURL: URL) -> [String] {
+    let fm = FileManager.default
+    var candidates: [String] = []
+    let rootPath = repoRootURL.path
+
+    if let enumerator = fm.enumerator(
+      at: repoRootURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) {
+      while let fileURL = enumerator.nextObject() as? URL {
+        let path = fileURL.path
+        if path.contains("/node_modules/") || path.contains("/.build/") || path.contains("/invariants/.dev/") {
+          enumerator.skipDescendants()
+          continue
+        }
+        let fileName = fileURL.lastPathComponent
+        if fileName.hasPrefix("tsconfig") && fileName.hasSuffix(".json") {
+          var rel = String(path.dropFirst(rootPath.count))
+          if rel.hasPrefix("/") { rel = String(rel.dropFirst()) }
+          candidates.append(rel)
+        }
+      }
+    }
+    return candidates.sorted()
+  }
+
+  static func ensureAllowedSigners(
+    keyURL: URL,
+    environment: SystemEnvironment,
+    runner: SubprocessRunner
+  ) async throws {
+    guard let keyContent = try? String(contentsOf: keyURL, encoding: .utf8) else { return }
+    let trimmedKey = keyContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedKey.isEmpty else { return }
+
+    let allowedSignersFile = environment.allowedSignersURL
+    let fm = FileManager.default
+
+    if fm.fileExists(atPath: allowedSignersFile.path) {
+      if let existing = try? String(contentsOf: allowedSignersFile, encoding: .utf8), existing.contains(trimmedKey) {
+        return
+      }
+    }
+
+    let line = "owner \(trimmedKey)\n"
+    if environment.rootURL.path.hasPrefix("/usr/local/invariants") {
+      let keyText = line.trimmingCharacters(in: .newlines)
+      let cmd = "mkdir -p '\(environment.rootURL.path)' && printf '%s\\n' '\(keyText)' >> '\(allowedSignersFile.path)'"
+      _ = try? await runner.run(
+        executableURL: SubprocessRunner.sudoURL,
+        arguments: ["/bin/sh", "-c", cmd]
+      )
+    } else {
+      try? fm.createDirectory(at: environment.rootURL, withIntermediateDirectories: true)
+      if fm.fileExists(atPath: allowedSignersFile.path) {
+        if let handle = try? FileHandle(forWritingTo: allowedSignersFile) {
+          handle.seekToEndOfFile()
+          handle.write(Data(line.utf8))
+          try? handle.close()
+        }
+      } else {
+        try? Data(line.utf8).write(to: allowedSignersFile)
+      }
+    }
+  }
+
+  static func offerTouchIDForSudo(runner: SubprocessRunner) async {
+    let sudoLocal = URL(fileURLWithPath: "/etc/pam.d/sudo_local")
+    let fm = FileManager.default
+    if fm.fileExists(atPath: sudoLocal.path) {
+      if let content = try? String(contentsOf: sudoLocal, encoding: .utf8), content.contains("pam_tid.so") {
+        return
+      }
+    }
+
+    if CLIHelpers.isInteractive {
+      let enable = CLIHelpers.promptConfirmation(
+        question: "Would you like to enable Touch ID for sudo (/etc/pam.d/sudo_local)?",
+        default: true
+      )
+      if enable {
+        let cmd =
+          "printf 'auth       sufficient     pam_tid.so\\n' > /etc/pam.d/sudo_local && chmod 644 /etc/pam.d/sudo_local"
+        _ = try? await runner.run(
+          executableURL: SubprocessRunner.sudoURL,
+          arguments: ["/bin/sh", "-c", cmd]
+        )
+        print("✓ Touch ID for sudo enabled in /etc/pam.d/sudo_local")
+      }
+    }
   }
 }

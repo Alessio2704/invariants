@@ -14,6 +14,9 @@ struct UpdateCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
 
+  @Option(name: .long, help: "Confirm update by providing the exact rule ID when weakening is detected.")
+  var confirmId: String?
+
   @Flag(name: .long, help: "Confirm update even if red-flag weakening is detected.")
   var confirm: Bool = false
 
@@ -21,27 +24,12 @@ struct UpdateCommand: AsyncParsableCommand {
   var repoPath: String?
 
   func run() async throws {
-    let repoRootURL: URL
-    if let repoPath {
-      repoRootURL = URL(fileURLWithPath: repoPath)
-    } else if let found = CLIHelpers.findRepoRoot() {
-      repoRootURL = found
-    } else {
-      fputs("Error: Not inside a git repository.\n", stderr)
-      throw ExitCode(1)
-    }
-
+    let repoRootURL = try resolveRepoRoot()
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
-    let fingerprintEngine = FingerprintEngine()
-    let manifestValidator = ManifestValidator()
-    let weakeningDetector = WeakeningDetector()
-    let discoverer = FixtureDiscoverer()
-    let runner = RuleRunner(environment: env)
     let gitClient = GitClient()
     let fm = FileManager.default
 
-    // 1. Load registry
     var registry = try await registryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
@@ -58,11 +46,8 @@ struct UpdateCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 2. Extract old signed snapshot
     let tempOldSnapshot = fm.temporaryDirectory.appendingPathComponent("old_snapshot_\(id)_\(UUID().uuidString)")
-    defer {
-      try? fm.removeItem(at: tempOldSnapshot)
-    }
+    defer { try? fm.removeItem(at: tempOldSnapshot) }
 
     try fm.createDirectory(at: tempOldSnapshot, withIntermediateDirectories: true)
     try await gitClient.archiveExtract(
@@ -71,7 +56,70 @@ struct UpdateCommand: AsyncParsableCommand {
       destinationURL: tempOldSnapshot
     )
 
-    // 3. Parse old and new manifests
+    let (oldManifest, newManifest) = try parseManifests(
+      ruleDir: ruleDir,
+      tempOldSnapshot: tempOldSnapshot,
+      repoRootURL: repoRootURL,
+      registry: registry
+    )
+
+    let context = UpdateContext(
+      ruleDir: ruleDir,
+      tempOldSnapshot: tempOldSnapshot,
+      repoRootURL: repoRootURL,
+      registry: registry,
+      oldSignedTreeHash: oldSignedTreeHash,
+      env: env
+    )
+
+    try await checkWeakening(
+      oldManifest: oldManifest,
+      newManifest: newManifest,
+      context: context
+    )
+
+    try await verifyFixtures(ruleDir: ruleDir, manifest: newManifest, env: env)
+
+    try await saveAndCommitUpdate(
+      repoRootURL: repoRootURL,
+      oldSignedTreeHash: oldSignedTreeHash,
+      registry: &registry,
+      registryManager: registryManager,
+      gitClient: gitClient
+    )
+  }
+}
+
+// MARK: - Pipeline Steps
+
+private struct UpdateContext {
+  let ruleDir: URL
+  let tempOldSnapshot: URL
+  let repoRootURL: URL
+  let registry: Registry
+  let oldSignedTreeHash: String
+  let env: SystemEnvironment
+}
+
+extension UpdateCommand {
+  private func resolveRepoRoot() throws -> URL {
+    if let repoPath {
+      return URL(fileURLWithPath: repoPath)
+    }
+    if let found = CLIHelpers.findRepoRoot() {
+      return found
+    }
+    fputs("Error: Not inside a git repository.\n", stderr)
+    throw ExitCode(1)
+  }
+
+  private func parseManifests(
+    ruleDir: URL,
+    tempOldSnapshot: URL,
+    repoRootURL: URL,
+    registry: Registry
+  ) throws -> (RuleManifest, RuleManifest) {
+    let manifestValidator = ManifestValidator()
     let oldManifestData = try Data(contentsOf: tempOldSnapshot.appendingPathComponent("manifest.json"))
     let oldManifest = try ManifestParser.parse(data: oldManifestData, expectedId: id)
 
@@ -85,28 +133,41 @@ struct UpdateCommand: AsyncParsableCommand {
       registry: registry,
       isFixtureMode: false
     )
+    return (oldManifest, newManifest)
+  }
 
-    // 4. Discover old and new fixtures
+  private func checkWeakening(
+    oldManifest: RuleManifest,
+    newManifest: RuleManifest,
+    context: UpdateContext
+  ) async throws {
+    let discoverer = FixtureDiscoverer()
+    let weakeningDetector = WeakeningDetector()
+    let manifestValidator = ManifestValidator()
+    let runner = RuleRunner(environment: context.env)
+
     var oldCases: [FixtureCase] = []
     for target in oldManifest.targets {
-      let discovered = try? discoverer.discover(
-        ruleDirectory: tempOldSnapshot,
+      if let cases = try? discoverer.discover(
+        ruleDirectory: context.tempOldSnapshot,
         target: target,
         manifestCodes: oldManifest.codes
-      )
-      if let cases = discovered {
+      ) {
         oldCases.append(contentsOf: cases)
       }
     }
 
     var newCases: [FixtureCase] = []
     for target in newManifest.targets {
-      let cases = try discoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: newManifest.codes)
+      let cases = try discoverer.discover(
+        ruleDirectory: context.ruleDir,
+        target: target,
+        manifestCodes: newManifest.codes
+      )
       newCases.append(contentsOf: cases)
     }
 
-    // 5. Weakening Analysis
-    let weakening = weakeningDetector.detect(
+    var weakening = weakeningDetector.detect(
       ruleId: id,
       oldManifest: oldManifest,
       newManifest: newManifest,
@@ -114,13 +175,97 @@ struct UpdateCommand: AsyncParsableCommand {
       newCases: newCases
     )
 
+    let (oldV, newV) = await countRepoViolations(
+      manifest: newManifest,
+      context: context,
+      manifestValidator: manifestValidator,
+      runner: runner
+    )
+
+    if newV < oldV {
+      var updated = weakening.items
+      updated.append(
+        WeakeningItem(
+          severity: .red,
+          category: "repoViolationsDropped",
+          message: "Repo violations dropped from \(oldV) to \(newV) for unchanged product code."
+        )
+      )
+      weakening = WeakeningReport(ruleId: id, items: updated)
+    }
+
+    try handleWeakeningReport(weakening)
+  }
+
+  private func countRepoViolations(
+    manifest: RuleManifest,
+    context: UpdateContext,
+    manifestValidator: ManifestValidator,
+    runner: RuleRunner
+  ) async -> (Int, Int) {
+    var oldRepoViolationsCount = 0
+    var newRepoViolationsCount = 0
+
+    for target in manifest.targets {
+      guard let scope = manifest.scope[target] else { continue }
+      let scopedFiles = manifestValidator.resolveScopedFiles(repoRoot: context.repoRootURL, scope: scope)
+
+      let oldReq = RuleRequest(
+        mode: "repo",
+        repoRoot: context.repoRootURL.path,
+        ruleDir: context.tempOldSnapshot.path,
+        files: scopedFiles.map { $0.path },
+        project: context.registry.project
+      )
+      let newReq = RuleRequest(
+        mode: "repo",
+        repoRoot: context.repoRootURL.path,
+        ruleDir: context.ruleDir.path,
+        files: scopedFiles.map { $0.path },
+        project: context.registry.project
+      )
+
+      let oldRes =
+        (try? await runner.execute(
+          target: target,
+          ruleDirectory: context.tempOldSnapshot,
+          ruleTreeHash: context.oldSignedTreeHash,
+          request: oldReq,
+          engineVersion: CLIHelpers.engineVersion
+        )) ?? []
+
+      let newRes =
+        (try? await runner.execute(
+          target: target,
+          ruleDirectory: context.ruleDir,
+          ruleTreeHash: "update_preview",
+          request: newReq,
+          engineVersion: CLIHelpers.engineVersion
+        )) ?? []
+
+      oldRepoViolationsCount += oldRes.count
+      newRepoViolationsCount += newRes.count
+    }
+    return (oldRepoViolationsCount, newRepoViolationsCount)
+  }
+
+  private func handleWeakeningReport(_ weakening: WeakeningReport) throws {
     if weakening.hasRedFlags {
       print("\n🔴 WEAKENING DETECTED in invariant '\(id)':")
       for item in weakening.items where item.severity == .red {
         print("  ✗ [\(item.category)] \(item.message)")
       }
-      if !confirm {
-        fputs("\nUpdate blocked by weakening guard. Pass --confirm or resolve the weakening items.\n", stderr)
+
+      var isConfirmed = confirm || (confirmId == id)
+      if !isConfirmed && CLIHelpers.isInteractive {
+        let typed = CLIHelpers.prompt(question: "\nTo confirm this weakening, please type the rule id '\(id)'")
+        if typed == id {
+          isConfirmed = true
+        }
+      }
+
+      if !isConfirmed {
+        fputs("\nUpdate blocked by weakening guard. Pass --confirm-id \(id) or type rule id to confirm.\n", stderr)
         throw ExitCode(1)
       }
     }
@@ -131,11 +276,15 @@ struct UpdateCommand: AsyncParsableCommand {
         print("  ✓ [\(item.category)] \(item.message)")
       }
     }
+  }
 
-    // 6. Test all new fixtures
+  private func verifyFixtures(ruleDir: URL, manifest: RuleManifest, env: SystemEnvironment) async throws {
+    let discoverer = FixtureDiscoverer()
+    let runner = RuleRunner(environment: env)
     print("\nVerifying fixtures for '\(id)'...")
-    for target in newManifest.targets {
-      let cases = try discoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: newManifest.codes)
+
+    for target in manifest.targets {
+      let cases = try discoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
       for fixtureCase in cases {
         let req = RuleRequest(
           mode: "fixture",
@@ -171,21 +320,27 @@ struct UpdateCommand: AsyncParsableCommand {
       }
     }
     print("✓ All fixtures green.")
+  }
 
-    // 7. Compute new tree hash
+  private func saveAndCommitUpdate(
+    repoRootURL: URL,
+    oldSignedTreeHash: String,
+    registry: inout Registry,
+    registryManager: RegistryManager,
+    gitClient: GitClient
+  ) async throws {
+    let fingerprintEngine = FingerprintEngine()
     let newTreeHash = try await fingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
     guard newTreeHash != oldSignedTreeHash else {
       print("Notice: No changes detected. Rule '\(id)' is already at tree \(newTreeHash).")
       return
     }
 
-    // 8. Resolve signing key
-    guard let keyURL = CLIHelpers.resolveSigningKey(customPath: key) else {
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
       fputs("Error: No SSH signing key found. Specify --key <path>\n", stderr)
       throw ExitCode(1)
     }
 
-    // 9. Update registry & sign
     registry.version += 1
     registry.rules[id] = newTreeHash
 
@@ -196,7 +351,6 @@ struct UpdateCommand: AsyncParsableCommand {
       keyURL: keyURL
     )
 
-    // 10. Commit
     try await gitClient.commit(
       repoRoot: repoRootURL,
       paths: [

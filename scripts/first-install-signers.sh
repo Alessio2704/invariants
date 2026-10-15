@@ -19,14 +19,44 @@ if [ -z "$KEY" ]; then
   fi
 fi
 
-# 2. If still not found, search ~/.ssh/ for any .pub file
-if [ -z "$KEY" ]; then
+# 2. If still not found and interactive, prompt user to select from ~/.ssh/*.pub
+if [ -z "$KEY" ] && [ -t 0 ]; then
+  CANDIDATES=""
   for pub_candidate in "$HOME_DIR/.ssh/"*.pub; do
     if [ -f "$pub_candidate" ]; then
-      KEY="$pub_candidate"
-      break
+      CANDIDATES="$CANDIDATES $pub_candidate"
     fi
   done
+  if [ -n "$CANDIDATES" ]; then
+    echo "Discovered SSH public keys:" >&2
+    i=1
+    for c in $CANDIDATES; do
+      echo "  [$i] $c" >&2
+      i=$((i + 1))
+    done
+    printf "Select key number [1-$((i - 1))] or enter path: " >&2
+    read -r CHOICE
+    if [ -n "$CHOICE" ]; then
+      case "$CHOICE" in
+        [1-9]*)
+          idx=1
+          for c in $CANDIDATES; do
+            if [ "$idx" -eq "$CHOICE" ]; then
+              KEY="$c"
+              break
+            fi
+            idx=$((idx + 1))
+          done
+          ;;
+        *)
+          case "$CHOICE" in
+            ~/*) KEY="$HOME_DIR/${CHOICE#\~/}" ;;
+            *) KEY="$CHOICE" ;;
+          esac
+          ;;
+      esac
+    fi
+  fi
 fi
 
 if [ -z "$KEY" ] || [ ! -f "$KEY" ]; then

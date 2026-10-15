@@ -10,7 +10,8 @@ if (fs.existsSync(versionCjsPath)) {
       `
 let tsCompat = {};
 try {
-  tsCompat = require("/opt/homebrew/lib/node_modules/typescript/lib/typescript.js");
+  const tsPath = require.resolve("typescript/lib/typescript.js", { paths: [__dirname, path.resolve(__dirname, "..")] });
+  tsCompat = require(tsPath);
 } catch {}
 module.exports = Object.assign({}, tsCompat, {
   version: "7.0.2",

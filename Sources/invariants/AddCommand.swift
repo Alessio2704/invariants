@@ -132,13 +132,24 @@ struct AddCommand: AsyncParsableCommand {
     }
     print("Repo impact preview: \(repoViolationsCount) violations on current codebase.")
 
+    if CLIHelpers.isInteractive {
+      let confirm = CLIHelpers.promptConfirmation(
+        question: "Add and lock invariant '\(id)' into registry v\(registry.version + 1)?",
+        default: true
+      )
+      if !confirm {
+        print("Aborted.")
+        return
+      }
+    }
+
     // 5. Compute tree hash
     let treeHash = try await fingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
-    guard let keyURL = CLIHelpers.resolveSigningKey(customPath: key) else {
-      fputs("Error: No SSH signing key found. Specify --key <path> or configure ~/.ssh/id_ed25519\n", stderr)
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
+      fputs("Error: No SSH signing key found. Specify --key <path> or configure git user.signingkey\n", stderr)
       throw ExitCode(1)
     }
 

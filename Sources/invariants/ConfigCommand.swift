@@ -34,13 +34,18 @@ struct ConfigCommand: AsyncParsableCommand {
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
     let gitClient = GitClient()
+    let manifestValidator = ManifestValidator()
+    let discoverer = FixtureDiscoverer()
+    let runner = RuleRunner(environment: env)
+    let fm = FileManager.default
 
     var registry = try await registryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
-    var newProject = registry.project ?? ProjectConfig()
+    let oldProject = registry.project ?? ProjectConfig()
+    var newProject = oldProject
     if let swiftIndex {
       newProject.swift = SwiftProjectConfig(indexStore: swiftIndex)
     }
@@ -48,10 +53,121 @@ struct ConfigCommand: AsyncParsableCommand {
       newProject.ts = TSProjectConfig(tsconfig: tsconfig)
     }
 
+    print("Project Configuration Diff:")
+    print("───────────────────────────")
+    let oldSwift = oldProject.swift?.indexStore ?? "none"
+    let newSwift = newProject.swift?.indexStore ?? "none"
+    print("Swift indexStore: \(oldSwift) → \(newSwift)")
+
+    let oldTS = (oldProject.ts?.tsconfig ?? []).joined(separator: ", ")
+    let newTS = (newProject.ts?.tsconfig ?? []).joined(separator: ", ")
+    print("TS tsconfig:     \(oldTS.isEmpty ? "none" : oldTS) → \(newTS.isEmpty ? "none" : newTS)\n")
+
+    // Verify impact on every active rule
+    var hasBlindingIssue = false
+    for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
+      let tempSnapshot = fm.temporaryDirectory.appendingPathComponent("cfg_check_\(ruleId)_\(UUID().uuidString)")
+      defer { try? fm.removeItem(at: tempSnapshot) }
+
+      try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
+      try await gitClient.archiveExtract(
+        repoRoot: repoRootURL,
+        treeHash: signedTreeHash,
+        destinationURL: tempSnapshot
+      )
+
+      let manifestData = try Data(contentsOf: tempSnapshot.appendingPathComponent("manifest.json"))
+      let manifest = try ManifestParser.parse(data: manifestData, expectedId: ruleId)
+
+      // 1. Fixtures must still pass with newProject
+      for target in manifest.targets {
+        let cases = try discoverer.discover(ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
+        for fixtureCase in cases {
+          let req = RuleRequest(
+            mode: "fixture",
+            repoRoot: fixtureCase.rootURL.path,
+            ruleDir: tempSnapshot.path,
+            files: fixtureCase.files.map { $0.path },
+            project: newProject
+          )
+          let violations = try await runner.execute(
+            target: target,
+            ruleDirectory: tempSnapshot,
+            ruleTreeHash: signedTreeHash,
+            request: req,
+            engineVersion: CLIHelpers.engineVersion
+          )
+          if fixtureCase.isShouldPass && !violations.isEmpty {
+            fputs("Error: Rule '\(ruleId)' fixture failed under new config.\n", stderr)
+            throw ExitCode(1)
+          }
+        }
+      }
+
+      // 2. Repo check: compare old vs new files and violations
+      for target in manifest.targets {
+        guard let targetScope = manifest.scope[target] else { continue }
+        let scopedFiles = manifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
+
+        let reqOld = RuleRequest(
+          mode: "repo",
+          repoRoot: repoRootURL.path,
+          ruleDir: tempSnapshot.path,
+          files: scopedFiles.map { $0.path },
+          project: oldProject
+        )
+        let reqNew = RuleRequest(
+          mode: "repo",
+          repoRoot: repoRootURL.path,
+          ruleDir: tempSnapshot.path,
+          files: scopedFiles.map { $0.path },
+          project: newProject
+        )
+
+        let violationsOld =
+          (try? await runner.execute(
+            target: target,
+            ruleDirectory: tempSnapshot,
+            ruleTreeHash: signedTreeHash,
+            request: reqOld,
+            engineVersion: CLIHelpers.engineVersion
+          )) ?? []
+
+        let violationsNew =
+          (try? await runner.execute(
+            target: target,
+            ruleDirectory: tempSnapshot,
+            ruleTreeHash: signedTreeHash,
+            request: reqNew,
+            engineVersion: CLIHelpers.engineVersion
+          )) ?? []
+
+        if violationsNew.count < violationsOld.count {
+          print(
+            "🔴 BLINDED: Rule '\(ruleId)' reports fewer violations (\(violationsOld.count) → \(violationsNew.count))!"
+          )
+          hasBlindingIssue = true
+        }
+      }
+    }
+
+    if hasBlindingIssue {
+      fputs("\nConfiguration change rejected: new inputs blind active rules.\n", stderr)
+      throw ExitCode(1)
+    }
+
+    if CLIHelpers.isInteractive {
+      let confirm = CLIHelpers.promptConfirmation(question: "Sign and commit new configuration?", default: true)
+      if !confirm {
+        print("Aborted.")
+        return
+      }
+    }
+
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = CLIHelpers.resolveSigningKey(customPath: key) else {
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

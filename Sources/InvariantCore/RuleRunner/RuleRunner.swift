@@ -154,6 +154,14 @@ public struct RuleRunner: Sendable {
       throw RuleRunnerError.kitNotFound("kit-swift not found at \(kitSwiftURL.path)")
     }
 
+    let kitPackageName = (kitSwiftURL.lastPathComponent == "kit-swift") ? "kit-swift" : "invariants"
+
+    let kitResolved = kitSwiftURL.appendingPathComponent("Package.resolved")
+    let targetResolved = cacheDirectory.appendingPathComponent("Package.resolved")
+    if fm.fileExists(atPath: kitResolved.path) && !fm.fileExists(atPath: targetResolved.path) {
+      try? fm.copyItem(at: kitResolved, to: targetResolved)
+    }
+
     let packageManifest = """
       // swift-tools-version: 6.0
       import PackageDescription
@@ -168,7 +176,7 @@ public struct RuleRunner: Sendable {
               .executableTarget(
                   name: "RuleExecutable",
                   dependencies: [
-                      .product(name: "InvariantKit", package: "invariants")
+                      .product(name: "InvariantKit", package: "\(kitPackageName)")
                   ],
                   path: "Sources"
               )

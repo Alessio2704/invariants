@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Request payload passed to rule subprocesses.
 public struct RuleRequest: Sendable, Codable {
@@ -49,7 +49,7 @@ public struct ReportedViolation: Sendable, Codable, Equatable, Hashable {
   }
 }
 
-public enum RuleRunnerError: Error, Equatable, Sendable {
+public enum RuleRunnerError: Error, Equatable, Sendable, LocalizedError, CustomStringConvertible {
   case ruleCrashed(exitCode: Int32, stderr: String)
   case ruleHung(timeoutSeconds: Double)
   case indexStale(String)
@@ -58,4 +58,29 @@ public enum RuleRunnerError: Error, Equatable, Sendable {
   case nodeNotFound
   case kitNotFound(String)
   case systemError(String)
+
+  public var errorDescription: String? {
+    switch self {
+    case .ruleCrashed(let exitCode, let stderr):
+      return "RULE CRASHED (exit code \(exitCode)): \(stderr)"
+    case .ruleHung(let timeout):
+      return "RULE HUNG (timed out after \(Int(timeout))s)"
+    case .indexStale(let msg):
+      return "INDEX STALE — \(msg)"
+    case .invalidOutput(let msg):
+      return "Invalid rule output: \(msg)"
+    case .executableBuildFailed(let msg):
+      return "Failed to build rule executable: \(msg)"
+    case .nodeNotFound:
+      return "Node.js executable not found"
+    case .kitNotFound(let msg):
+      return "Rule kit not found: \(msg)"
+    case .systemError(let msg):
+      return "System error: \(msg)"
+    }
+  }
+
+  public var description: String {
+    errorDescription ?? "RuleRunnerError"
+  }
 }
