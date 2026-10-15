@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InvariantRuleManifest",
+  "type": "object",
+  "required": ["id", "summary", "targets", "scope", "codes"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["swift", "ts"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "swift": {
+          "type": "object",
+          "required": ["include"],
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "exclude": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "ts": {
+          "type": "object",
+          "required": ["include"],
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "exclude": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "codes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

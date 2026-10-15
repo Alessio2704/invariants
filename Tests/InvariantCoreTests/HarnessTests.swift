@@ -1,0 +1,88 @@
+import Foundation
+import Testing
+
+@testable import InvariantCore
+
+@Suite("Fixture Harness & Parsing", .tags(.unit))
+struct HarnessTests {
+  @Test("Inline annotation parsing identifies line number and code")
+  func inlineAnnotationParsing() throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let sampleSwift = """
+      import SwiftUI
+
+      struct Foo {
+          let label = Text("Bad") // expect: RAW-TEXT
+          let other = 123
+          let btn = Button("Click") // expect: RAW-TEXT, BUTTON-LABEL
+      }
+      """
+    let fileURL = tmpDir.appendingPathComponent("Sample.swift")
+    try sampleSwift.data(using: .utf8)?.write(to: fileURL)
+
+    let parser = AnnotationParser()
+    let expected = try parser.parseInlineAnnotations(fileURL: fileURL, relativePath: "Sample.swift")
+
+    #expect(expected.count == 3)
+    #expect(expected[0].code == "RAW-TEXT")
+    #expect(expected[0].line == 4)
+    #expect(expected[1].code == "RAW-TEXT")
+    #expect(expected[1].line == 6)
+    #expect(expected[2].code == "BUTTON-LABEL")
+    #expect(expected[2].line == 6)
+  }
+
+  @Test("Sidecar .expect parsing")
+  func sidecarParsing() throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let sidecarContent = """
+      # Sidecar expectation
+      RAW-TEXT @ 42
+      EMPTY-CATALOG @ 0
+      """
+    let sidecarURL = tmpDir.appendingPathComponent("sample.json.expect")
+    try sidecarContent.data(using: .utf8)?.write(to: sidecarURL)
+
+    let parser = AnnotationParser()
+    let expected = try parser.parseSidecarExpectFile(sidecarURL: sidecarURL, targetRelativePath: "sample.json")
+
+    #expect(expected.count == 2)
+    #expect(expected[0].code == "RAW-TEXT")
+    #expect(expected[0].line == 42)
+    #expect(expected[1].code == "EMPTY-CATALOG")
+    #expect(expected[1].line == 0)
+  }
+
+  @Test("Annotations are strictly forbidden in should_pass fixtures")
+  func annotationsForbiddenInPass() throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let fm = FileManager.default
+    let passDir = tmpDir.appendingPathComponent("should_pass/swift")
+    let failDir = tmpDir.appendingPathComponent("should_fail/swift")
+    try fm.createDirectory(at: passDir, withIntermediateDirectories: true)
+    try fm.createDirectory(at: failDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    // Put an expect annotation inside should_pass
+    let illegalPassFile = passDir.appendingPathComponent("Illegal.swift")
+    try Data("// expect: TOY-01\nlet x = 1\n".utf8).write(to: illegalPassFile)
+
+    let legalFailFile = failDir.appendingPathComponent("Bad.swift")
+    try Data("// expect: TOY-01\nlet y = 2\n".utf8).write(to: legalFailFile)
+
+    let discoverer = FixtureDiscoverer()
+    #expect(throws: HarnessError.self) {
+      _ = try discoverer.discover(
+        ruleDirectory: tmpDir,
+        target: .swift,
+        manifestCodes: ["TOY-01": "Desc"]
+      )
+    }
+  }
+}

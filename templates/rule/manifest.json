@@ -1,0 +1,12 @@
+{
+  "id": "{{ID}}",
+  "summary": "{{SUMMARY}}",
+  "targets": ["swift", "ts"],
+  "scope": {
+    "swift": { "include": ["**/*.swift"] },
+    "ts": { "include": ["**/*.ts"] }
+  },
+  "codes": {
+    "SAMPLE-01": "Sample violation description"
+  }
+}

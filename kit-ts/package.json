@@ -1,0 +1,31 @@
+{
+  "name": "@invariants/kit",
+  "version": "1.0.0",
+  "description": "TypeScript rule API and runner for the invariants engine",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./runner": "./dist/runner.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check src test",
+    "lint:fix": "biome check --write src test",
+    "knip": "node ./scripts/ensure-ts-compat.cjs && knip --strict"
+  },
+  "dependencies": {
+    "typescript": "7.0.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@tsconfig/strictest": "2.0.5",
+    "@types/node": "22.13.4",
+    "@vitest/coverage-v8": "3.0.5",
+    "knip": "5.44.4",
+    "vitest": "3.0.5"
+  }
+}

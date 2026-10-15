@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "Running engine pre-commit checks..."
+
+# 1. Swift format lint
+swift format lint --strict --recursive Sources Tests
+
+# 2. SwiftLint
+if command -v swiftlint >/dev/null 2>&1; then
+  swiftlint lint --strict
+fi
+
+# 3. Swift build (0 warnings enforced via -warnings-as-errors)
+swift build
+
+# 4. Swift test unit suite
+swift test --filter unit
+
+# 5. Kit-TS checks
+(
+  cd "$REPO_ROOT/kit-ts"
+  npx biome ci
+  npx tsc --noEmit
+  npm run knip
+  npm test
+)
+
+echo "✓ Pre-commit checks passed."

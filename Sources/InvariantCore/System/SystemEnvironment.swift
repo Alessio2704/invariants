@@ -1,0 +1,45 @@
+public import Foundation
+
+/// System configuration representing trusted anchors and paths.
+public struct SystemEnvironment: Sendable {
+  public static let standard = Self()
+
+  public let rootURL: URL
+  public let binURL: URL
+
+  public var allowedSignersURL: URL {
+    rootURL.appendingPathComponent("allowed_signers")
+  }
+
+  public var floorsDirectoryURL: URL {
+    rootURL.appendingPathComponent("floors")
+  }
+
+  public var versionsDirectoryURL: URL {
+    rootURL.appendingPathComponent("versions")
+  }
+
+  public var currentVersionURL: URL {
+    rootURL.appendingPathComponent("current")
+  }
+
+  public var kitSwiftURL: URL {
+    currentVersionURL.appendingPathComponent("kit-swift")
+  }
+
+  public var kitTsURL: URL {
+    currentVersionURL.appendingPathComponent("kit-ts")
+  }
+
+  /// Default production root at `/usr/local/invariants`.
+  public init() {
+    self.rootURL = URL(fileURLWithPath: "/usr/local/invariants")
+    self.binURL = URL(fileURLWithPath: "/usr/local/bin/invariants")
+  }
+
+  /// Internal test seam allowing unit and scenario tests to inject a sandboxed root.
+  internal init(customRoot: URL, customBin: URL? = nil) {
+    self.rootURL = customRoot
+    self.binURL = customBin ?? customRoot.appendingPathComponent("bin/invariants")
+  }
+}

@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "Running engine pre-push full verification..."
+
+# 1. Pre-commit suite
+"$REPO_ROOT/.githooks/pre-commit"
+
+# 2. Full swift test (all tags)
+swift test
+
+# 3. TS Coverage
+(
+  cd "$REPO_ROOT/kit-ts"
+  npm run test:coverage
+)
+
+echo "✓ Full pre-push verification passed."
