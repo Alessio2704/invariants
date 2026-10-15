@@ -19,6 +19,9 @@ struct InvariantsCLI: AsyncParsableCommand {
       RemoveCommand.self,
       UpgradeCommand.self,
       CheckCommand.self,
+      SelfUpdateCommand.self,
+      UninstallCommand.self,
+      SignersCommand.self,
     ],
     defaultSubcommand: StatusCommand.self
   )
