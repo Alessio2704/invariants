@@ -5,26 +5,34 @@ set -eu
 HOME_DIR="${HOME:-/Users/$(whoami)}"
 KEY="${1:-}"
 
+# 1. If not explicitly passed, query git config user.signingkey
 if [ -z "$KEY" ]; then
-  # Check FIDO2 / Touch ID key, any Secretive key, or standard Ed25519 key
-  if [ -f "$HOME_DIR/.ssh/id_ed25519_sk.pub" ]; then
-    KEY="$HOME_DIR/.ssh/id_ed25519_sk.pub"
-  else
-    # Find any secretive public key
-    SECRETIVE_KEY="$(find "$HOME_DIR/.ssh" -maxdepth 1 -name "secretive_*.pub" 2>/dev/null | head -n 1 || true)"
-    if [ -n "$SECRETIVE_KEY" ] && [ -f "$SECRETIVE_KEY" ]; then
-      KEY="$SECRETIVE_KEY"
-    elif [ -f "$HOME_DIR/.ssh/id_ed25519.pub" ]; then
-      KEY="$HOME_DIR/.ssh/id_ed25519.pub"
-    elif [ -f "$HOME_DIR/.ssh/id_ecdsa_sk.pub" ]; then
-      KEY="$HOME_DIR/.ssh/id_ecdsa_sk.pub"
+  GIT_SIGNING_KEY="$(git config --get user.signingkey 2>/dev/null || true)"
+  if [ -n "$GIT_SIGNING_KEY" ]; then
+    case "$GIT_SIGNING_KEY" in
+      ~/*) EXPANDED_KEY="$HOME_DIR/${GIT_SIGNING_KEY#\~/}" ;;
+      *) EXPANDED_KEY="$GIT_SIGNING_KEY" ;;
+    esac
+    if [ -f "$EXPANDED_KEY" ]; then
+      KEY="$EXPANDED_KEY"
     fi
   fi
 fi
 
+# 2. If still not found, search ~/.ssh/ for any .pub file
+if [ -z "$KEY" ]; then
+  for pub_candidate in "$HOME_DIR/.ssh/"*.pub; do
+    if [ -f "$pub_candidate" ]; then
+      KEY="$pub_candidate"
+      break
+    fi
+  done
+fi
+
 if [ -z "$KEY" ] || [ ! -f "$KEY" ]; then
-  echo "Error: No public key found in ~/.ssh (id_ed25519_sk.pub, secretive_*.pub, id_ed25519.pub)" >&2
-  echo "Usage: $0 [path/to/public_key.pub]" >&2
+  echo "Error: Could not determine SSH signing key." >&2
+  echo "Configure git:  git config --global user.signingkey /path/to/key.pub" >&2
+  echo "Or pass path:   $0 /path/to/key.pub" >&2
   exit 1
 fi
 

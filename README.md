@@ -59,7 +59,7 @@ Trust resides in standard OpenSSH signatures, not proprietary formats. You can i
 ssh-keygen -Y verify -f /usr/local/invariants/allowed_signers -I owner -n invariants -s registry.lock.sig < registry.lock
 
 # Sign registry manually
-ssh-keygen -Y sign -f ~/.ssh/id_ed25519_sk.pub -n invariants registry.lock
+ssh-keygen -Y sign -f "$(git config user.signingkey)" -n invariants registry.lock
 ```
 
 ## Accepted Risks
