@@ -137,7 +137,7 @@ struct InitCommand: AsyncParsableCommand {
     let registry = Registry(
       repo: repoId,
       version: 1,
-      engine: "^1.0.0",
+      engine: "^\(CLIHelpers.engineVersion)",
       project: projectConfig.isEmpty ? nil : projectConfig,
       rules: [:]
     )

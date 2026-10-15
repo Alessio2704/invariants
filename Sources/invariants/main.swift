@@ -6,7 +6,7 @@ struct InvariantsCLI: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "invariants",
     abstract: "Architecture constraints as code, proven by fixtures and locked by Touch ID.",
-    version: "1.0.0",
+    version: CLIHelpers.engineVersion,
     subcommands: [
       InitCommand.self,
       ConfigCommand.self,
