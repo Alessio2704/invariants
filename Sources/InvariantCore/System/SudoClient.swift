@@ -8,15 +8,31 @@ public struct SudoClient: Sendable {
     self.runner = runner
   }
 
+  /// Determines whether writing to the target URL requires elevated privileges.
+  func requiresElevation(for targetURL: URL) -> Bool {
+    if FileManager.default.fileExists(atPath: targetURL.path) {
+      return !FileManager.default.isWritableFile(atPath: targetURL.path)
+    }
+
+    var current = targetURL.deletingLastPathComponent()
+    while !FileManager.default.fileExists(atPath: current.path) {
+      let parent = current.deletingLastPathComponent()
+      if parent.path == current.path { break }
+      current = parent
+    }
+
+    return !FileManager.default.isWritableFile(atPath: current.path)
+  }
+
   /// Writes the floor version for a repo to the environment's floors directory.
-  /// If running against standard `/usr/local/invariants`, uses `/usr/bin/sudo`.
-  /// In sandboxed/test environments, writes directly via FileManager.
+  /// Dynamically elevates to `sudo` if writing requires root privilege,
+  /// or writes directly via `FileManager` if the target is already writable.
   public func writeFloor(repo: String, version: Int, environment: SystemEnvironment) async throws(SystemError) {
     let floorsDir = environment.floorsDirectoryURL
     let floorFile = floorsDir.appendingPathComponent(repo)
     let content = "\(version)\n"
 
-    if environment.rootURL.path.hasPrefix("/usr/local/invariants") {
+    if requiresElevation(for: floorFile) {
       // Production path requires sudo
       let command = "mkdir -p '\(floorsDir.path)' && printf '%s\n' '\(version)' > '\(floorFile.path)'"
       let output = try await runner.run(
@@ -32,7 +48,7 @@ public struct SudoClient: Sendable {
         )
       }
     } else {
-      // Custom test directory: write directly
+      // Writable directory (sandboxes, tests, user installs): write directly
       do {
         try FileManager.default.createDirectory(at: floorsDir, withIntermediateDirectories: true)
         guard let data = content.data(using: .utf8) else {
