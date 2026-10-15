@@ -9,7 +9,12 @@ echo "Running engine pre-push full verification..."
 # 1. Pre-commit suite
 "$REPO_ROOT/.githooks/pre-commit"
 
-# 2. Full swift test (all tags)
+# 2. Periphery scan
+if command -v periphery >/dev/null 2>&1; then
+  periphery scan
+fi
+
+# 3. Full swift test (all tags)
 swift test
 
 # 3. TS Coverage
