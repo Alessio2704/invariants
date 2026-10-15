@@ -145,4 +145,33 @@ struct SudoClientTests {
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
   }
+
+  @Test("removeItem atomically removes file, directory, and ignores non-existent path")
+  func removeItemOperations() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let client = SudoClient()
+    let file = tmpDir.appendingPathComponent("sample.txt")
+    let folder = tmpDir.appendingPathComponent("nested_folder")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try "data".write(to: file, atomically: true, encoding: .utf8)
+
+    #expect(FileManager.default.fileExists(atPath: file.path))
+    #expect(FileManager.default.fileExists(atPath: folder.path))
+
+    // 1. Remove file
+    try await client.removeItem(at: file)
+    #expect(!FileManager.default.fileExists(atPath: file.path))
+
+    // 2. Remove directory
+    try await client.removeItem(at: folder)
+    #expect(!FileManager.default.fileExists(atPath: folder.path))
+
+    // 3. Remove non-existent path (must be idempotent and succeed)
+    let nonExistent = tmpDir.appendingPathComponent("ghost")
+    try await client.removeItem(at: nonExistent)
+    #expect(!FileManager.default.fileExists(atPath: nonExistent.path))
+  }
 }

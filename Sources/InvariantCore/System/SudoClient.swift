@@ -94,21 +94,20 @@ public struct SudoClient: Sendable {
     try await runPrivilegedOrDirect(command: command, targetURL: environment.rootURL)
   }
 
+  /// Removes a file, symbolic link, or directory at the specified target URL.
+  public func removeItem(at targetURL: URL) async throws(SystemError) {
+    let exists =
+      FileManager.default.fileExists(atPath: targetURL.path)
+      || (try? targetURL.checkResourceIsReachable()) == true
+    guard exists else { return }
+
+    let command = "rm -rf '\(targetURL.path)'"
+    try await runPrivilegedOrDirect(command: command, targetURL: targetURL)
+  }
+
   /// Completely uninstalls the invariants engine from the system environment.
   public func uninstall(environment: SystemEnvironment) async throws(SystemError) {
-    let command = "rm -f '\(environment.binURL.path)' && rm -rf '\(environment.rootURL.path)'"
-    let needsElevation = requiresElevation(for: environment.rootURL) || requiresElevation(for: environment.binURL)
-    let executable = needsElevation ? SubprocessRunner.sudoURL : URL(fileURLWithPath: "/bin/sh")
-    let arguments = needsElevation ? ["/bin/sh", "-c", command] : ["-c", command]
-
-    let output = try await runner.run(executableURL: executable, arguments: arguments)
-    guard output.exitCode == 0 else {
-      throw SystemError.processFailed(
-        executable: executable.path,
-        arguments: arguments,
-        exitCode: output.exitCode,
-        stderr: output.stderrString
-      )
-    }
+    try await removeItem(at: environment.binURL)
+    try await removeItem(at: environment.rootURL)
   }
 }
