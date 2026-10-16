@@ -22,7 +22,7 @@ public struct RuleRunner: Sendable {
     ruleDirectory: URL,
     ruleTreeHash: String,
     request: RuleRequest,
-    engineVersion: String = "1.0.0"
+    engineVersion: String = EngineVersion.current
   ) async throws(RuleRunnerError) -> [ReportedViolation] {
     switch target {
     case .swift:

@@ -113,5 +113,5 @@ enum CLIHelpers {
   }
 
   /// Installed engine version.
-  static let engineVersion = "1.0.0"
+  static var engineVersion: String { EngineVersion.current }
 }

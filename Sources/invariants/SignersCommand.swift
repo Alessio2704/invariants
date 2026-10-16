@@ -30,24 +30,17 @@ struct SignersCommand: AsyncParsableCommand {
         return
       }
 
-      let content = try String(contentsOf: signersURL, encoding: .utf8)
-      let lines =
-        content.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty && !$0.hasPrefix("#") }
-
-      if lines.isEmpty {
+      let signersFile = try AllowedSignersFile.read(from: signersURL)
+      if signersFile.entries.isEmpty {
         print("invariants/allowed_signers at \(signersURL.path) is empty.")
         return
       }
 
       print("Trusted Invariant Signers (\(signersURL.path)):")
       print("──────────────────────────────────────────────────")
-      for (index, line) in lines.enumerated() {
-        var status = "Active"
-        if line.contains("valid-before=") {
-          status = "Discontinued / Expired"
-        }
-        print("[\(index + 1)] [\(status)] \(line)")
+      for (index, entry) in signersFile.entries.enumerated() {
+        let status = entry.isActive() ? "Active" : "Discontinued / Expired"
+        print("[\(index + 1)] [\(status)] \(entry.serialize())")
       }
     }
   }
@@ -86,16 +79,9 @@ struct SignersCommand: AsyncParsableCommand {
       }
 
       let principal = identity ?? "*"
-      let entry = "\(principal),* namespaces=\"invariants\" \(keyContent)\n"
-
-      var existingContent = ""
-      if FileManager.default.fileExists(atPath: signersURL.path) {
-        existingContent = try String(contentsOf: signersURL, encoding: .utf8)
-      }
-      let updatedContent =
-        existingContent.hasSuffix("\n") || existingContent.isEmpty
-        ? existingContent + entry : existingContent + "\n" + entry
-      try updatedContent.write(to: signersURL, atomically: true, encoding: .utf8)
+      var signersFile = try AllowedSignersFile.read(from: signersURL)
+      try signersFile.addPublicKey(keyContent, principal: principal, namespaces: ["invariants"])
+      try signersFile.write(to: signersURL)
 
       // Bump registry version & sign
       try await SignersCommand.bumpAndSignRegistry(repoRoot: repoRoot, customSigningKey: signingKey)
@@ -127,39 +113,28 @@ struct SignersCommand: AsyncParsableCommand {
         throw ExitCode(1)
       }
 
-      let content = try String(contentsOf: signersURL, encoding: .utf8)
-      let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+      var signersFile = try AllowedSignersFile.read(from: signersURL)
+      let matchedCount: Int
 
-      let formatter = DateFormatter()
-      formatter.dateFormat = "yyyyMMddHHmmss"
-      formatter.timeZone = TimeZone(secondsFromGMT: 0)
-      let timestamp = formatter.string(from: Date())
-
-      var updatedLines: [String] = []
-      var matchedCount = 0
-
-      for line in lines {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty && !trimmed.hasPrefix("#") && line.contains(pattern) {
-          matchedCount += 1
-          if hard {
-            // Hard revocation: omit the line entirely
-            continue
-          } else {
-            // Soft revocation: append valid-before option
-            if line.contains("namespaces=\"invariants\"") {
-              let replaced = line.replacingOccurrences(
-                of: "namespaces=\"invariants\"",
-                with: "namespaces=\"invariants\",valid-before=\"\(timestamp)\""
-              )
-              updatedLines.append(replaced)
-            } else {
-              updatedLines.append(line)
-            }
-          }
-        } else {
-          updatedLines.append(line)
+      if hard {
+        let initialCount = signersFile.entries.count
+        signersFile.entries.removeAll {
+          $0.matches(keyString: pattern) || $0.principals.contains(pattern) || $0.comment?.contains(pattern) == true
         }
+        matchedCount = initialCount - signersFile.entries.count
+      } else {
+        var count = 0
+        for i in 0..<signersFile.entries.count {
+          let matches =
+            signersFile.entries[i].matches(keyString: pattern)
+            || signersFile.entries[i].principals.contains(pattern)
+            || signersFile.entries[i].comment?.contains(pattern) == true
+          if matches {
+            signersFile.entries[i].validBefore = Date()
+            count += 1
+          }
+        }
+        matchedCount = count
       }
 
       guard matchedCount > 0 else {
@@ -167,12 +142,11 @@ struct SignersCommand: AsyncParsableCommand {
         return
       }
 
-      let updatedContent = updatedLines.joined(separator: "\n") + "\n"
-      try updatedContent.write(to: signersURL, atomically: true, encoding: .utf8)
+      try signersFile.write(to: signersURL)
 
       // Bump registry version & sign
       try await SignersCommand.bumpAndSignRegistry(repoRoot: repoRoot, customSigningKey: signingKey)
-      let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before=\(timestamp))"
+      let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
       print("✓ \(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
     }
   }
@@ -229,31 +203,13 @@ struct SignersCommand: AsyncParsableCommand {
       }
 
       // 3. Update in-repo allowed_signers: mark old valid-before, add new valid-after
-      var content = ""
-      if FileManager.default.fileExists(atPath: signersURL.path) {
-        content = try String(contentsOf: signersURL, encoding: .utf8)
-      }
-
-      let validBeforeTs = formatter.string(from: Date().addingTimeInterval(86400))
-
-      var lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-      var replacedOld = false
-      for i in 0..<lines.count where lines[i].contains(oldPubContent) {
-        lines[i] = lines[i].replacingOccurrences(
-          of: "namespaces=\"invariants\"",
-          with: "namespaces=\"invariants\",valid-before=\"\(validBeforeTs)\""
-        )
-        replacedOld = true
-      }
-      if !replacedOld {
-        lines.append("*,* namespaces=\"invariants\",valid-before=\"\(validBeforeTs)\" \(oldPubContent)")
-      }
-
-      let newEntry = "*,* namespaces=\"invariants\",valid-after=\"\(ts)\" \(newPubContent)"
-      lines.append(newEntry)
-
-      let updatedContent = lines.joined(separator: "\n") + "\n"
-      try updatedContent.write(to: signersURL, atomically: true, encoding: .utf8)
+      var signersFile = try AllowedSignersFile.read(from: signersURL)
+      try signersFile.rotate(
+        oldKeyDataOrSubstring: oldPubContent,
+        newPublicKeyString: newPubContent,
+        sunsetDuration: 86400
+      )
+      try signersFile.write(to: signersURL)
 
       // 4. Bump registry & sign with old key to seal the authority transition
       try await SignersCommand.bumpAndSignRegistry(repoRoot: repoRoot, customSigningKey: backupKey.path)

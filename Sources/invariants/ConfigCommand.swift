@@ -14,6 +14,9 @@ struct ConfigCommand: AsyncParsableCommand {
   @Option(name: .long, parsing: .upToNextOption, help: "Relative path(s) to tsconfig.json.")
   var tsconfig: [String] = []
 
+  @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
+  var defaultBranch: String?
+
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
 
@@ -33,6 +36,11 @@ struct ConfigCommand: AsyncParsableCommand {
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
+    if swiftIndex == nil && tsconfig.isEmpty && defaultBranch == nil {
+      print("No configuration changes specified. Use --swift-index, --tsconfig, or --default-branch.")
+      return
+    }
+
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
     if let swiftIndex {
@@ -40,6 +48,10 @@ struct ConfigCommand: AsyncParsableCommand {
     }
     if !tsconfig.isEmpty {
       newProject.ts = TSProjectConfig(tsconfig: tsconfig)
+    }
+    let oldDefaultBranch = registry.defaultBranch
+    if let defaultBranch {
+      registry.defaultBranch = defaultBranch
     }
 
     print("Project Configuration Diff:")
@@ -50,7 +62,11 @@ struct ConfigCommand: AsyncParsableCommand {
 
     let oldTS = (oldProject.ts?.tsconfig ?? []).joined(separator: ", ")
     let newTS = (newProject.ts?.tsconfig ?? []).joined(separator: ", ")
-    print("TS tsconfig:     \(oldTS.isEmpty ? "none" : oldTS) → \(newTS.isEmpty ? "none" : newTS)\n")
+    print("TS tsconfig:     \(oldTS.isEmpty ? "none" : oldTS) → \(newTS.isEmpty ? "none" : newTS)")
+    if let defaultBranch {
+      print("Default branch:   \(oldDefaultBranch) → \(defaultBranch)")
+    }
+    print("")
 
     // Verify impact on every active rule
     var hasBlindingIssue = false

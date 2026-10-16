@@ -62,8 +62,8 @@ struct KeyCommand: AsyncParsableCommand {
       if let repoRoot = CLIHelpers.findRepoRoot() {
         let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
         if FileManager.default.fileExists(atPath: signersURL.path) {
-          let signersContent = (try? String(contentsOf: signersURL, encoding: .utf8)) ?? ""
-          if signersContent.contains(pubKey) {
+          let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
+          if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
             print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
           } else {
             print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
@@ -153,14 +153,14 @@ struct KeyCommand: AsyncParsableCommand {
             print("  Trunk:       \(reg.defaultBranch)")
           }
 
-          let signersContent = (try? String(contentsOf: signersURL, encoding: .utf8)) ?? ""
+          let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
           let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
           if let pubKey, !pubKey.isEmpty {
-            if let matchedLine = signersContent.split(separator: "\n").first(where: { $0.contains(pubKey) }) {
-              if matchedLine.contains("valid-before=") {
+            if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
+              if matchedEntry.isExpired() {
                 print("  Your Status: ❌ Revoked / Expired in this repository")
-                print("  Entry:       \(matchedLine)")
+                print("  Entry:       \(matchedEntry.serialize())")
               } else {
                 print("  Your Status: ✅ Authorized Active Signer")
               }

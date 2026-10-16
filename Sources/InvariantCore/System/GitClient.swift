@@ -193,7 +193,9 @@ public struct GitClient: Sendable {
     }
   }
 
-  /// Detects the active or default branch for the repository.
+  /// Detects the repository's default trunk branch.
+  /// Prioritizes remote origin HEAD, existing canonical trunk branches ('main', 'master', 'trunk', 'develop'),
+  /// git init.defaultBranch, and only falls back to the current branch if no trunk exists yet.
   public func detectDefaultBranch(repoRoot: URL) async -> String {
     // 1. Try git symbolic-ref refs/remotes/origin/HEAD
     if let out = try? await runner.run(
@@ -211,7 +213,18 @@ public struct GitClient: Sendable {
       }
     }
 
-    // 2. Try git branch --show-current
+    // 2. If the repository already has an established trunk branch (main or master), prioritize it over transient feature branches
+    for trunkCandidate in ["main", "master"] {
+      if let check = try? await runner.run(
+        executableURL: SubprocessRunner.gitURL,
+        arguments: ["-C", repoRoot.path, "rev-parse", "--verify", "--quiet", "refs/heads/\(trunkCandidate)"],
+        workingDirectory: repoRoot
+      ), check.exitCode == 0 {
+        return trunkCandidate
+      }
+    }
+
+    // 3. Try current branch (e.g. unborn branch from 'git init -b <name>' or initial single-branch repository)
     if let out = try? await runner.run(
       executableURL: SubprocessRunner.gitURL,
       arguments: ["-C", repoRoot.path, "branch", "--show-current"],
@@ -223,7 +236,19 @@ public struct GitClient: Sendable {
       }
     }
 
-    // 3. Fallback to "main"
+    // 4. Try git config init.defaultBranch
+    if let out = try? await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", repoRoot.path, "config", "init.defaultBranch"],
+      workingDirectory: repoRoot
+    ), out.exitCode == 0 {
+      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return trimmed
+      }
+    }
+
+    // 5. Fallback to "main"
     return "main"
   }
 }

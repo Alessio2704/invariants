@@ -9,7 +9,7 @@ public struct InitOptions: Sendable {
   public var keyURL: URL
 
   public init(
-    engineVersion: String = "1.0.0",
+    engineVersion: String = EngineVersion.current,
     defaultBranch: String = "main",
     swiftIndexStore: String? = nil,
     tsconfigs: [String] = [],
@@ -99,9 +99,6 @@ public struct InitManager: Sendable {
   /// Writes the public key from `keyURL` into `<repoRoot>/invariants/allowed_signers`.
   public static func writeInitialAllowedSigners(keyURL: URL, repoRootURL: URL) throws {
     let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRootURL)
-    let parent = signersURL.deletingLastPathComponent()
-    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-
     let pubURL = keyURL.pathExtension == "pub" ? keyURL : keyURL.appendingPathExtension("pub")
     func readTrimmed(at url: URL) -> String? {
       guard let str = try? String(contentsOf: url, encoding: .utf8) else { return nil }
@@ -113,8 +110,9 @@ public struct InitManager: Sendable {
       throw SystemError.fileIOError("Could not read public key from \(pubURL.path) or \(keyURL.path)")
     }
 
-    let entry = "* namespaces=\"invariants\" \(pubContent)\n"
-    try entry.write(to: signersURL, atomically: true, encoding: .utf8)
+    var signersFile = try AllowedSignersFile.read(from: signersURL)
+    try signersFile.addPublicKey(pubContent, principal: "*", namespaces: ["invariants"])
+    try signersFile.write(to: signersURL)
   }
 
   /// Discovers Swift Index store candidates in a repository.
