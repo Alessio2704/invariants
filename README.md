@@ -58,15 +58,83 @@ The agent optimizes for making the build pass and completing the task—not for 
 Traditional linters rely primarily on regex matching or shallow token checks for generic style conventions (indentation, line length, `no-force-try`). They cannot enforce high-level architectural contracts.
 
 `invariants` provides **`InvariantKit`** (powered by `SwiftSyntax`, `IndexStoreDB`, and TypeScript AST parsers), allowing you to author custom rules that query real language symbols, types, and call hierarchies:
-- *"Every mutation in a ViewModel must route through a typed `LocalAction`."*
-- *"No API endpoint may ever be called with a raw string literal; must use `APIEndpointPath`."*
-- *"All numerical magnitudes (weight, reps, calories) must be modeled as `MeasurableValue` and rendered with `ConvertedUnitView`."*
-- *"Reference models conforming to `ChangeTrackable` must implement a deep `clone()` method."*
+- **Clean Architecture & Layer Isolation**: Presentation layer components (UI views, view models, controllers) must never import raw database drivers or call network clients directly; all data access must pass through a repository or service protocol.
+- **Type-Safe API Contracts**: Network requests must never use raw string literals for URL endpoints; all routes must use strongly-typed route definitions (e.g. `APIEndpoint.Users.profile`).
+- **Design System Token Enforcement**: No hardcoded hex color literals (`#3B82F6`) or magic layout numbers in UI components; all styling must use typed design system tokens (`Theme.Color.primary`, `Theme.Spacing.md`).
+- **Security & PII Protection**: Never pass raw user tokens, passwords, or PII into logger or `print(...)` statements; all logged objects must conform to a `SanitizedLoggable` contract.
+- **Domain Boundary & DTO Isolation**: Internal database entities (ORM models) must never be returned directly in public API responses without an explicit DTO / View Model mapping.
+
+#### Example: Enforcing Type-Safe API Endpoints (Swift)
+```swift
+// invariants/rules/forbid-raw-endpoint-strings/rule.swift
+import InvariantKit
+
+@main
+struct ForbidRawEndpointStringsRule: SwiftRule {
+    func check(_ ctx: RuleContext) throws(RuleError) -> [Violation] {
+        return ctx.swift.files
+            .calls(named: "request", "fetch", "get", "post")
+            .whereFirstArgument(is: .stringLiteral)
+            .violations(
+                code: "RAW-ENDPOINT-STRING",
+                message: { "\($0.callee) called with raw string literal: \($0.firstArgumentStringValue ?? "")" },
+                fix: "Use strongly-typed APIEndpoint route enum instead of raw string"
+            )
+    }
+}
+```
+
+#### Example: Presentation Layer Isolation (TypeScript)
+```typescript
+// invariants/rules/isolate-presentation-layer/rule.ts
+import { defineRule, Violation } from "@invariants/kit";
+import * as ts from "typescript";
+
+export default defineRule({
+  check(ctx) {
+    const violations: Violation[] = [];
+
+    for (const filePath of ctx.files) {
+      // Scope to presentation / UI layer
+      if (!filePath.includes("/ui/") && !filePath.includes("/components/")) continue;
+
+      const sourceFile = ctx.sourceFile(filePath) as ts.SourceFile;
+      ts.forEachChild(sourceFile, (node) => {
+        if (ts.isImportDeclaration(node)) {
+          const importPath = (node.moduleSpecifier as ts.StringLiteral).text;
+          if (importPath.startsWith("@db/") || importPath.includes("/orm/")) {
+            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            violations.push({
+              code: "LAYER-VIOLATION",
+              file: filePath,
+              line: line + 1,
+              column: character + 1,
+              message: `UI component directly imports database layer: "${importPath}"`,
+              fix: "Route data access through domain service or repository abstraction",
+            });
+          }
+        }
+      });
+    }
+
+    return violations;
+  },
+});
+```
 
 ### 2. Empirical Proof via Red/Green Fixtures
 A rule cannot be added or updated based on good intentions alone. Every invariant rule must include:
 - `should_pass/`: Positive fixture cases proving zero false positives.
 - `should_fail/`: Negative fixture cases with inline annotations (`// expect: CODE`) proving the rule accurately detects violations.
+
+```swift
+// should_fail/swift/case1.swift
+// expect: RAW-ENDPOINT-STRING
+let data = await apiClient.request("/api/v1/users/export")
+
+// should_pass/swift/case1.swift
+let data = await apiClient.request(APIEndpoint.Users.export)
+```
 
 The engine verifies all fixtures before allowing a rule to be locked into the registry.
 
