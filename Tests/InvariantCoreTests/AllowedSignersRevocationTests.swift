@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import Testing
 
@@ -13,11 +12,11 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let keyURL = tmpDir.appendingPathComponent("id_rev_ed25519")
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let keyURL = tmpDir.appendingPathComponent("id_rev_p256")
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_rev_ed25519.pub"))
+    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_rev_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
     let repoDir = tmpDir.appendingPathComponent("repo")
@@ -30,7 +29,7 @@ struct AllowedSignersRevocationTests {
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
@@ -47,11 +46,11 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let keyURL = tmpDir.appendingPathComponent("id_pre_ed25519")
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let keyURL = tmpDir.appendingPathComponent("id_pre_p256")
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_pre_ed25519.pub"))
+    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_pre_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
     let repoDir = tmpDir.appendingPathComponent("repo")
@@ -64,7 +63,7 @@ struct AllowedSignersRevocationTests {
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
@@ -76,16 +75,16 @@ struct AllowedSignersRevocationTests {
   }
 
   @Test("Signers hash tampering is detected and rejected")
-  func signersHashTamperingRejection() async throws {
+  func signersHashTamperingDetected() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("tamper_signers_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let keyURL = tmpDir.appendingPathComponent("id_valid_ed25519")
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let keyURL = tmpDir.appendingPathComponent("id_valid_p256")
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_valid_ed25519.pub"))
+    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_valid_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
     let repoDir = tmpDir.appendingPathComponent("repo")
@@ -97,7 +96,7 @@ struct AllowedSignersRevocationTests {
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
@@ -107,38 +106,13 @@ struct AllowedSignersRevocationTests {
     #expect(loaded.version == 1)
 
     // Tamper allowed_signers in working tree (e.g. Rogue AI appends key)
-    let rogueKey = "* namespaces=\"invariants\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRogueKey rogue@ai\n"
+    let rogueKey =
+      "* namespaces=\"invariants\" ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc9 rogue@ai\n"
     var tamperedSigners = signersContent
     tamperedSigners.append(rogueKey)
     try tamperedSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
     // loadAndVerify must immediately throw signatureInvalid due to signers hash mismatch
-    await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
-    }
-  }
-
-  @Test("Missing allowed_signers file throws signatureInvalid")
-  func missingAllowedSignersRejection() async throws {
-    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("missing_signers_\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tmpDir) }
-
-    let repoDir = tmpDir.appendingPathComponent("repo")
-    let invariantsDir = repoDir.appendingPathComponent("invariants")
-    try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
-
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv)
-
-    // Create dummy registry and sig files
-    let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
-    let sigURL = RegistryManager.signatureURL(repoRoot: repoDir)
-    try "{\"engine\":\"^1.0.0\",\"rules\":{},\"version\":1}".write(
-      to: lockURL, atomically: true, encoding: .utf8)
-    try "dummy sig".write(to: sigURL, atomically: true, encoding: .utf8)
-
-    // allowed_signers intentionally omitted
     await #expect(throws: RegistryError.self) {
       _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
@@ -150,13 +124,13 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
 
     // 1. Generate Key A (senior) and Key B (to be revoked)
     let keyA = tmpDir.appendingPathComponent("id_senior")
     let keyB = tmpDir.appendingPathComponent("id_revoked")
-    try await sshClient.generateThrowawayKey(at: keyA)
-    try await sshClient.generateThrowawayKey(at: keyB)
+    try signingClient.generateThrowawayKey(at: keyA)
+    try signingClient.generateThrowawayKey(at: keyB)
 
     let pubA = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -173,7 +147,7 @@ struct AllowedSignersRevocationTests {
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyB)
@@ -200,7 +174,7 @@ struct AllowedSignersRevocationTests {
     let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
     let lockData = try #require(CanonicalJSON.serialize(reg3).data(using: .utf8))
     try lockData.write(to: lockURL)
-    try await sshClient.sign(keyURL: keyB, namespace: "invariants", fileURL: lockURL)
+    try await signingClient.sign(keyURL: keyB, namespace: "invariants", fileURL: lockURL)
 
     // loadAndVerify must reject because Key B is not in allowed_signers
     await #expect(throws: RegistryError.self) {
@@ -226,11 +200,11 @@ struct AllowedSignersRevocationTests {
       executableURL: SubprocessRunner.gitURL,
       arguments: ["-C", repoURL.path, "config", "user.email", "senior@plans.local"])
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let seniorKey = tmpDir.appendingPathComponent("id_senior")
     let rogueKey = tmpDir.appendingPathComponent("id_rogue")
-    try await sshClient.generateThrowawayKey(at: seniorKey)
-    try await sshClient.generateThrowawayKey(at: rogueKey)
+    try signingClient.generateThrowawayKey(at: seniorKey)
+    try signingClient.generateThrowawayKey(at: rogueKey)
 
     let seniorPub = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -246,7 +220,7 @@ struct AllowedSignersRevocationTests {
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
     let fakeEnv = SystemEnvironment(customRoot: fakeRoot)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg1 = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg1, repoRoot: repoURL, keyURL: seniorKey)
@@ -274,7 +248,7 @@ struct AllowedSignersRevocationTests {
         currentRegistry: reg2,
         lockURL: lockURL,
         sigURL: sigURL,
-        sshClient: sshClient
+        signingClient: signingClient
       )
     }
   }

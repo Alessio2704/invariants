@@ -4,14 +4,14 @@ public import Foundation
 /// Coordinates registry reading, writing, signature verification, and floor sync.
 public struct RegistryManager: Sendable {
   public let environment: SystemEnvironment
-  private let sshClient: SSHKeygenClient
+  private let signingClient: SigningClient
 
   public init(
     environment: SystemEnvironment = .standard,
-    sshClient: SSHKeygenClient = SSHKeygenClient()
+    signingClient: SigningClient = SigningClient()
   ) {
     self.environment = environment
-    self.sshClient = sshClient
+    self.signingClient = signingClient
   }
 
   public static func registryURL(repoRoot: URL) -> URL {
@@ -74,7 +74,7 @@ public struct RegistryManager: Sendable {
     // Verify cryptographic signature against in-repo allowed_signers
     let isValid: Bool
     do {
-      isValid = try await sshClient.verify(
+      isValid = try await signingClient.verify(
         allowedSignersURL: signersURL,
         identity: identity,
         namespace: "invariants",
@@ -136,7 +136,7 @@ public struct RegistryManager: Sendable {
 
     // Sign the file
     do {
-      try await sshClient.sign(
+      try await signingClient.sign(
         keyURL: keyURL,
         namespace: "invariants",
         fileURL: lockURL

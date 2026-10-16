@@ -72,7 +72,7 @@ enum CLIHelpers {
 
   /// Resolves the dedicated Invariants signing key.
   /// 1. Uses explicit customPath if passed and valid.
-  /// 2. Uses dedicated default key at ~/.ssh/invariants_ed25519 (or .pub).
+  /// 2. Uses dedicated default key at ~/.ssh/invariants_p256 (or .pub).
   /// 3. Returns nil if not found.
   static func resolveSigningKey(customPath: String? = nil) -> URL? {
     if let customPath, !customPath.isEmpty {
@@ -99,7 +99,7 @@ enum CLIHelpers {
     if isInteractive {
       let custom = prompt(
         question:
-          "Signing key not found at ~/.ssh/invariants_ed25519. Enter path to key (or run 'invariants key generate')"
+          "Signing key not found at ~/.ssh/invariants_p256. Enter path to key (or run 'invariants key generate')"
       )
       if !custom.isEmpty {
         let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)

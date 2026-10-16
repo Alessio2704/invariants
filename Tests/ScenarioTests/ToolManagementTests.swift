@@ -15,7 +15,8 @@ struct ToolManagementTests {
     #expect(!initial.isEmpty)
 
     // 2. Add coworker key directly (in-repo, no sudo)
-    let coworkerKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleCoworkerKey coworker@plans"
+    let coworkerKey =
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBIExampleCoworkerKey coworker@plans"
     let newEntry = "* namespaces=\"invariants\" \(coworkerKey)\n"
     var content = initial
     content.append(newEntry)

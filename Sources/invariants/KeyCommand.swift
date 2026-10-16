@@ -42,9 +42,14 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      print("Touch your Touch ID sensor to generate your signing key in the Secure Enclave...")
-      let sshClient = SSHKeygenClient()
-      try await sshClient.generateSigningKey(at: defaultKey)
+      print("Enrolling hardware signing key in Apple Secure Enclave...")
+      let signingClient = SigningClient()
+      do {
+        try signingClient.generateSigningKey(at: defaultKey)
+      } catch {
+        fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
+        throw ExitCode(1)
+      }
 
       guard
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
@@ -54,7 +59,8 @@ struct KeyCommand: AsyncParsableCommand {
         throw ExitCode(1)
       }
 
-      print("✓ Created Secure Enclave signing key: \(defaultKey.path)")
+      print("✓ Created Apple Secure Enclave P-256 signing key: \(defaultKey.path)")
+      print("✓ Protected by Touch ID biometric hardware authorization")
       print("\nPublic Key:")
       print("  \(pubKey)\n")
 
@@ -117,11 +123,16 @@ struct KeyCommand: AsyncParsableCommand {
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8)
           .trimmingCharacters(in: .whitespacesAndNewlines)
         if let pubKey, !pubKey.isEmpty {
-          let type = pubKey.contains("sk-") ? "Apple Secure Enclave (Touch ID)" : "Ed25519 (Software)"
+          let type: String
+          if pubKey.contains("ecdsa-sha2-nistp256") {
+            type = "Apple Secure Enclave (Touch ID NIST P-256)"
+          } else {
+            type = "Software Key"
+          }
           print("  Key Type:    \(type)")
           print("  Public Key:  \(pubKey)")
-          let sshClient = SSHKeygenClient()
-          if let fp = await sshClient.fingerprint(pubKeyURL: defaultPub) {
+          let signingClient = SigningClient()
+          if let fp = await signingClient.fingerprint(pubKeyURL: defaultPub) {
             print("  Fingerprint: \(fp)")
           }
         }
@@ -133,7 +144,9 @@ struct KeyCommand: AsyncParsableCommand {
       // Check rotation backups
       let sshDir = defaultKey.deletingLastPathComponent()
       if let items = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) {
-        let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") && !$0.hasSuffix(".pub") }
+        let backups = items.filter {
+          $0.hasPrefix("invariants_p256.bak-") && !$0.hasSuffix(".pub")
+        }
         if !backups.isEmpty {
           print("  Backups:     \(backups.count) archived rotation backup(s) in \(sshDir.path)")
         }
@@ -210,7 +223,8 @@ struct KeyCommand: AsyncParsableCommand {
       formatter.timeZone = TimeZone(secondsFromGMT: 0)
       let ts = formatter.string(from: Date())
 
-      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_ed25519.bak-\(ts)")
+      let baseName = defaultKey.lastPathComponent
+      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("\(baseName).bak-\(ts)")
       let backupPub = backupKey.appendingPathExtension("pub")
       let oldPubURL = defaultKey.appendingPathExtension("pub")
 
@@ -219,9 +233,9 @@ struct KeyCommand: AsyncParsableCommand {
         try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
       }
 
-      print("Touch your Touch ID sensor to generate your new signing key in the Secure Enclave...")
-      let sshClient = SSHKeygenClient()
-      try await sshClient.generateSigningKey(at: defaultKey)
+      print("Enrolling new hardware signing key in Apple Secure Enclave...")
+      let signingClient = SigningClient()
+      try signingClient.generateSigningKey(at: defaultKey)
 
       print("✓ Local key rotated successfully.")
       print("Old key archived to: \(backupKey.path)")
@@ -308,7 +322,8 @@ struct KeyCommand: AsyncParsableCommand {
         formatter.dateFormat = "yyyyMMddHHmmss"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         let ts = formatter.string(from: Date())
-        let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_ed25519.bak-\(ts)")
+        let baseName = defaultKey.lastPathComponent
+        let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("\(baseName).bak-\(ts)")
         let backupPub = backupKey.appendingPathExtension("pub")
 
         try? FileManager.default.moveItem(at: defaultKey, to: backupKey)
@@ -318,9 +333,9 @@ struct KeyCommand: AsyncParsableCommand {
         print("Archived old key to \(backupKey.path).")
       }
 
-      print("Touch your Touch ID sensor to generate your new signing key in the Secure Enclave...")
-      let sshClient = SSHKeygenClient()
-      try await sshClient.generateSigningKey(at: defaultKey)
+      print("Enrolling fresh hardware signing key in Apple Secure Enclave...")
+      let signingClient = SigningClient()
+      try signingClient.generateSigningKey(at: defaultKey)
 
       guard
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
@@ -356,7 +371,7 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") }
+      let backups = items.filter { $0.hasPrefix("invariants_p256.bak-") }
       guard !backups.isEmpty else {
         print("No rotation backup keys found in \(sshDir.path).")
         return

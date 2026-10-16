@@ -14,7 +14,8 @@ struct SecurityAttackTests {
 
     // Attacker injects a rogue key into invariants/allowed_signers
     let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
-    let rogueKey = "* namespaces=\"invariants\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRogueKey1 rogue@attacker\n"
+    let rogueKey =
+      "* namespaces=\"invariants\" ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMockRogueKey rogue@attacker\n"
     var content = try String(contentsOf: signersURL, encoding: .utf8)
     content.append(rogueKey)
     try content.write(to: signersURL, atomically: true, encoding: .utf8)
@@ -33,9 +34,9 @@ struct SecurityAttackTests {
     try await repo.signed(version: 1)
 
     // Attacker generates throwaway key
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue")
-    try await sshClient.generateThrowawayKey(at: rogueKeyURL)
+    try signingClient.generateThrowawayKey(at: rogueKeyURL)
 
     let roguePub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_rogue.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,7 +48,7 @@ struct SecurityAttackTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Attacker creates version 2 registry and signs with rogueKey
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg2 = Registry(version: 2, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
 
@@ -62,7 +63,7 @@ struct SecurityAttackTests {
         currentRegistry: reg2,
         lockURL: lockURL,
         sigURL: sigURL,
-        sshClient: sshClient
+        signingClient: signingClient
       )
     }
   }

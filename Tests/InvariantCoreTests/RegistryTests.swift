@@ -77,18 +77,18 @@ struct RegistryTests {
     #expect(!tilde.satisfies(v1_3_0))
   }
 
-  @Test("SSH keygen sign and verify with throwaway Ed25519 key")
+  @Test("SigningClient sign and verify with throwaway key")
   func signatureVerification() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let keyURL = tmpDir.appendingPathComponent("id_test_ed25519")
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let keyURL = tmpDir.appendingPathComponent("id_test_p256")
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
     // Read public key
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_test_ed25519.pub"))
+    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_test_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
     let repoDir = tmpDir.appendingPathComponent("repo")
@@ -100,7 +100,7 @@ struct RegistryTests {
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
+    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)

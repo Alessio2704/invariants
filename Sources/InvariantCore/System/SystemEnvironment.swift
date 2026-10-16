@@ -7,10 +7,10 @@ public struct SystemEnvironment: Sendable {
   public let rootURL: URL
   public let binURL: URL
 
-  /// Default user signing key location at `~/.ssh/invariants_ed25519`.
+  /// Default user signing key location at `~/.ssh/invariants_p256`.
   public static var defaultSigningKeyURL: URL {
     FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".ssh/invariants_ed25519")
+      .appendingPathComponent(".ssh/invariants_p256")
   }
 
   public var versionsDirectoryURL: URL {

@@ -38,9 +38,9 @@ struct TeamCollaborationScenarioTests {
     try repo.withRule("team-rule-2")
     try await repo.signed(version: 1)
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let juniorKeyURL = repo.repoURL.appendingPathComponent("id_junior")
-    try await sshClient.generateThrowawayKey(at: juniorKeyURL)
+    try signingClient.generateThrowawayKey(at: juniorKeyURL)
 
     let juniorPub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_junior.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -52,7 +52,7 @@ struct TeamCollaborationScenarioTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Senior bumps registry to v2 and signs with Senior's key
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-2": "hash"])
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
@@ -81,7 +81,7 @@ struct TeamCollaborationScenarioTests {
       currentRegistry: reg3,
       lockURL: lockURL,
       sigURL: sigURL,
-      sshClient: sshClient
+      signingClient: signingClient
     )
   }
 
@@ -91,9 +91,9 @@ struct TeamCollaborationScenarioTests {
     try repo.withRule("team-rule-3")
     try await repo.signed(version: 1)
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let seniorKeyV2 = repo.repoURL.appendingPathComponent("id_senior_v2")
-    try await sshClient.generateThrowawayKey(at: seniorKeyV2)
+    try signingClient.generateThrowawayKey(at: seniorKeyV2)
 
     let oldPub = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
       in: .whitespacesAndNewlines)
@@ -116,7 +116,7 @@ struct TeamCollaborationScenarioTests {
     try rotatedSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Rotation transaction (v2) is signed with the old key to establish authority transition
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-3": "hash"])
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
@@ -144,7 +144,7 @@ struct TeamCollaborationScenarioTests {
       currentRegistry: reg3,
       lockURL: lockURL,
       sigURL: sigURL,
-      sshClient: sshClient
+      signingClient: signingClient
     )
   }
 
@@ -153,10 +153,10 @@ struct TeamCollaborationScenarioTests {
     let repo = try await TestRepo()
     try repo.withRule("team-rule-4")
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let seniorAKey = repo.keyURL
     let seniorBKey = repo.repoURL.appendingPathComponent("id_senior_b")
-    try await sshClient.generateThrowawayKey(at: seniorBKey)
+    try signingClient.generateThrowawayKey(at: seniorBKey)
 
     let pubA = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
       in: .whitespacesAndNewlines)
@@ -168,7 +168,7 @@ struct TeamCollaborationScenarioTests {
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg1 = Registry(version: 1, engine: "^1.0.0", rules: ["team-rule-4": "hash"])
     try await manager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: seniorAKey)
 
@@ -195,7 +195,7 @@ struct TeamCollaborationScenarioTests {
     let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
     let lockData = try #require(CanonicalJSON.serialize(reg3).data(using: .utf8))
     try lockData.write(to: lockURL)
-    try await sshClient.sign(keyURL: seniorAKey, namespace: "invariants", fileURL: lockURL)
+    try await signingClient.sign(keyURL: seniorAKey, namespace: "invariants", fileURL: lockURL)
 
     // Verification must reject because Senior A was revoked in v2
     await #expect(throws: RegistryError.self) {

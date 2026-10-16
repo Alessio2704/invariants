@@ -51,7 +51,7 @@ struct SignersCommand: AsyncParsableCommand {
       abstract: "Add an SSH public key to repository invariants/allowed_signers."
     )
 
-    @Argument(help: "Path to public key file (e.g. ~/.ssh/id_ed25519.pub) or raw public key string.")
+    @Argument(help: "Path to public key file (e.g. ~/.ssh/invariants_p256.pub) or raw public key string.")
     var key: String
 
     @Option(name: .long, help: "Identity / principal for the key (e.g. alice@plans.app).")
@@ -182,7 +182,7 @@ struct SignersCommand: AsyncParsableCommand {
       formatter.timeZone = TimeZone(secondsFromGMT: 0)
       let ts = formatter.string(from: Date())
 
-      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_ed25519.bak-\(ts)")
+      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_p256.bak-\(ts)")
       let backupPub = backupKey.appendingPathExtension("pub")
 
       try FileManager.default.moveItem(at: defaultKey, to: backupKey)
@@ -191,8 +191,8 @@ struct SignersCommand: AsyncParsableCommand {
       }
 
       // 2. Generate new key at defaultKey
-      let sshClient = SSHKeygenClient()
-      try await sshClient.generateSigningKey(at: defaultKey)
+      let signingClient = SigningClient()
+      try signingClient.generateSigningKey(at: defaultKey)
 
       guard
         let newPubContent = try? String(contentsOf: oldPubURL, encoding: .utf8)

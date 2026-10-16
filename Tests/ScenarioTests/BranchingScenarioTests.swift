@@ -9,10 +9,10 @@ struct BranchingScenarioTests {
   @Test("Scenario 1: Invariants initialized on main, branched out to add rules, and merged back")
   func scenario1_initOnMainAndBranchMerge() async throws {
     let repo = try await TestRepo()
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let gitClient = GitClient()
     let runner = SubprocessRunner()
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
 
     // 1. Initialized on main
     let reg1 = Registry(version: 1, engine: "^1.0.0", defaultBranch: "main")
@@ -64,8 +64,8 @@ struct BranchingScenarioTests {
     let repo = try await TestRepo()
     let runner = SubprocessRunner()
     let gitClient = GitClient()
-    let sshClient = SSHKeygenClient()
-    let registryManager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let signingClient = SigningClient()
+    let registryManager = RegistryManager(environment: repo.environment, signingClient: signingClient)
 
     // 1. Initial commit on main so main exists
     let dummyFile = repo.repoURL.appendingPathComponent("README.md")

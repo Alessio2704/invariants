@@ -11,7 +11,7 @@ struct InitManagerTests {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_test_\(UUID().uuidString)")
     let repoURL = tmpDir.appendingPathComponent("test-project")
-    let keyURL = tmpDir.appendingPathComponent("id_ed25519")
+    let keyURL = tmpDir.appendingPathComponent("id_p256")
 
     try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
@@ -27,13 +27,13 @@ struct InitManagerTests {
       arguments: ["-C", repoURL.path, "config", "user.email", "tester@invariants.local"])
 
     // Generate throwaway key
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
     // Run InitManager
     let gitClient = GitClient()
     let env = SystemEnvironment(customRoot: tmpDir.appendingPathComponent("fake_root"))
-    let registryManager = RegistryManager(environment: env, sshClient: sshClient)
+    let registryManager = RegistryManager(environment: env, signingClient: signingClient)
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
     let options = InitOptions(
@@ -93,7 +93,7 @@ struct InitManagerTests {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_custom_branch_\(UUID().uuidString)")
     let repoURL = tmpDir.appendingPathComponent("test-project")
-    let keyURL = tmpDir.appendingPathComponent("id_ed25519")
+    let keyURL = tmpDir.appendingPathComponent("id_p256")
 
     try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
@@ -107,15 +107,15 @@ struct InitManagerTests {
       executableURL: SubprocessRunner.gitURL,
       arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
 
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
     let gitClient = GitClient()
     let detected = await gitClient.detectDefaultBranch(repoRoot: repoURL)
     #expect(detected == "develop")
 
     let env = SystemEnvironment(customRoot: tmpDir.appendingPathComponent("fake_root"))
-    let registryManager = RegistryManager(environment: env, sshClient: sshClient)
+    let registryManager = RegistryManager(environment: env, signingClient: signingClient)
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
     let options = InitOptions(

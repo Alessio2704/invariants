@@ -111,7 +111,7 @@ public struct FloorGuard: Sendable {
     currentRegistry: Registry,
     lockURL: URL,
     sigURL: URL,
-    sshClient: SSHKeygenClient = SSHKeygenClient()
+    signingClient: SigningClient = SigningClient()
   ) async throws(FloorError) {
     let headLock: String
     do {
@@ -161,7 +161,7 @@ public struct FloorGuard: Sendable {
 
       let isValid: Bool
       do {
-        isValid = try await sshClient.verify(
+        isValid = try await signingClient.verify(
           allowedSignersURL: parentSignersURL,
           identity: "*",
           namespace: "invariants",

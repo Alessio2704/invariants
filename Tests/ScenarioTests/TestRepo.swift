@@ -10,7 +10,7 @@ final class TestRepo: @unchecked Sendable {
   let pubKeyURL: URL
   let environment: SystemEnvironment
   private let gitClient: GitClient
-  private let sshClient: SSHKeygenClient
+  private let signingClient: SigningClient
   private let registryManager: RegistryManager
 
   init() async throws {
@@ -18,8 +18,8 @@ final class TestRepo: @unchecked Sendable {
     let baseDir = fm.temporaryDirectory.appendingPathComponent("test_repo_\(UUID().uuidString)")
     self.repoURL = baseDir.appendingPathComponent("repo")
     self.rootURL = baseDir.appendingPathComponent("fake_root")
-    self.keyURL = baseDir.appendingPathComponent("id_ed25519")
-    self.pubKeyURL = baseDir.appendingPathComponent("id_ed25519.pub")
+    self.keyURL = baseDir.appendingPathComponent("id_p256")
+    self.pubKeyURL = baseDir.appendingPathComponent("id_p256.pub")
 
     try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
     try fm.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -33,8 +33,8 @@ final class TestRepo: @unchecked Sendable {
       executableURL: SubprocessRunner.gitURL,
       arguments: ["-C", repoURL.path, "config", "user.email", "test@invariants.local"])
 
-    self.sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    self.signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: keyURL)
 
     let pubKeyData = try Data(contentsOf: pubKeyURL)
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -46,7 +46,7 @@ final class TestRepo: @unchecked Sendable {
 
     self.environment = SystemEnvironment(customRoot: rootURL)
     self.gitClient = GitClient()
-    self.registryManager = RegistryManager(environment: environment, sshClient: sshClient)
+    self.registryManager = RegistryManager(environment: environment, signingClient: signingClient)
   }
 
   deinit {

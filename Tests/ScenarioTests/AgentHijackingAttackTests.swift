@@ -36,10 +36,10 @@ struct AgentHijackingAttackTests {
     try repo.withRule("attack-rule-2")
     try await repo.signed(version: 1, defaultBranch: "main")
 
-    // Agent generates throwaway Ed25519 key
-    let sshClient = SSHKeygenClient()
+    // Agent generates throwaway key
+    let signingClient = SigningClient()
     let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue_agent")
-    try await sshClient.generateThrowawayKey(at: rogueKeyURL)
+    try signingClient.generateThrowawayKey(at: rogueKeyURL)
     let roguePub = try String(contentsOf: repo.repoURL.appendingPathComponent("id_rogue_agent.pub"), encoding: .utf8)
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -50,7 +50,7 @@ struct AgentHijackingAttackTests {
     try signers.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Agent attempts to retarget default_branch to "unprotected" in version 2
-    let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
+    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg2 = Registry(
       version: 2,
       engine: "^1.0.0",
@@ -69,7 +69,7 @@ struct AgentHijackingAttackTests {
         currentRegistry: reg2,
         lockURL: lockURL,
         sigURL: sigURL,
-        sshClient: sshClient
+        signingClient: signingClient
       )
     }
   }

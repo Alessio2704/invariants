@@ -6,26 +6,26 @@ import Testing
 @Suite("Key Lifecycle & Fingerprint Tests", .tags(.unit))
 struct KeyLifecycleTests {
 
-  @Test("SSHKeygenClient computes fingerprint for existing public key and returns nil for missing key")
+  @Test("SigningClient computes fingerprint for existing public key and returns nil for missing key")
   func fingerprintComputation() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("fp_test_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let sshClient = SSHKeygenClient()
+    let signingClient = SigningClient()
     let keyURL = tmpDir.appendingPathComponent("id_test")
     let pubURL = tmpDir.appendingPathComponent("id_test.pub")
 
     // Missing key returns nil
-    let missingFp = await sshClient.fingerprint(pubKeyURL: pubURL)
+    let missingFp = await signingClient.fingerprint(pubKeyURL: pubURL)
     #expect(missingFp == nil)
 
     // Generate throwaway key
-    try await sshClient.generateThrowawayKey(at: keyURL)
+    try signingClient.generateThrowawayKey(at: keyURL)
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
     // Valid fingerprint contains SHA256:
-    let validFp = await sshClient.fingerprint(pubKeyURL: pubURL)
+    let validFp = await signingClient.fingerprint(pubKeyURL: pubURL)
     #expect(validFp != nil)
     #expect(validFp?.contains("SHA256:") == true)
   }
@@ -36,11 +36,11 @@ struct KeyLifecycleTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let activeKey = tmpDir.appendingPathComponent("invariants_ed25519")
-    let activePub = tmpDir.appendingPathComponent("invariants_ed25519.pub")
-    let bak1 = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016120000")
-    let bak1Pub = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016120000.pub")
-    let bak2 = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016130000")
+    let activeKey = tmpDir.appendingPathComponent("invariants_p256")
+    let activePub = tmpDir.appendingPathComponent("invariants_p256.pub")
+    let bak1 = tmpDir.appendingPathComponent("invariants_p256.bak-20261016120000")
+    let bak1Pub = tmpDir.appendingPathComponent("invariants_p256.bak-20261016120000.pub")
+    let bak2 = tmpDir.appendingPathComponent("invariants_p256.bak-20261016130000")
     let otherFile = tmpDir.appendingPathComponent("other_file.txt")
 
     try "active".write(to: activeKey, atomically: true, encoding: .utf8)
@@ -50,9 +50,9 @@ struct KeyLifecycleTests {
     try "bak2".write(to: bak2, atomically: true, encoding: .utf8)
     try "other".write(to: otherFile, atomically: true, encoding: .utf8)
 
-    // Filter backups matching invariants_ed25519.bak-
+    // Filter backups matching invariants_p256.bak-
     let items = try FileManager.default.contentsOfDirectory(atPath: tmpDir.path)
-    let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") }
+    let backups = items.filter { $0.hasPrefix("invariants_p256.bak-") }
     #expect(backups.count == 3)
 
     for item in backups {
@@ -65,15 +65,15 @@ struct KeyLifecycleTests {
     #expect(FileManager.default.fileExists(atPath: otherFile.path))
 
     let remainingBackups = try FileManager.default.contentsOfDirectory(atPath: tmpDir.path)
-      .filter { $0.hasPrefix("invariants_ed25519.bak-") }
+      .filter { $0.hasPrefix("invariants_p256.bak-") }
     #expect(remainingBackups.isEmpty)
   }
 
   @Test("Key status recognizes active, revoked, and unregistered keys in allowed_signers")
   func keyStatusRecognition() throws {
-    let activeKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1... active@company.com"
-    let revokedKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC2... old@company.com"
-    let unknownKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC3... stranger@other.com"
+    let activeKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc1 active@company.com"
+    let revokedKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc2 old@company.com"
+    let unknownKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc3 stranger@other.com"
 
     let signersFile = """
       * namespaces="invariants" \(activeKey)
@@ -103,11 +103,11 @@ struct KeyLifecycleTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let defaultKey = tmpDir.appendingPathComponent("invariants_ed25519")
+    let defaultKey = tmpDir.appendingPathComponent("invariants_p256")
     let defaultPub = defaultKey.appendingPathExtension("pub")
 
-    let sshClient = SSHKeygenClient()
-    try await sshClient.generateThrowawayKey(at: defaultKey)
+    let signingClient = SigningClient()
+    try signingClient.generateThrowawayKey(at: defaultKey)
 
     let originalPub = try String(contentsOf: defaultPub, encoding: .utf8)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -118,14 +118,14 @@ struct KeyLifecycleTests {
     formatter.timeZone = TimeZone(secondsFromGMT: 0)
     let ts = formatter.string(from: Date())
 
-    let backupKey = tmpDir.appendingPathComponent("invariants_ed25519.bak-\(ts)")
+    let backupKey = tmpDir.appendingPathComponent("invariants_p256.bak-\(ts)")
     let backupPub = backupKey.appendingPathExtension("pub")
 
     try FileManager.default.moveItem(at: defaultKey, to: backupKey)
     try FileManager.default.moveItem(at: defaultPub, to: backupPub)
 
     // Generate fresh key
-    try await sshClient.generateThrowawayKey(at: defaultKey)
+    try signingClient.generateThrowawayKey(at: defaultKey)
     let freshPub = try String(contentsOf: defaultPub, encoding: .utf8)
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -139,8 +139,8 @@ struct KeyLifecycleTests {
 
   @Test("Key rotation formats 24-hour grace period in allowed_signers")
   func rotationGracePeriodFormatting() throws {
-    let oldPub = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1... old@company.com"
-    let newPub = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC2... new@company.com"
+    let oldPub = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc1 old@company.com"
+    let newPub = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBAc2 new@company.com"
 
     let initialSigners = "* namespaces=\"invariants\" \(oldPub)\n"
 
