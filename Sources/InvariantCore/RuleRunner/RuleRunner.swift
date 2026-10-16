@@ -222,6 +222,15 @@ public struct RuleRunner: Sendable {
         return candidate
       }
     }
+    // Check compile-time source repo root (for Xcode test runner & local dev)
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    if FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent("Package.swift").path) {
+      return repoRoot
+    }
     // In local development / tests: use current repo root
     return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
   }
@@ -292,6 +301,20 @@ public struct RuleRunner: Sendable {
       if FileManager.default.fileExists(atPath: candidate.path) {
         return candidate
       }
+    }
+    // Check compile-time source repo root (for Xcode test runner & local dev)
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let repoDist = repoRoot.appendingPathComponent("kit-ts/dist/runner.js")
+    if FileManager.default.fileExists(atPath: repoDist.path) {
+      return repoDist
+    }
+    let repoTs = repoRoot.appendingPathComponent("kit-ts/src/runner.ts")
+    if FileManager.default.fileExists(atPath: repoTs.path) {
+      return repoTs
     }
     // Local repo fallback
     let localDist = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
