@@ -139,14 +139,19 @@ struct SudoClientTests {
     #expect(FileManager.default.fileExists(atPath: env.binURL.path))
     #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "dummy binary")
 
-    // 2. Uninstall
+    // 2. Uninstall (first call)
     try await client.uninstall(environment: env)
 
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
+
+    // 3. Uninstall idempotency: calling uninstall again must be a safe, non-throwing no-op
+    try await client.uninstall(environment: env)
+    #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
+    #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
   }
 
-  @Test("removeItem atomically removes file, directory, and ignores non-existent path")
+  @Test("removeItem is strictly idempotent across files, directories, and non-existent paths")
   func removeItemOperations() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -161,16 +166,21 @@ struct SudoClientTests {
     #expect(FileManager.default.fileExists(atPath: file.path))
     #expect(FileManager.default.fileExists(atPath: folder.path))
 
-    // 1. Remove file
+    // 1. Remove file + verify idempotency on repeat call
+    try await client.removeItem(at: file)
+    #expect(!FileManager.default.fileExists(atPath: file.path))
     try await client.removeItem(at: file)
     #expect(!FileManager.default.fileExists(atPath: file.path))
 
-    // 2. Remove directory
+    // 2. Remove directory + verify idempotency on repeat call
+    try await client.removeItem(at: folder)
+    #expect(!FileManager.default.fileExists(atPath: folder.path))
     try await client.removeItem(at: folder)
     #expect(!FileManager.default.fileExists(atPath: folder.path))
 
-    // 3. Remove non-existent path (must be idempotent and succeed)
+    // 3. Remove non-existent path repeat calls
     let nonExistent = tmpDir.appendingPathComponent("ghost")
+    try await client.removeItem(at: nonExistent)
     try await client.removeItem(at: nonExistent)
     #expect(!FileManager.default.fileExists(atPath: nonExistent.path))
   }
