@@ -116,4 +116,18 @@ public struct SSHKeygenClient: Sendable {
       )
     }
   }
+
+  /// Calculates the fingerprint of a public key file using `ssh-keygen -lf <pubKeyURL>`.
+  public func fingerprint(pubKeyURL: URL) async -> String? {
+    guard FileManager.default.fileExists(atPath: pubKeyURL.path) else { return nil }
+    guard
+      let output = try? await runner.run(
+        executableURL: SubprocessRunner.sshKeygenURL,
+        arguments: ["-lf", pubKeyURL.path]
+      ), output.exitCode == 0
+    else {
+      return nil
+    }
+    return output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
 }

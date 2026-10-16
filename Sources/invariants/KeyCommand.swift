@@ -1,0 +1,332 @@
+import ArgumentParser
+import Foundation
+import InvariantCore
+
+struct KeyCommand: AsyncParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "key",
+    abstract: "Manage your local hardware signing key and check repository enrollment.",
+    subcommands: [
+      Generate.self,
+      Show.self,
+      Status.self,
+      Delete.self,
+      Reset.self,
+      Clean.self,
+    ],
+    defaultSubcommand: Status.self
+  )
+
+  struct Generate: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "generate",
+      abstract: "Generate a dedicated Touch ID signing key in the Apple Secure Enclave."
+    )
+
+    @Flag(name: .long, help: "Overwrite existing key if one already exists.")
+    var force: Bool = false
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let defaultPub = defaultKey.appendingPathExtension("pub")
+
+      if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
+        print("Local signing key already exists at \(defaultKey.path).")
+        let pub = try? String(contentsOf: defaultPub, encoding: .utf8)
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pub, !pub.isEmpty {
+          print("\nPublic Key:\n  \(pub)")
+        }
+        print("\nUse 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
+        return
+      }
+
+      print("Touch your Touch ID sensor to generate your signing key in the Secure Enclave...")
+      let sshClient = SSHKeygenClient()
+      try await sshClient.generateSigningKey(at: defaultKey)
+
+      guard
+        let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
+          in: .whitespacesAndNewlines)
+      else {
+        fputs("Error: Key was generated but could not read public key at \(defaultPub.path).\n", stderr)
+        throw ExitCode(1)
+      }
+
+      print("✓ Created Secure Enclave signing key: \(defaultKey.path)")
+      print("\nPublic Key:")
+      print("  \(pubKey)\n")
+
+      // Contextual check: Are we inside an Invariants repository?
+      if let repoRoot = CLIHelpers.findRepoRoot() {
+        let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+        if FileManager.default.fileExists(atPath: signersURL.path) {
+          let signersContent = (try? String(contentsOf: signersURL, encoding: .utf8)) ?? ""
+          if signersContent.contains(pubKey) {
+            print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
+          } else {
+            print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
+            print("Share your public key above with a repository lead to be added via:")
+            print("    invariants signers add \"\(pubKey)\"")
+          }
+        } else {
+          print(
+            "ℹ️  Invariants is not initialized in '\(repoRoot.lastPathComponent)'. Run 'invariants init' to seal it.")
+        }
+      } else {
+        print("Share your public key above with your repository lead to be added as an authorized signer.")
+      }
+    }
+  }
+
+  struct Show: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "show",
+      abstract: "Print your local public signing key string to share with team leads."
+    )
+
+    func run() async throws {
+      let defaultPub = SystemEnvironment.defaultSigningKeyURL.appendingPathExtension("pub")
+      guard FileManager.default.fileExists(atPath: defaultPub.path),
+        let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
+          in: .whitespacesAndNewlines),
+        !pubKey.isEmpty
+      else {
+        fputs(
+          "Error: No public key found at \(defaultPub.path).\nRun 'invariants key generate' to create one.\n", stderr)
+        throw ExitCode(1)
+      }
+      print(pubKey)
+    }
+  }
+
+  struct Status: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "status",
+      abstract: "Display the status of your local signing key and repository authorization."
+    )
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let defaultPub = defaultKey.appendingPathExtension("pub")
+
+      print("[Local Machine Identity]")
+      if FileManager.default.fileExists(atPath: defaultKey.path) {
+        print("  Private Key: \(defaultKey.path)")
+        let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8)
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pubKey, !pubKey.isEmpty {
+          let type = pubKey.contains("sk-") ? "Apple Secure Enclave (Touch ID)" : "Ed25519 (Software)"
+          print("  Key Type:    \(type)")
+          print("  Public Key:  \(pubKey)")
+          let sshClient = SSHKeygenClient()
+          if let fp = await sshClient.fingerprint(pubKeyURL: defaultPub) {
+            print("  Fingerprint: \(fp)")
+          }
+        }
+      } else {
+        print("  Private Key: Not Found (\(defaultKey.path))")
+        print("  To generate a key, run: invariants key generate")
+      }
+
+      // Check rotation backups
+      let sshDir = defaultKey.deletingLastPathComponent()
+      if let items = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) {
+        let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") && !$0.hasSuffix(".pub") }
+        if !backups.isEmpty {
+          print("  Backups:     \(backups.count) archived rotation backup(s) in \(sshDir.path)")
+        }
+      }
+
+      print("")
+      if let repoRoot = CLIHelpers.findRepoRoot() {
+        print("[Active Project: \(repoRoot.lastPathComponent)]")
+        let lockURL = RegistryManager.registryURL(repoRoot: repoRoot)
+        let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+
+        let hasLock = FileManager.default.fileExists(atPath: lockURL.path)
+        let hasSigners = FileManager.default.fileExists(atPath: signersURL.path)
+        if hasLock && hasSigners {
+          if let lockData = try? Data(contentsOf: lockURL), let reg = try? CanonicalJSON.parse(data: lockData) {
+            print("  Registry:    version \(reg.version) (\(reg.rules.count) active rule(s))")
+            print("  Trunk:       \(reg.defaultBranch)")
+          }
+
+          let signersContent = (try? String(contentsOf: signersURL, encoding: .utf8)) ?? ""
+          let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+          if let pubKey, !pubKey.isEmpty {
+            if let matchedLine = signersContent.split(separator: "\n").first(where: { $0.contains(pubKey) }) {
+              if matchedLine.contains("valid-before=") {
+                print("  Your Status: ❌ Revoked / Expired in this repository")
+                print("  Entry:       \(matchedLine)")
+              } else {
+                print("  Your Status: ✅ Authorized Active Signer")
+              }
+            } else {
+              print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
+              print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
+            }
+          } else {
+            print("  Your Status: ℹ️ Read-Only (No local key to check against allowed_signers)")
+          }
+        } else {
+          print("  Invariants:  Not initialized in this repository.")
+          print("  To initialize, run: invariants init")
+        }
+      } else {
+        print("[Active Project]")
+        print("  Not inside a Git repository.")
+      }
+    }
+  }
+
+  struct Delete: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "delete",
+      abstract: "Delete your local private signing key from this machine."
+    )
+
+    @Flag(name: [.customShort("y"), .long], help: "Skip confirmation prompt.")
+    var yes: Bool = false
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let defaultPub = defaultKey.appendingPathExtension("pub")
+
+      guard
+        FileManager.default.fileExists(atPath: defaultKey.path)
+          || FileManager.default.fileExists(atPath: defaultPub.path)
+      else {
+        print("No signing key found at \(defaultKey.path).")
+        return
+      }
+
+      if !yes && CLIHelpers.isInteractive {
+        let confirmed = CLIHelpers.prompt(
+          question: "Are you sure you want to delete \(defaultKey.path)? [y/N]", default: "n")
+        guard confirmed.lowercased() == "y" || confirmed.lowercased() == "yes" else {
+          print("Aborted.")
+          return
+        }
+      }
+
+      try? FileManager.default.removeItem(at: defaultKey)
+      try? FileManager.default.removeItem(at: defaultPub)
+
+      print("✓ Deleted local signing key: \(defaultKey.path)")
+      print("\n⚠️  Important Reminder:")
+      print("This removed the private key from this Mac.")
+      print("If this key was registered in any Git projects, remember to have a team lead run:")
+      print("    invariants signers revoke \"<identity>\"")
+      print("in those repositories to remove its signing authorization.")
+    }
+  }
+
+  struct Reset: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "reset",
+      abstract: "Archive current signing key and generate a fresh Secure Enclave key."
+    )
+
+    @Flag(name: [.customShort("y"), .long], help: "Skip confirmation prompt.")
+    var yes: Bool = false
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let defaultPub = defaultKey.appendingPathExtension("pub")
+
+      if FileManager.default.fileExists(atPath: defaultKey.path) {
+        if !yes && CLIHelpers.isInteractive {
+          let confirmed = CLIHelpers.prompt(
+            question: "This will archive your current key and generate a brand-new one. Continue? [y/N]",
+            default: "n"
+          )
+          guard confirmed.lowercased() == "y" || confirmed.lowercased() == "yes" else {
+            print("Aborted.")
+            return
+          }
+        }
+
+        // Archive old key
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMddHHmmss"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        let ts = formatter.string(from: Date())
+        let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_ed25519.bak-\(ts)")
+        let backupPub = backupKey.appendingPathExtension("pub")
+
+        try? FileManager.default.moveItem(at: defaultKey, to: backupKey)
+        if FileManager.default.fileExists(atPath: defaultPub.path) {
+          try? FileManager.default.moveItem(at: defaultPub, to: backupPub)
+        }
+        print("Archived old key to \(backupKey.path).")
+      }
+
+      print("Touch your Touch ID sensor to generate your new signing key in the Secure Enclave...")
+      let sshClient = SSHKeygenClient()
+      try await sshClient.generateSigningKey(at: defaultKey)
+
+      guard
+        let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
+          in: .whitespacesAndNewlines)
+      else {
+        fputs("Error: Could not read new public key at \(defaultPub.path).\n", stderr)
+        throw ExitCode(1)
+      }
+
+      print("✓ Generated fresh Secure Enclave signing key: \(defaultKey.path)")
+      print("\nNew Public Key:")
+      print("  \(pubKey)\n")
+      print(
+        "Remember to share this new public key with your repository leads to be enrolled via 'invariants signers add'.")
+    }
+  }
+
+  struct Clean: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "clean",
+      abstract: "Remove archived rotation backup keys (.bak-*) from ~/.ssh/."
+    )
+
+    @Flag(name: [.customShort("y"), .long], help: "Skip confirmation prompt.")
+    var yes: Bool = false
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let sshDir = defaultKey.deletingLastPathComponent()
+
+      guard let items = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) else {
+        print("No SSH directory found at \(sshDir.path).")
+        return
+      }
+
+      let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") }
+      guard !backups.isEmpty else {
+        print("No rotation backup keys found in \(sshDir.path).")
+        return
+      }
+
+      if !yes && CLIHelpers.isInteractive {
+        let confirmed = CLIHelpers.prompt(
+          question: "Found \(backups.count) backup file(s) in \(sshDir.path). Delete them? [y/N]",
+          default: "n"
+        )
+        guard confirmed.lowercased() == "y" || confirmed.lowercased() == "yes" else {
+          print("Aborted.")
+          return
+        }
+      }
+
+      var deletedCount = 0
+      for item in backups {
+        let itemURL = sshDir.appendingPathComponent(item)
+        if (try? FileManager.default.removeItem(at: itemURL)) != nil {
+          deletedCount += 1
+        }
+      }
+
+      print("✓ Cleaned up \(deletedCount) rotation backup file(s) from \(sshDir.path).")
+    }
+  }
+}

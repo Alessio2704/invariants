@@ -1,6 +1,16 @@
 #!/bin/sh
 set -eu
 
+if command -v invariants >/dev/null 2>&1; then
+  INSTALLED_V="$(invariants --version 2>/dev/null || echo 'installed')"
+  echo "✓ Invariants is already installed on this machine (${INSTALLED_V})."
+  echo "To upgrade to the latest version, run:"
+  echo "    invariants upgrade"
+  echo "To manage your keys or repository invariants, run:"
+  echo "    invariants key status"
+  exit 0
+fi
+
 if [ $# -lt 1 ]; then
   echo "Usage: ./install.sh <tag> (e.g. ./install.sh v1.0.0)" >&2
   exit 1
@@ -9,16 +19,6 @@ fi
 TAG="$1"
 V="${TAG#v}"
 PREFIX="${INVARIANTS_PREFIX:-/usr/local/invariants}"
-
-# Ensure dedicated signing key exists on developer's machine
-KEY_PATH="$HOME/.ssh/invariants_ed25519"
-if [ ! -f "$KEY_PATH" ]; then
-  echo "Generating dedicated Invariants signing key at $KEY_PATH..."
-  mkdir -p "$HOME/.ssh"
-  chmod 700 "$HOME/.ssh"
-  /usr/bin/ssh-keygen -t ed25519-sk -O application=ssh:invariants -N "" -f "$KEY_PATH" -C "invariants-owner" 2>/dev/null || \
-  /usr/bin/ssh-keygen -t ed25519 -N "" -f "$KEY_PATH" -C "invariants-owner"
-fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -43,7 +43,7 @@ else
 fi
 
 $SUDO /bin/sh -c "set -e
-  mkdir -p '$PREFIX/versions/$V' '$PREFIX/floors'
+  mkdir -p '$PREFIX/versions/$V'
   cp '$WORK/.build/release/invariants' '$PREFIX/versions/$V/'
   mkdir -p '$PREFIX/versions/$V/kit-swift/Sources'
   cp -R '$WORK/Sources/InvariantKit' '$PREFIX/versions/$V/kit-swift/Sources/'

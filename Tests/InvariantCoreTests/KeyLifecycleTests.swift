@@ -1,0 +1,71 @@
+import Foundation
+import Testing
+
+@testable import InvariantCore
+
+@Suite("Key Lifecycle & Fingerprint Tests", .tags(.unit))
+struct KeyLifecycleTests {
+
+  @Test("SSHKeygenClient computes fingerprint for existing public key and returns nil for missing key")
+  func fingerprintComputation() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("fp_test_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let sshClient = SSHKeygenClient()
+    let keyURL = tmpDir.appendingPathComponent("id_test")
+    let pubURL = tmpDir.appendingPathComponent("id_test.pub")
+
+    // Missing key returns nil
+    let missingFp = await sshClient.fingerprint(pubKeyURL: pubURL)
+    #expect(missingFp == nil)
+
+    // Generate throwaway key
+    try await sshClient.generateThrowawayKey(at: keyURL)
+    #expect(FileManager.default.fileExists(atPath: pubURL.path))
+
+    // Valid fingerprint starts with 256 SHA256:
+    let validFp = await sshClient.fingerprint(pubKeyURL: pubURL)
+    #expect(validFp != nil)
+    #expect(validFp?.contains("SHA256:") == true)
+  }
+
+  @Test("Clean rotation backups identifies and removes timestamped backup files")
+  func cleanRotationBackups() throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("clean_test_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let activeKey = tmpDir.appendingPathComponent("invariants_ed25519")
+    let activePub = tmpDir.appendingPathComponent("invariants_ed25519.pub")
+    let bak1 = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016120000")
+    let bak1Pub = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016120000.pub")
+    let bak2 = tmpDir.appendingPathComponent("invariants_ed25519.bak-20261016130000")
+    let otherFile = tmpDir.appendingPathComponent("other_file.txt")
+
+    try "active".write(to: activeKey, atomically: true, encoding: .utf8)
+    try "active-pub".write(to: activePub, atomically: true, encoding: .utf8)
+    try "bak1".write(to: bak1, atomically: true, encoding: .utf8)
+    try "bak1-pub".write(to: bak1Pub, atomically: true, encoding: .utf8)
+    try "bak2".write(to: bak2, atomically: true, encoding: .utf8)
+    try "other".write(to: otherFile, atomically: true, encoding: .utf8)
+
+    // Filter backups matching invariants_ed25519.bak-
+    let items = try FileManager.default.contentsOfDirectory(atPath: tmpDir.path)
+    let backups = items.filter { $0.hasPrefix("invariants_ed25519.bak-") }
+    #expect(backups.count == 3)
+
+    for item in backups {
+      try FileManager.default.removeItem(at: tmpDir.appendingPathComponent(item))
+    }
+
+    // Active key and other file must remain intact
+    #expect(FileManager.default.fileExists(atPath: activeKey.path))
+    #expect(FileManager.default.fileExists(atPath: activePub.path))
+    #expect(FileManager.default.fileExists(atPath: otherFile.path))
+
+    let remainingBackups = try FileManager.default.contentsOfDirectory(atPath: tmpDir.path)
+      .filter { $0.hasPrefix("invariants_ed25519.bak-") }
+    #expect(remainingBackups.isEmpty)
+  }
+}

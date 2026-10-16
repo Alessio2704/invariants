@@ -243,6 +243,42 @@ invariants check --stage pre-commit
 invariants check --stage pre-push
 ```
 
+### Managing Local Keys
+```bash
+# Generate dedicated Touch ID signing key in the Apple Secure Enclave
+invariants key generate
+
+# Print your public key to share with repository leads
+invariants key show
+
+# Check local hardware key status and enrollment in current repository
+invariants key status
+
+# Safely delete local private key from this machine
+invariants key delete
+
+# Reset and generate a fresh Secure Enclave key
+invariants key reset
+
+# Clean up old rotation backup files (.bak-*) from ~/.ssh/
+invariants key clean
+```
+
+### Team Governance & Repository Signers
+```bash
+# List all authorized team signers in the current repository
+invariants signers list
+
+# Authorize a new teammate's public key (prompts for Touch ID to seal registry)
+invariants signers add alice@company.com "sk-ssh-ed25519@openssh.com AAAAGn..."
+
+# Revoke a departed or compromised key
+invariants signers revoke alice@company.com
+
+# Voluntarily rotate your local key with a 24-hour sunset window for the old key
+invariants signers rotate
+```
+
 ### Inspecting Repository Status
 ```bash
 invariants status
