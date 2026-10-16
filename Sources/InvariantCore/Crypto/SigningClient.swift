@@ -14,11 +14,35 @@ public struct SigningClient: Sendable {
   /// Generates a hardware-bound P-256 signing key in the Apple Secure Enclave.
   /// Strictly requires Apple Secure Enclave hardware with Touch ID / Apple Watch biometric protection.
   /// Zero fallback.
-  public func generateSigningKey(at keyURL: URL, comment: String = "invariants-owner") throws(SystemError) {
+  public func generateSigningKey(
+    at keyURL: URL,
+    comment: String = "invariants-owner"
+  ) async throws(SystemError) {
     guard SecureEnclave.isAvailable else {
       throw SystemError.secureEnclaveUnavailable(
         "Apple Secure Enclave hardware is not available on this machine. Secure hardware keys cannot be created."
       )
+    }
+
+    var authError: NSError?
+    let authContext = LAContext()
+    guard authContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else {
+      let desc = authError?.localizedDescription ?? "Touch ID is not configured or available."
+      throw SystemError.cryptographicError("Touch ID biometric verification is required: \(desc)")
+    }
+
+    authContext.localizedReason = "Touch your Touch ID sensor to enroll your Apple Secure Enclave signing key"
+
+    do {
+      let authorized = try await authContext.evaluatePolicy(
+        .deviceOwnerAuthenticationWithBiometrics,
+        localizedReason: "Touch your Touch ID sensor to enroll your Apple Secure Enclave signing key"
+      )
+      guard authorized else {
+        throw SystemError.cryptographicError("Touch ID biometric verification failed.")
+      }
+    } catch {
+      throw SystemError.cryptographicError("Touch ID biometric verification failed: \(error.localizedDescription)")
     }
 
     let parent = keyURL.deletingLastPathComponent()
@@ -43,7 +67,10 @@ public struct SigningClient: Sendable {
 
     let privateKey: SecureEnclave.P256.Signing.PrivateKey
     do {
-      privateKey = try SecureEnclave.P256.Signing.PrivateKey(accessControl: accessControl)
+      privateKey = try SecureEnclave.P256.Signing.PrivateKey(
+        accessControl: accessControl,
+        authenticationContext: authContext
+      )
     } catch {
       throw SystemError.cryptographicError(
         "Failed to generate Secure Enclave private key: \(error.localizedDescription)")

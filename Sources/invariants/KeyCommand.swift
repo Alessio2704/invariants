@@ -42,10 +42,10 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      print("Enrolling hardware signing key in Apple Secure Enclave...")
+      print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
       let signingClient = SigningClient()
       do {
-        try signingClient.generateSigningKey(at: defaultKey)
+        try await signingClient.generateSigningKey(at: defaultKey)
       } catch {
         fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
         throw ExitCode(1)
@@ -233,9 +233,9 @@ struct KeyCommand: AsyncParsableCommand {
         try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
       }
 
-      print("Enrolling new hardware signing key in Apple Secure Enclave...")
+      print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
       let signingClient = SigningClient()
-      try signingClient.generateSigningKey(at: defaultKey)
+      try await signingClient.generateSigningKey(at: defaultKey)
 
       print("✓ Local key rotated successfully.")
       print("Old key archived to: \(backupKey.path)")
@@ -333,9 +333,9 @@ struct KeyCommand: AsyncParsableCommand {
         print("Archived old key to \(backupKey.path).")
       }
 
-      print("Enrolling fresh hardware signing key in Apple Secure Enclave...")
+      print("Touch your Touch ID sensor to enroll a fresh hardware signing key in Apple Secure Enclave...")
       let signingClient = SigningClient()
-      try signingClient.generateSigningKey(at: defaultKey)
+      try await signingClient.generateSigningKey(at: defaultKey)
 
       guard
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(

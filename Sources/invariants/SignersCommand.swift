@@ -191,8 +191,9 @@ struct SignersCommand: AsyncParsableCommand {
       }
 
       // 2. Generate new key at defaultKey
+      print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
       let signingClient = SigningClient()
-      try signingClient.generateSigningKey(at: defaultKey)
+      try await signingClient.generateSigningKey(at: defaultKey)
 
       guard
         let newPubContent = try? String(contentsOf: oldPubURL, encoding: .utf8)
