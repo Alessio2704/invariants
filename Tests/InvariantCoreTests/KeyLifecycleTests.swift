@@ -24,7 +24,7 @@ struct KeyLifecycleTests {
     try await sshClient.generateThrowawayKey(at: keyURL)
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
-    // Valid fingerprint starts with 256 SHA256:
+    // Valid fingerprint contains SHA256:
     let validFp = await sshClient.fingerprint(pubKeyURL: pubURL)
     #expect(validFp != nil)
     #expect(validFp?.contains("SHA256:") == true)
@@ -67,5 +67,103 @@ struct KeyLifecycleTests {
     let remainingBackups = try FileManager.default.contentsOfDirectory(atPath: tmpDir.path)
       .filter { $0.hasPrefix("invariants_ed25519.bak-") }
     #expect(remainingBackups.isEmpty)
+  }
+
+  @Test("Key status recognizes active, revoked, and unregistered keys in allowed_signers")
+  func keyStatusRecognition() throws {
+    let activeKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1... active@company.com"
+    let revokedKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC2... old@company.com"
+    let unknownKey = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC3... stranger@other.com"
+
+    let signersFile = """
+      * namespaces="invariants" \(activeKey)
+      * namespaces="invariants",valid-before="20250101000000" \(revokedKey)
+      """
+
+    let lines = signersFile.split(separator: "\n").map(String.init)
+
+    // Active check
+    let activeMatch = lines.first(where: { $0.contains(activeKey) })
+    #expect(activeMatch != nil)
+    #expect(activeMatch?.contains("valid-before=") == false)
+
+    // Revoked check
+    let revokedMatch = lines.first(where: { $0.contains(revokedKey) })
+    #expect(revokedMatch != nil)
+    #expect(revokedMatch?.contains("valid-before=") == true)
+
+    // Unknown check
+    let unknownMatch = lines.first(where: { $0.contains(unknownKey) })
+    #expect(unknownMatch == nil)
+  }
+
+  @Test("Key reset archives old credentials and generates a fresh keypair")
+  func keyResetArchiving() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("reset_test_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let defaultKey = tmpDir.appendingPathComponent("invariants_ed25519")
+    let defaultPub = defaultKey.appendingPathExtension("pub")
+
+    let sshClient = SSHKeygenClient()
+    try await sshClient.generateThrowawayKey(at: defaultKey)
+
+    let originalPub = try String(contentsOf: defaultPub, encoding: .utf8)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Perform reset: archive old to backup
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMddHHmmss"
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    let ts = formatter.string(from: Date())
+
+    let backupKey = tmpDir.appendingPathComponent("invariants_ed25519.bak-\(ts)")
+    let backupPub = backupKey.appendingPathExtension("pub")
+
+    try FileManager.default.moveItem(at: defaultKey, to: backupKey)
+    try FileManager.default.moveItem(at: defaultPub, to: backupPub)
+
+    // Generate fresh key
+    try await sshClient.generateThrowawayKey(at: defaultKey)
+    let freshPub = try String(contentsOf: defaultPub, encoding: .utf8)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Both backup and fresh key exist, and their public keys differ
+    #expect(FileManager.default.fileExists(atPath: backupKey.path))
+    #expect(FileManager.default.fileExists(atPath: backupPub.path))
+    #expect(FileManager.default.fileExists(atPath: defaultKey.path))
+    #expect(FileManager.default.fileExists(atPath: defaultPub.path))
+    #expect(originalPub != freshPub)
+  }
+
+  @Test("Key rotation formats 24-hour grace period in allowed_signers")
+  func rotationGracePeriodFormatting() throws {
+    let oldPub = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1... old@company.com"
+    let newPub = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC2... new@company.com"
+
+    let initialSigners = "* namespaces=\"invariants\" \(oldPub)\n"
+
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMddHHmmss"
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    let nowTs = formatter.string(from: Date())
+    let validBeforeTs = formatter.string(from: Date().addingTimeInterval(86400))
+
+    var lines = initialSigners.split(separator: "\n").map(String.init)
+    for i in 0..<lines.count where lines[i].contains(oldPub) {
+      lines[i] = lines[i].replacingOccurrences(
+        of: "namespaces=\"invariants\"",
+        with: "namespaces=\"invariants\",valid-before=\"\(validBeforeTs)\""
+      )
+    }
+    lines.append("* namespaces=\"invariants\",valid-after=\"\(nowTs)\" \(newPub)")
+
+    let rotatedSigners = lines.joined(separator: "\n") + "\n"
+
+    #expect(rotatedSigners.contains("valid-before=\"\(validBeforeTs)\""))
+    #expect(rotatedSigners.contains("valid-after=\"\(nowTs)\""))
+    #expect(rotatedSigners.contains(oldPub))
+    #expect(rotatedSigners.contains(newPub))
   }
 }

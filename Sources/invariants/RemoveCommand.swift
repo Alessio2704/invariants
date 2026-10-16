@@ -67,7 +67,7 @@ struct RemoveCommand: AsyncParsableCommand {
 
     // 3. Resolve key and sign
     guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
-      fputs("Error: No SSH signing key found. Specify --key <path>\n", stderr)
+      fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }
 

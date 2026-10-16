@@ -35,7 +35,7 @@ struct InitCommand: AsyncParsableCommand {
 
     // 2. Resolve signing key
     guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
-      fputs("Error: No SSH signing key selected. Specify --key <path> or generate ~/.ssh/invariants_ed25519\n", stderr)
+      fputs("Error: No signing key selected. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }
 

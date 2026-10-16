@@ -10,6 +10,7 @@ struct KeyCommand: AsyncParsableCommand {
       Generate.self,
       Show.self,
       Status.self,
+      Rotate.self,
       Delete.self,
       Reset.self,
       Clean.self,
@@ -178,6 +179,60 @@ struct KeyCommand: AsyncParsableCommand {
         print("[Active Project]")
         print("  Not inside a Git repository.")
       }
+    }
+  }
+
+  struct Rotate: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "rotate",
+      abstract: "Rotate local signing key and update the active repository's allowed_signers."
+    )
+
+    func run() async throws {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      guard FileManager.default.fileExists(atPath: defaultKey.path) else {
+        fputs("Error: No existing signing key found at \(defaultKey.path) to rotate.\n", stderr)
+        throw ExitCode(1)
+      }
+
+      // If inside an Invariants repository with allowed_signers, delegate to SignersCommand.Rotate
+      if let repoRoot = CLIHelpers.findRepoRoot() {
+        let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+        if FileManager.default.fileExists(atPath: signersURL.path) {
+          try await SignersCommand.Rotate().run()
+          return
+        }
+      }
+
+      // Standalone machine rotation (outside any Invariants repository)
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyyMMddHHmmss"
+      formatter.timeZone = TimeZone(secondsFromGMT: 0)
+      let ts = formatter.string(from: Date())
+
+      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_ed25519.bak-\(ts)")
+      let backupPub = backupKey.appendingPathExtension("pub")
+      let oldPubURL = defaultKey.appendingPathExtension("pub")
+
+      try FileManager.default.moveItem(at: defaultKey, to: backupKey)
+      if FileManager.default.fileExists(atPath: oldPubURL.path) {
+        try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
+      }
+
+      print("Touch your Touch ID sensor to generate your new signing key in the Secure Enclave...")
+      let sshClient = SSHKeygenClient()
+      try await sshClient.generateSigningKey(at: defaultKey)
+
+      print("✓ Local key rotated successfully.")
+      print("Old key archived to: \(backupKey.path)")
+      let newPub = (try? String(contentsOf: oldPubURL, encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if let newPub, !newPub.isEmpty {
+        print("\nNew Public Key:\n  \(newPub)\n")
+      }
+      print(
+        "Notice: Not inside an Invariants repository. To enroll this key, have a lead run 'invariants signers add'."
+      )
     }
   }
 

@@ -86,10 +86,6 @@ enum CLIHelpers {
     if FileManager.default.fileExists(atPath: defaultKey.path) {
       return defaultKey
     }
-    let defaultPub = defaultKey.appendingPathExtension("pub")
-    if FileManager.default.fileExists(atPath: defaultPub.path) {
-      return defaultPub
-    }
 
     return nil
   }
@@ -102,7 +98,8 @@ enum CLIHelpers {
 
     if isInteractive {
       let custom = prompt(
-        question: "Invariants signing key not found at ~/.ssh/invariants_ed25519. Enter path to key"
+        question:
+          "Signing key not found at ~/.ssh/invariants_ed25519. Enter path to key (or run 'invariants key generate')"
       )
       if !custom.isEmpty {
         let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
