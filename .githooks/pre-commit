@@ -18,7 +18,7 @@ fi
 swift build
 
 # 4. Swift test unit suite
-swift test --filter "(InvariantCoreTests|InvariantKitTests)"
+swift test
 
 # 5. Kit-TS checks
 (
