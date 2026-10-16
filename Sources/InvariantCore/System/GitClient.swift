@@ -193,62 +193,81 @@ public struct GitClient: Sendable {
     }
   }
 
-  /// Detects the repository's default trunk branch.
-  /// Prioritizes remote origin HEAD, existing canonical trunk branches ('main', 'master', 'trunk', 'develop'),
-  /// git init.defaultBranch, and only falls back to the current branch if no trunk exists yet.
-  public func detectDefaultBranch(repoRoot: URL) async -> String {
-    // 1. Try git symbolic-ref refs/remotes/origin/HEAD
-    if let out = try? await runner.run(
-      executableURL: SubprocessRunner.gitURL,
-      arguments: ["-C", repoRoot.path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-      workingDirectory: repoRoot
-    ), out.exitCode == 0 {
-      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        let parts = trimmed.split(separator: "/")
-        if parts.count >= 2 {
-          return String(parts.dropFirst().joined(separator: "/"))
-        }
-        return trimmed
-      }
-    }
-
-    // 2. If the repository already has an established trunk branch (main or master), prioritize it over transient feature branches
-    for trunkCandidate in ["main", "master"] {
-      if let check = try? await runner.run(
+  /// Returns the name of the remote default branch (e.g. "main" from refs/remotes/origin/HEAD) if available.
+  public func detectRemoteTrunk(repoRoot: URL) async -> String? {
+    guard
+      let out = try? await runner.run(
         executableURL: SubprocessRunner.gitURL,
-        arguments: ["-C", repoRoot.path, "rev-parse", "--verify", "--quiet", "refs/heads/\(trunkCandidate)"],
+        arguments: ["-C", repoRoot.path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
         workingDirectory: repoRoot
-      ), check.exitCode == 0 {
-        return trunkCandidate
-      }
+      ), out.exitCode == 0
+    else {
+      return nil
     }
+    let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    let parts = trimmed.split(separator: "/")
+    return parts.count >= 2 ? String(parts.dropFirst().joined(separator: "/")) : trimmed
+  }
 
-    // 3. Try current branch (e.g. unborn branch from 'git init -b <name>' or initial single-branch repository)
+  /// Returns the current active branch name.
+  public func currentBranch(repoRoot: URL) async -> String? {
+    guard
+      let out = try? await runner.run(
+        executableURL: SubprocessRunner.gitURL,
+        arguments: ["-C", repoRoot.path, "branch", "--show-current"],
+        workingDirectory: repoRoot
+      ), out.exitCode == 0
+    else {
+      return nil
+    }
+    let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  /// Discovers all available branches in the repository, prioritizing remote trunk and canonical branches first.
+  public func discoverBranches(repoRoot: URL) async -> [String] {
+    var branches: [String] = []
+
     if let out = try? await runner.run(
       executableURL: SubprocessRunner.gitURL,
-      arguments: ["-C", repoRoot.path, "branch", "--show-current"],
+      arguments: ["-C", repoRoot.path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
       workingDirectory: repoRoot
     ), out.exitCode == 0 {
-      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
+      branches = out.stdoutString
+        .split(separator: "\n")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    }
+
+    if branches.isEmpty {
+      if let curr = await currentBranch(repoRoot: repoRoot) {
+        branches = [curr]
+      } else {
+        branches = ["main"]
       }
     }
 
-    // 4. Try git config init.defaultBranch
-    if let out = try? await runner.run(
-      executableURL: SubprocessRunner.gitURL,
-      arguments: ["-C", repoRoot.path, "config", "init.defaultBranch"],
-      workingDirectory: repoRoot
-    ), out.exitCode == 0 {
-      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
+    // Sort order: remote trunk first, or 'main' first, or 'master' first
+    let remoteTrunk = await detectRemoteTrunk(repoRoot: repoRoot)
+    var sorted = branches
+    if let remoteTrunk, let idx = sorted.firstIndex(of: remoteTrunk) {
+      let trunk = sorted.remove(at: idx)
+      sorted.insert(trunk, at: 0)
+    } else if let mainIdx = sorted.firstIndex(of: "main") {
+      let main = sorted.remove(at: mainIdx)
+      sorted.insert(main, at: 0)
+    } else if let legacyTrunkIdx = sorted.firstIndex(of: "master") {
+      let legacyTrunk = sorted.remove(at: legacyTrunkIdx)
+      sorted.insert(legacyTrunk, at: 0)
     }
 
-    // 5. Fallback to "main"
-    return "main"
+    return sorted
+  }
+
+  /// Detects the repository's default trunk branch using discovered branches.
+  public func detectDefaultBranch(repoRoot: URL) async -> String {
+    let branches = await discoverBranches(repoRoot: repoRoot)
+    return branches.first ?? "main"
   }
 }

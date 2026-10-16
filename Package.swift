@@ -23,6 +23,16 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
     ],
     targets: [
+        .executableTarget(
+            name: "VersionGenTool",
+            path: "Sources/VersionGenTool",
+            swiftSettings: swiftSettings
+        ),
+        .plugin(
+            name: "VersionPlugin",
+            capability: .buildTool(),
+            dependencies: ["VersionGenTool"]
+        ),
         .target(
             name: "InvariantCore",
             dependencies: [
@@ -30,7 +40,8 @@ let package = Package(
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
+            plugins: ["VersionPlugin"]
         ),
         .target(
             name: "InvariantKit",

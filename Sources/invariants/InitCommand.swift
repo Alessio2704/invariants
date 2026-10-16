@@ -39,13 +39,8 @@ struct InitCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 3. Detect default branch
-    let defaultBranch: String
-    if let branch {
-      defaultBranch = branch
-    } else {
-      defaultBranch = await gitClient.detectDefaultBranch(repoRoot: repoRootURL)
-    }
+    // 3. Select default trunk branch
+    let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL, gitClient: gitClient)
 
     // 4. Initialize repository
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
@@ -67,6 +62,48 @@ struct InitCommand: AsyncParsableCommand {
   }
 
   // MARK: - Helper Methods
+
+  private func selectDefaultBranch(repoRootURL: URL, gitClient: GitClient) async -> String {
+    if let branch {
+      return branch
+    }
+
+    let branches = await gitClient.discoverBranches(repoRoot: repoRootURL)
+    let currentBranch = await gitClient.currentBranch(repoRoot: repoRootURL)
+    let remoteTrunk = await gitClient.detectRemoteTrunk(repoRoot: repoRootURL)
+
+    guard !branches.isEmpty else { return "main" }
+
+    if CLIHelpers.isInteractive {
+      print("\nDiscovered branches in this repository:")
+      for (idx, b) in branches.enumerated() {
+        var annotation = ""
+        if b == remoteTrunk {
+          annotation = " (remote trunk)"
+        } else if b == "main" && remoteTrunk == nil {
+          annotation = " (recommended)"
+        }
+        if b == currentBranch {
+          annotation += " [current]"
+        }
+        print("  [\(idx + 1)] \(b)\(annotation)")
+      }
+
+      let defaultChoice = branches[0]
+      let promptText = "Select trunk branch to protect [1-\(branches.count)] (default: [1] \(defaultChoice))"
+      let choice = CLIHelpers.prompt(question: promptText)
+
+      if let num = Int(choice), num >= 1, num <= branches.count {
+        return branches[num - 1]
+      }
+      if !choice.isEmpty {
+        return choice
+      }
+      return defaultChoice
+    }
+
+    return branches[0]
+  }
 
   private func selectSwiftIndex(repoRootURL: URL) -> String? {
     if let swiftIndex {
