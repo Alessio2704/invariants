@@ -1,6 +1,16 @@
-import ArgumentParser
 import Foundation
 import InvariantCore
+
+enum CLIError: LocalizedError, Equatable {
+  case notInsideGitRepository
+
+  var errorDescription: String? {
+    switch self {
+    case .notInsideGitRepository:
+      return "Not inside a git repository."
+    }
+  }
+}
 
 enum CLIHelpers {
   /// Locates the enclosing git repository root directory from the current working directory.
@@ -21,11 +31,10 @@ enum CLIHelpers {
     }
   }
 
-  /// Locates the enclosing git repository root directory or exits with an error.
-  static func requireRepoRoot() throws -> URL {
+  /// Locates the enclosing git repository root directory or throws an error.
+  static func requireRepoRoot() throws(CLIError) -> URL {
     guard let root = findRepoRoot() else {
-      fputs("Error: Not inside a git repository.\n", stderr)
-      throw ExitCode(1)
+      throw CLIError.notInsideGitRepository
     }
     return root
   }
