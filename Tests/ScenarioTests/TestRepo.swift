@@ -128,7 +128,11 @@ final class TestRepo: @unchecked Sendable {
 
   /// Signs the registry and commits it.
   @discardableResult
-  func signed(repo: String = "test-repo", version: Int = 1) async throws -> TestRepo {
+  func signed(
+    repo: String = "test-repo",
+    version: Int = 1,
+    defaultBranch: String = "main"
+  ) async throws -> TestRepo {
     let fingerprintEngine = FingerprintEngine(gitClient: gitClient)
     var ruleMap: [String: String] = [:]
 
@@ -144,6 +148,7 @@ final class TestRepo: @unchecked Sendable {
       repo: repo,
       version: version,
       engine: "^1.0.0",
+      defaultBranch: defaultBranch,
       rules: ruleMap
     )
 
