@@ -5,33 +5,46 @@ import Testing
 
 @Suite("Engine Tool Management: Signers, Self-Update & Uninstall", .tags(.scenario))
 struct ToolManagementTests {
-  @Test("Signers management: add, list, and remove keys from allowed_signers")
-  func signersAddListRemove() async throws {
+  @Test("Signers management: add, list, soft revoke, and hard revoke keys from in-repo allowed_signers")
+  func signersAddListRevoke() async throws {
     let repo = try await TestRepo()
-    let signersURL = repo.environment.allowedSignersURL
-    let client = SudoClient()
+    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
 
-    // 1. Initial content from TestRepo contains owner key
+    // 1. Initial content from TestRepo contains owner public key
     let initial = try String(contentsOf: signersURL, encoding: .utf8)
-    #expect(initial.contains("owner"))
+    #expect(!initial.isEmpty)
 
-    // 2. Add coworker key
+    // 2. Add coworker key directly (in-repo, no sudo)
     let coworkerKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleCoworkerKey coworker@plans"
-    let newEntry = "alice namespaces=\"git,invariants\" \(coworkerKey)\n"
-    try await client.writePrivilegedFile(at: signersURL, content: newEntry, append: true)
+    let newEntry = "* namespaces=\"invariants\" \(coworkerKey)\n"
+    var content = initial
+    content.append(newEntry)
+    try content.write(to: signersURL, atomically: true, encoding: .utf8)
 
     let updated = try String(contentsOf: signersURL, encoding: .utf8)
-    #expect(updated.contains("alice"))
+    #expect(updated.contains("ExampleCoworkerKey"))
     #expect(updated.contains("coworker@plans"))
 
-    // 3. Remove coworker key by matching "alice"
+    // 3. Soft revoke coworker key (add valid-before)
     let lines = updated.split(separator: "\n").map(String.init)
-    let filtered = lines.filter { !$0.contains("alice") }.joined(separator: "\n") + "\n"
-    try await client.writePrivilegedFile(at: signersURL, content: filtered, append: false)
+    let softRevoked =
+      lines.map { line in
+        if line.contains("coworker@plans") {
+          return "* namespaces=\"invariants\",valid-before=\"20261016T000000Z\" \(coworkerKey)"
+        }
+        return line
+      }.joined(separator: "\n") + "\n"
+    try softRevoked.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let afterRemoval = try String(contentsOf: signersURL, encoding: .utf8)
-    #expect(!afterRemoval.contains("alice"))
-    #expect(afterRemoval.contains("owner"))
+    let afterSoft = try String(contentsOf: signersURL, encoding: .utf8)
+    #expect(afterSoft.contains("valid-before=\"20261016T000000Z\""))
+
+    // 4. Hard revoke coworker key (completely removed from allowed_signers)
+    let hardRevoked = lines.filter { !$0.contains("coworker@plans") }.joined(separator: "\n") + "\n"
+    try hardRevoked.write(to: signersURL, atomically: true, encoding: .utf8)
+
+    let afterHard = try String(contentsOf: signersURL, encoding: .utf8)
+    #expect(!afterHard.contains("coworker@plans"))
   }
 
   @Test("Self-update: installs staged version and atomically updates symlinks")

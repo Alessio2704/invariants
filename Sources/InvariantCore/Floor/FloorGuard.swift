@@ -5,6 +5,7 @@ public enum FloorError: Error, Equatable, Sendable {
   case versionBelowRootFloor(current: Int, rootFloor: Int, repo: String)
   case nonFastForwardPush(branch: String)
   case branchDeletion(branch: String)
+  case unauthorizedSigner(version: Int, parentVersion: Int)
   case systemError(String)
 }
 
@@ -128,6 +129,80 @@ public struct FloorGuard: Sendable {
             throw FloorError.nonFastForwardPush(branch: defaultBranch)
           }
         }
+      }
+    }
+  }
+
+  /// Verifies that if registry.lock or allowed_signers was changed from HEAD,
+  /// the new signature is valid against the parent commit's allowed_signers.
+  public func checkSignerAncestry(
+    repoRoot: URL,
+    currentRegistry: Registry,
+    lockURL: URL,
+    sigURL: URL,
+    sshClient: SSHKeygenClient = SSHKeygenClient()
+  ) async throws(FloorError) {
+    let headLock: String
+    do {
+      headLock = try await gitClient.showFile(
+        repoRoot: repoRoot,
+        commit: "HEAD",
+        relativePath: "invariants/registry.lock"
+      )
+    } catch {
+      // No HEAD commit yet (initial repo setup), nothing to verify against ancestor.
+      return
+    }
+
+    guard let headData = headLock.data(using: .utf8),
+      let parentRegistry = try? CanonicalJSON.parse(data: headData)
+    else {
+      return
+    }
+
+    let isWorkingTreeRegistryModified: Bool
+    do {
+      let currentLockContent = (try? String(contentsOf: lockURL, encoding: .utf8)) ?? ""
+      isWorkingTreeRegistryModified = (headLock != currentLockContent)
+    }
+
+    if currentRegistry.version > parentRegistry.version || isWorkingTreeRegistryModified {
+      let parentSignersContent: String
+      do {
+        parentSignersContent = try await gitClient.showFile(
+          repoRoot: repoRoot,
+          commit: "HEAD",
+          relativePath: "invariants/allowed_signers"
+        )
+      } catch {
+        return
+      }
+
+      let fm = FileManager.default
+      let tmpDir = fm.temporaryDirectory.appendingPathComponent("parent_signers_\(UUID().uuidString)")
+      try? fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+      defer { try? fm.removeItem(at: tmpDir) }
+
+      let parentSignersURL = tmpDir.appendingPathComponent("allowed_signers")
+      guard (try? parentSignersContent.write(to: parentSignersURL, atomically: true, encoding: .utf8)) != nil else {
+        return
+      }
+
+      let isValid: Bool
+      do {
+        isValid = try await sshClient.verify(
+          allowedSignersURL: parentSignersURL,
+          identity: "*",
+          namespace: "invariants",
+          signatureURL: sigURL,
+          fileURL: lockURL
+        )
+      } catch {
+        throw FloorError.unauthorizedSigner(version: currentRegistry.version, parentVersion: parentRegistry.version)
+      }
+
+      if !isValid {
+        throw FloorError.unauthorizedSigner(version: currentRegistry.version, parentVersion: parentRegistry.version)
       }
     }
   }

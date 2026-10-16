@@ -1,3 +1,4 @@
+import CryptoKit
 public import Foundation
 
 /// Coordinates registry reading, writing, signature verification, and floor sync.
@@ -32,12 +33,16 @@ public struct RegistryManager: Sendable {
   ) async throws(RegistryError) -> Registry {
     let lockURL = Self.registryURL(repoRoot: repoRoot)
     let sigURL = Self.signatureURL(repoRoot: repoRoot)
+    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
 
     guard FileManager.default.fileExists(atPath: lockURL.path) else {
       throw RegistryError.fileNotFound(lockURL)
     }
     guard FileManager.default.fileExists(atPath: sigURL.path) else {
       throw RegistryError.signatureNotFound(sigURL)
+    }
+    guard FileManager.default.fileExists(atPath: signersURL.path) else {
+      throw RegistryError.signatureInvalid("Repository allowed_signers not found at \(signersURL.path)")
     }
 
     let lockData: Data
@@ -47,11 +52,29 @@ public struct RegistryManager: Sendable {
       throw RegistryError.decodingFailed("Failed to read registry.lock: \(error.localizedDescription)")
     }
 
-    // Verify cryptographic signature against allowed_signers
+    let registry = try CanonicalJSON.parse(data: lockData)
+
+    // Verify signers_hash binding if declared in registry.lock
+    if let expectedSignersHash = registry.signersHash, !expectedSignersHash.isEmpty {
+      let signersData: Data
+      do {
+        signersData = try Data(contentsOf: signersURL)
+      } catch {
+        throw RegistryError.signatureInvalid("Failed to read repository allowed_signers: \(error.localizedDescription)")
+      }
+      let actualHash = SHA256.hash(data: signersData).map { String(format: "%02x", $0) }.joined()
+      guard actualHash == expectedSignersHash else {
+        throw RegistryError.signatureInvalid(
+          "Allowed signers hash mismatch: repository allowed_signers has been modified without re-signing."
+        )
+      }
+    }
+
+    // Verify cryptographic signature against in-repo allowed_signers
     let isValid: Bool
     do {
       isValid = try await sshClient.verify(
-        allowedSignersURL: environment.allowedSignersURL,
+        allowedSignersURL: signersURL,
         identity: identity,
         namespace: "invariants",
         signatureURL: sigURL,
@@ -64,8 +87,6 @@ public struct RegistryManager: Sendable {
     guard isValid else {
       throw RegistryError.signatureInvalid("Signature in \(sigURL.path) is invalid for \(lockURL.path)")
     }
-
-    let registry = try CanonicalJSON.parse(data: lockData)
 
     // Check engine semver range
     if let currentSemver = Semver(string: installedEngineVersion) {
@@ -91,8 +112,17 @@ public struct RegistryManager: Sendable {
       throw RegistryError.encodingFailed("Could not create invariants directory: \(error.localizedDescription)")
     }
 
+    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+    var updatedRegistry = registry
+    if FileManager.default.fileExists(atPath: signersURL.path) {
+      if let signersData = try? Data(contentsOf: signersURL) {
+        let hash = SHA256.hash(data: signersData)
+        updatedRegistry.signersHash = hash.map { String(format: "%02x", $0) }.joined()
+      }
+    }
+
     let lockURL = Self.registryURL(repoRoot: repoRoot)
-    let canonicalContent = CanonicalJSON.serialize(registry)
+    let canonicalContent = CanonicalJSON.serialize(updatedRegistry)
     guard let data = canonicalContent.data(using: .utf8) else {
       throw RegistryError.encodingFailed("Failed to encode canonical JSON as UTF-8")
     }
@@ -117,12 +147,12 @@ public struct RegistryManager: Sendable {
     // Update root floor
     do {
       try await sudoClient.writeFloor(
-        repo: registry.repo,
-        version: registry.version,
+        repo: updatedRegistry.repo,
+        version: updatedRegistry.version,
         environment: environment
       )
     } catch {
-      throw RegistryError.signatureInvalid("Failed to write root floor for repo \(registry.repo): \(error)")
+      throw RegistryError.signatureInvalid("Failed to write root floor for repo \(updatedRegistry.repo): \(error)")
     }
   }
 }

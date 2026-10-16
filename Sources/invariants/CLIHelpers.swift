@@ -51,27 +51,10 @@ enum CLIHelpers {
     return line == "y" || line == "yes"
   }
 
-  /// Returns all public key candidate files found in ~/.ssh/*.pub.
-  static func discoverCandidateKeys() -> [URL] {
-    let home = FileManager.default.homeDirectoryForCurrentUser
-    let sshDir = home.appendingPathComponent(".ssh")
-    guard let files = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) else {
-      return []
-    }
-    var keys: [URL] = []
-    for file in files.sorted() where file.hasSuffix(".pub") {
-      let pubURL = sshDir.appendingPathComponent(file)
-      if FileManager.default.fileExists(atPath: pubURL.path) {
-        keys.append(pubURL)
-      }
-    }
-    return keys
-  }
-
-  /// Resolves the owner's SSH public key for signing without silent assumptions.
+  /// Resolves the dedicated Invariants signing key.
   /// 1. Uses explicit customPath if passed and valid.
-  /// 2. Reads `git config user.signingkey` if configured and valid.
-  /// 3. Returns nil if neither is configured. (Interactive prompting happens in promptForSigningKey).
+  /// 2. Uses dedicated default key at ~/.ssh/invariants_ed25519 (or .pub).
+  /// 3. Returns nil if not found.
   static func resolveSigningKey(customPath: String? = nil, repoRoot: URL? = nil) -> URL? {
     if let customPath, !customPath.isEmpty {
       let url = URL(fileURLWithPath: (customPath as NSString).expandingTildeInPath)
@@ -80,30 +63,13 @@ enum CLIHelpers {
       }
     }
 
-    // Query git config user.signingkey
-    let pipe = Pipe()
-    let process = Process()
-    process.executableURL = SubprocessRunner.gitURL
-    var args = ["config", "--get", "user.signingkey"]
-    if let repoRoot {
-      args = ["-C", repoRoot.path, "config", "--get", "user.signingkey"]
+    let defaultKey = SystemEnvironment.defaultSigningKeyURL
+    if FileManager.default.fileExists(atPath: defaultKey.path) {
+      return defaultKey
     }
-    process.arguments = args
-    process.standardOutput = pipe
-    process.standardError = Pipe()
-    if (try? process.run()) != nil {
-      process.waitUntilExit()
-      if process.terminationStatus == 0 {
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let rawStr = String(bytes: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let keyStr = rawStr, !keyStr.isEmpty {
-          let path = (keyStr as NSString).expandingTildeInPath
-          let url = URL(fileURLWithPath: path)
-          if FileManager.default.fileExists(atPath: url.path) {
-            return url
-          }
-        }
-      }
+    let defaultPub = defaultKey.appendingPathExtension("pub")
+    if FileManager.default.fileExists(atPath: defaultPub.path) {
+      return defaultPub
     }
 
     return nil
@@ -112,43 +78,17 @@ enum CLIHelpers {
   /// Prompts user to select or provide a signing key during interactive init/commands.
   static func promptForSigningKey(customPath: String? = nil, repoRoot: URL? = nil) -> URL? {
     if let resolved = resolveSigningKey(customPath: customPath, repoRoot: repoRoot) {
-      if isInteractive {
-        let confirm = promptConfirmation(
-          question: "Use detected signing key (\(resolved.path))?",
-          default: true
-        )
-        if confirm {
-          return resolved
-        }
-      } else {
-        return resolved
-      }
+      return resolved
     }
 
-    let candidates = discoverCandidateKeys()
     if isInteractive {
-      if !candidates.isEmpty {
-        print("\nDiscovered SSH public keys:")
-        for (idx, keyURL) in candidates.enumerated() {
-          print("  [\(idx + 1)] \(keyURL.path)")
-        }
-        let choice = prompt(question: "Select key number or enter custom public key path")
-        if let num = Int(choice), num >= 1, num <= candidates.count {
-          return candidates[num - 1]
-        }
-        if !choice.isEmpty {
-          let expanded = URL(fileURLWithPath: (choice as NSString).expandingTildeInPath)
-          if FileManager.default.fileExists(atPath: expanded.path) {
-            return expanded
-          }
-        }
-      } else {
-        let custom = prompt(question: "Enter path to SSH public key (.pub)")
-        if !custom.isEmpty {
-          let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
-          if FileManager.default.fileExists(atPath: expanded.path) {
-            return expanded
-          }
+      let custom = prompt(
+        question: "Invariants signing key not found at ~/.ssh/invariants_ed25519. Enter path to key"
+      )
+      if !custom.isEmpty {
+        let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
+        if FileManager.default.fileExists(atPath: expanded.path) {
+          return expanded
         }
       }
     }

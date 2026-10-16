@@ -142,13 +142,13 @@ struct InitCommand: AsyncParsableCommand {
       rules: [:]
     )
 
-    // 7. Resolve signing key & ensure in allowed_signers
+    // 7. Resolve signing key & write in-repo allowed_signers
     guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
-      fputs("Error: No SSH signing key selected. Specify --key <path> or configure git user.signingkey\n", stderr)
+      fputs("Error: No SSH signing key selected. Specify --key <path> or generate ~/.ssh/invariants_ed25519\n", stderr)
       throw ExitCode(1)
     }
 
-    try await Self.ensureAllowedSigners(keyURL: keyURL, environment: env, runner: runner)
+    try Self.writeInitialAllowedSigners(keyURL: keyURL, repoRootURL: repoRootURL)
 
     print("Signing registry v1 with \(keyURL.lastPathComponent)...")
     try await registryManager.saveAndSign(
@@ -161,6 +161,7 @@ struct InitCommand: AsyncParsableCommand {
     var paths = [
       ".githooks/pre-commit",
       ".githooks/pre-push",
+      "invariants/allowed_signers",
       "invariants/registry.lock",
       "invariants/registry.lock.sig",
       ".gitignore",
@@ -282,44 +283,24 @@ struct InitCommand: AsyncParsableCommand {
     return candidates.sorted()
   }
 
-  static func ensureAllowedSigners(
-    keyURL: URL,
-    environment: SystemEnvironment,
-    runner: SubprocessRunner
-  ) async throws {
-    guard let keyContent = try? String(contentsOf: keyURL, encoding: .utf8) else { return }
-    let trimmedKey = keyContent.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedKey.isEmpty else { return }
+  static func writeInitialAllowedSigners(keyURL: URL, repoRootURL: URL) throws {
+    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRootURL)
+    let parent = signersURL.deletingLastPathComponent()
+    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 
-    let allowedSignersFile = environment.allowedSignersURL
-    let fm = FileManager.default
-
-    if fm.fileExists(atPath: allowedSignersFile.path) {
-      if let existing = try? String(contentsOf: allowedSignersFile, encoding: .utf8), existing.contains(trimmedKey) {
-        return
-      }
+    let pubURL = keyURL.pathExtension == "pub" ? keyURL : keyURL.appendingPathExtension("pub")
+    func readTrimmed(at url: URL) -> String? {
+      guard let str = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+      let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
     }
 
-    let line = "owner \(trimmedKey)\n"
-    if environment.rootURL.path.hasPrefix("/usr/local/invariants") {
-      let keyText = line.trimmingCharacters(in: .newlines)
-      let cmd = "mkdir -p '\(environment.rootURL.path)' && printf '%s\\n' '\(keyText)' >> '\(allowedSignersFile.path)'"
-      _ = try? await runner.run(
-        executableURL: SubprocessRunner.sudoURL,
-        arguments: ["/bin/sh", "-c", cmd]
-      )
-    } else {
-      try? fm.createDirectory(at: environment.rootURL, withIntermediateDirectories: true)
-      if fm.fileExists(atPath: allowedSignersFile.path) {
-        if let handle = try? FileHandle(forWritingTo: allowedSignersFile) {
-          handle.seekToEndOfFile()
-          handle.write(Data(line.utf8))
-          try? handle.close()
-        }
-      } else {
-        try? Data(line.utf8).write(to: allowedSignersFile)
-      }
+    guard let pubContent = readTrimmed(at: pubURL) ?? readTrimmed(at: keyURL) else {
+      throw SystemError.fileIOError("Could not read public key from \(pubURL.path) or \(keyURL.path)")
     }
+
+    let entry = "* namespaces=\"invariants\" \(pubContent)\n"
+    try entry.write(to: signersURL, atomically: true, encoding: .utf8)
   }
 
   static func offerTouchIDForSudo(runner: SubprocessRunner) async {

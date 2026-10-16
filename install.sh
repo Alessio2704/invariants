@@ -9,17 +9,25 @@ fi
 TAG="$1"
 V="${TAG#v}"
 PREFIX="${INVARIANTS_PREFIX:-/usr/local/invariants}"
-SIGNERS="$PREFIX/allowed_signers"
+SIGNERS="${INVARIANTS_SIGNERS:-invariants/allowed_signers}"
 
-if [ ! -f "$SIGNERS" ]; then
-  SIGNERS="$(./scripts/first-install-signers.sh)"
+# Ensure dedicated signing key exists on developer's machine
+KEY_PATH="$HOME/.ssh/invariants_ed25519"
+if [ ! -f "$KEY_PATH" ]; then
+  echo "Generating dedicated Invariants signing key at $KEY_PATH..."
+  mkdir -p "$HOME/.ssh"
+  chmod 700 "$HOME/.ssh"
+  /usr/bin/ssh-keygen -t ed25519-sk -O application=ssh:invariants -N "" -f "$KEY_PATH" -C "invariants-owner" 2>/dev/null || \
+  /usr/bin/ssh-keygen -t ed25519 -N "" -f "$KEY_PATH" -C "invariants-owner"
 fi
 
-echo "Verifying tag signature for $TAG..."
-/usr/bin/git -c gpg.ssh.allowedSignersFile="$SIGNERS" tag -v "$TAG" || {
-  echo "✗ $TAG not signed by a trusted key in $SIGNERS" >&2
-  exit 1
-}
+if [ -f "$SIGNERS" ]; then
+  echo "Verifying tag signature for $TAG..."
+  /usr/bin/git -c gpg.ssh.allowedSignersFile="$SIGNERS" tag -v "$TAG" || {
+    echo "✗ $TAG not signed by a trusted key in $SIGNERS" >&2
+    exit 1
+  }
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -52,7 +60,6 @@ $SUDO /bin/sh -c "set -e
   cp '$WORK/Package.resolved' '$PREFIX/versions/$V/kit-swift/Package.resolved'
   mkdir -p '$PREFIX/versions/$V/kit-ts'
   cp -R '$WORK/kit-ts/dist' '$WORK/kit-ts/node_modules' '$PREFIX/versions/$V/kit-ts/'
-  [ -f '$PREFIX/allowed_signers' ] || cp '$SIGNERS' '$PREFIX/allowed_signers'
   ln -sfn '$PREFIX/versions/$V' '$PREFIX/current'
   mkdir -p /usr/local/bin
   ln -sfn '$PREFIX/current/invariants' /usr/local/bin/invariants

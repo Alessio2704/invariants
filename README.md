@@ -23,43 +23,23 @@ Each failure mode is either **ineffective** (signed or root-owned content is enf
 Trust anchors are root-owned and change only via `sudo` (Touch ID):
 - `/usr/local/invariants/versions/<v>/`: Engine binary and kits (`kit-swift`, `kit-ts`)
 - `/usr/local/invariants/current`: Symlink to active engine version
-- `/usr/local/invariants/allowed_signers`: Owner's trusted SSH public key
 - `/usr/local/invariants/floors/<repo-id>`: Monotonically increasing floor version per project
 
-## Rule Lifecycle
+## Repository Security & Allowed Signers
 
-1. **Scaffold Draft:**
-   ```bash
-   invariants new <id> --targets swift,ts
-   ```
-2. **Write Fixtures First (The Spec):**
-   - Red fixtures in `should_fail/<target>/` with `// expect: CODE` annotations.
-   - Green fixtures in `should_pass/<target>/`.
-3. **Implement Rule:**
-   - Write AST checks in `rule.swift` or `rule.ts`.
-4. **Test Working Tree:**
-   ```bash
-   invariants test <id>
-   ```
-5. **Lock & Activate:**
-   ```bash
-   invariants add <id>
-   ```
-   Requires owner Touch ID signature.
-6. **Continuous Enforcement:**
-   Every git commit and push runs `invariants check`.
-7. **Rule Modifications:**
-   Changes go through `invariants update <id>` + weakening detection report + Touch ID signature.
+- `invariants/allowed_signers`: Team trusted SSH public keys tracked directly in the git repository.
+- `invariants/registry.lock`: Cryptographically signed registry of active rules, containing `signers_hash` (SHA-256 of `allowed_signers`).
+- Signatures are verified using OpenSSH native signature verification (`ssh-keygen -Y verify`).
 
 ## Manual Recovery
 
 Trust resides in standard OpenSSH signatures, not proprietary formats. You can inspect and sign registries by hand:
 ```bash
 # Verify signature
-ssh-keygen -Y verify -f /usr/local/invariants/allowed_signers -I owner -n invariants -s registry.lock.sig < registry.lock
+ssh-keygen -Y verify -f invariants/allowed_signers -I "*" -n invariants -s invariants/registry.lock.sig < invariants/registry.lock
 
 # Sign registry manually
-ssh-keygen -Y sign -f "$(git config user.signingkey)" -n invariants registry.lock
+ssh-keygen -Y sign -f ~/.ssh/invariants_ed25519 -n invariants invariants/registry.lock
 ```
 
 ## Accepted Risks

@@ -116,14 +116,32 @@ extension CheckCommand {
       _ = try await floorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: registry.version)
       _ = try floorGuard.checkRootFloor(repo: registry.repo, currentVersion: registry.version, environment: env)
 
+      let lockURL = RegistryManager.registryURL(repoRoot: repoRootURL)
+      let sigURL = RegistryManager.signatureURL(repoRoot: repoRootURL)
+      try await floorGuard.checkSignerAncestry(
+        repoRoot: repoRootURL,
+        currentRegistry: registry,
+        lockURL: lockURL,
+        sigURL: sigURL
+      )
+
       if stage == "pre-push" {
         let stdinData = FileHandle.standardInput.readDataToEndOfFile()
         let pushedRefs = String(bytes: stdinData, encoding: .utf8) ?? ""
         try await floorGuard.checkNoRewrite(repoRoot: repoRootURL, pushedRefsInput: pushedRefs)
       }
     } catch let floorErr {
-      fputs("✗ invariants floor check failed: \(floorErr)\n", stderr)
-      throw ExitCode(1)
+      switch floorErr {
+      case .unauthorizedSigner(let v, let pv):
+        fputs(
+          "✗ invariants floor check failed: Version \(v) is not signed by an authorized signer from parent version \(pv).\n",
+          stderr
+        )
+        throw ExitCode(70)
+      default:
+        fputs("✗ invariants floor check failed: \(floorErr)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 

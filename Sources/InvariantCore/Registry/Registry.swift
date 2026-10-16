@@ -37,20 +37,32 @@ public struct Registry: Sendable, Equatable, Codable {
   public var project: ProjectConfig?
   public var repo: String
   public var rules: [String: String]
+  public var signersHash: String?
   public var version: Int
+
+  enum CodingKeys: String, CodingKey {
+    case engine
+    case project
+    case repo
+    case rules
+    case signersHash = "signers_hash"
+    case version
+  }
 
   public init(
     repo: String,
     version: Int = 1,
     engine: String = "^1.0.0",
     project: ProjectConfig? = nil,
-    rules: [String: String] = [:]
+    rules: [String: String] = [:],
+    signersHash: String? = nil
   ) {
     self.repo = repo
     self.version = version
     self.engine = engine
     self.project = project
     self.rules = rules
+    self.signersHash = signersHash
   }
 }
 
@@ -100,7 +112,12 @@ public enum CanonicalJSON {
       lines.append("  },")
     }
 
-    // 5. "version"
+    // 5. "signers_hash" (optional)
+    if let signersHash = registry.signersHash, !signersHash.isEmpty {
+      lines.append("  \"signers_hash\": \"\(escape(signersHash))\",")
+    }
+
+    // 6. "version"
     lines.append("  \"version\": \(registry.version)")
 
     lines.append("}\n")

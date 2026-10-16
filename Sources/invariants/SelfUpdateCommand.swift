@@ -44,9 +44,10 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     }
 
     // 1. Verify that tag signature matches allowed_signers
-    let signersURL = env.allowedSignersURL
+    let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: fm.currentDirectoryPath)
+    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
     guard fm.fileExists(atPath: signersURL.path) else {
-      fputs("Error: allowed_signers file not found at \(signersURL.path). Run 'install.sh' first.\n", stderr)
+      fputs("Error: allowed_signers file not found at \(signersURL.path).\n", stderr)
       throw ExitCode(1)
     }
 

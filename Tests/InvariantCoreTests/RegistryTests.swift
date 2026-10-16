@@ -93,23 +93,25 @@ struct RegistryTests {
     let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_test_ed25519.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let allowedSignersURL = tmpDir.appendingPathComponent("allowed_signers")
-    let signersContent = "owner namespaces=\"invariants\" \(pubKeyStr)\n"
+    let repoDir = tmpDir.appendingPathComponent("repo")
+    let invariantsDir = repoDir.appendingPathComponent("invariants")
+    try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
+
+    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
-
-    let repoDir = tmpDir.appendingPathComponent("repo")
-    try FileManager.default.createDirectory(
-      at: repoDir.appendingPathComponent("invariants"), withIntermediateDirectories: true)
 
     let reg = Registry(repo: "test-repo", version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Verify valid
     let loaded = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
-    #expect(loaded == reg)
+    #expect(loaded.repo == reg.repo)
+    #expect(loaded.version == reg.version)
+    #expect(loaded.signersHash != nil)
 
     // Tamper registry.lock
     let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
