@@ -54,11 +54,20 @@ struct InitCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 3. Initialize repository
+    // 3. Detect default branch
+    let defaultBranch: String
+    if let branch {
+      defaultBranch = branch
+    } else {
+      defaultBranch = await gitClient.detectDefaultBranch(repoRoot: repoRootURL)
+    }
+
+    // 4. Initialize repository
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
       repoId: repoId,
       engineVersion: CLIHelpers.engineVersion,
+      defaultBranch: defaultBranch,
       swiftIndexStore: configuredSwiftIndex,
       tsconfigs: configuredTsconfigs,
       keyURL: keyURL

@@ -192,4 +192,38 @@ public struct GitClient: Sendable {
       )
     }
   }
+
+  /// Detects the active or default branch for the repository.
+  public func detectDefaultBranch(repoRoot: URL) async -> String {
+    // 1. Try git symbolic-ref refs/remotes/origin/HEAD
+    if let out = try? await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", repoRoot.path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+      workingDirectory: repoRoot
+    ), out.exitCode == 0 {
+      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        let parts = trimmed.split(separator: "/")
+        if parts.count >= 2 {
+          return String(parts.dropFirst().joined(separator: "/"))
+        }
+        return trimmed
+      }
+    }
+
+    // 2. Try git branch --show-current
+    if let out = try? await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", repoRoot.path, "branch", "--show-current"],
+      workingDirectory: repoRoot
+    ), out.exitCode == 0 {
+      let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return trimmed
+      }
+    }
+
+    // 3. Fallback to "main"
+    return "main"
+  }
 }

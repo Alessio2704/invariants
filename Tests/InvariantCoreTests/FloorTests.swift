@@ -64,5 +64,18 @@ struct FloorTests {
     await #expect(throws: FloorError.self) {
       try await guardObj.checkNoRewrite(repoRoot: tmpDir, pushedRefsInput: nonFfStdin, defaultBranch: "main")
     }
+
+    // 3. Custom default branch (e.g. trunk) protection
+    let trunkDeleteStdin =
+      "refs/heads/trunk 0000000000000000000000000000000000000000 refs/heads/trunk 1111111111111111111111111111111111111111\n"
+    await #expect(throws: FloorError.branchDeletion(branch: "trunk")) {
+      try await guardObj.checkNoRewrite(repoRoot: tmpDir, pushedRefsInput: trunkDeleteStdin, defaultBranch: "trunk")
+    }
+
+    // 4. Feature branch push is permitted even with non-zero refs
+    let featureStdin =
+      "refs/heads/feat 1111111111111111111111111111111111111111 refs/heads/feat 0000000000000000000000000000000000000000\n"
+    // Pushing to feature branch must not throw for protected branch "main"
+    try await guardObj.checkNoRewrite(repoRoot: tmpDir, pushedRefsInput: featureStdin, defaultBranch: "main")
   }
 }

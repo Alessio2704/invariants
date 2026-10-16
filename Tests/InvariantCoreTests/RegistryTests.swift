@@ -25,6 +25,7 @@ struct RegistryTests {
 
     let expected = """
       {
+        "default_branch": "main",
         "engine": "^1.2.0",
         "project": {
           "swift": { "indexStore": "Index/DataStore" },

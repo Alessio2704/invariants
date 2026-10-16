@@ -128,7 +128,11 @@ extension CheckCommand {
       if stage == "pre-push" {
         let stdinData = FileHandle.standardInput.readDataToEndOfFile()
         let pushedRefs = String(bytes: stdinData, encoding: .utf8) ?? ""
-        try await floorGuard.checkNoRewrite(repoRoot: repoRootURL, pushedRefsInput: pushedRefs)
+        try await floorGuard.checkNoRewrite(
+          repoRoot: repoRootURL,
+          pushedRefsInput: pushedRefs,
+          defaultBranch: registry.defaultBranch
+        )
       }
     } catch let floorErr {
       switch floorErr {

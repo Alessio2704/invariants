@@ -65,6 +65,7 @@ struct InitManagerTests {
     let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
     #expect(loaded.repo == "test-init-repo")
+    #expect(loaded.defaultBranch == "main")
     #expect(loaded.project?.swift?.indexStore == "build/Index.noindex/DataStore")
     #expect(loaded.project?.ts?.tsconfig == ["tsconfig.json"])
 
@@ -87,5 +88,48 @@ struct InitManagerTests {
     )
     #expect(logOutput.exitCode == 0)
     #expect(logOutput.stdoutString.contains("Initialize invariants (v1)"))
+  }
+
+  @Test("Initializes with custom default branch")
+  func initializeWithCustomBranch() async throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_custom_branch_\(UUID().uuidString)")
+    let repoURL = tmpDir.appendingPathComponent("test-project")
+    let keyURL = tmpDir.appendingPathComponent("id_ed25519")
+
+    try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    let runner = SubprocessRunner()
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "develop"])
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Branch Tester"])
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
+
+    let sshClient = SSHKeygenClient()
+    try await sshClient.generateThrowawayKey(at: keyURL)
+
+    let gitClient = GitClient()
+    let detected = await gitClient.detectDefaultBranch(repoRoot: repoURL)
+    #expect(detected == "develop")
+
+    let env = SystemEnvironment(customRoot: tmpDir.appendingPathComponent("fake_root"))
+    let registryManager = RegistryManager(environment: env, sshClient: sshClient)
+    let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
+
+    let options = InitOptions(
+      repoId: "custom-branch-repo",
+      engineVersion: "1.0.0",
+      defaultBranch: "develop",
+      keyURL: keyURL
+    )
+
+    try await initManager.initialize(repoRootURL: repoURL, options: options)
+
+    let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
+    #expect(loaded.defaultBranch == "develop")
   }
 }

@@ -4,6 +4,7 @@ public import Foundation
 public struct InitOptions: Sendable {
   public var repoId: String
   public var engineVersion: String
+  public var defaultBranch: String
   public var swiftIndexStore: String?
   public var tsconfigs: [String]
   public var keyURL: URL
@@ -11,12 +12,14 @@ public struct InitOptions: Sendable {
   public init(
     repoId: String,
     engineVersion: String = "1.0.0",
+    defaultBranch: String = "main",
     swiftIndexStore: String? = nil,
     tsconfigs: [String] = [],
     keyURL: URL
   ) {
     self.repoId = repoId
     self.engineVersion = engineVersion
+    self.defaultBranch = defaultBranch
     self.swiftIndexStore = swiftIndexStore
     self.tsconfigs = tsconfigs
     self.keyURL = keyURL
@@ -65,6 +68,7 @@ public struct InitManager: Sendable {
       repo: options.repoId,
       version: 1,
       engine: "^\(options.engineVersion)",
+      defaultBranch: options.defaultBranch,
       project: projectConfig.isEmpty ? nil : projectConfig,
       rules: [:]
     )
