@@ -23,3 +23,6 @@ invariants/.dev/
 
 # Caches
 .cache/
+
+# IDE
+.vscode/
