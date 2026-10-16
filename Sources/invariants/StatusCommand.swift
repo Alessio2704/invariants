@@ -8,19 +8,8 @@ struct StatusCommand: AsyncParsableCommand {
     abstract: "Report invariants configuration, signatures, floor, and rule statuses."
   )
 
-  @Option(name: .long, help: "Explicit repository root path (used in testing).")
-  var repoPath: String?
-
   func run() async throws {
-    let repoRootURL: URL
-    if let repoPath {
-      repoRootURL = URL(fileURLWithPath: repoPath)
-    } else if let found = CLIHelpers.findRepoRoot() {
-      repoRootURL = found
-    } else {
-      fputs("Error: Not inside a git repository.\n", stderr)
-      throw ExitCode(1)
-    }
+    let repoRootURL = try CLIHelpers.requireRepoRoot()
 
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)

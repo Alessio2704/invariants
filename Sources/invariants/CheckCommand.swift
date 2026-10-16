@@ -32,11 +32,8 @@ struct CheckCommand: AsyncParsableCommand {
   @Flag(name: .long, help: "Emit output in machine-readable JSON format.")
   var json: Bool = false
 
-  @Option(name: .long, help: "Explicit repository root path (used in testing).")
-  var repoPath: String?
-
   func run() async throws {
-    let repoRootURL = try resolveRepoRoot()
+    let repoRootURL = try CLIHelpers.requireRepoRoot()
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
     let floorGuard = FloorGuard()
@@ -71,17 +68,6 @@ struct CheckCommand: AsyncParsableCommand {
 }
 
 extension CheckCommand {
-  private func resolveRepoRoot() throws -> URL {
-    if let repoPath {
-      return URL(fileURLWithPath: repoPath)
-    }
-    if let found = CLIHelpers.findRepoRoot() {
-      return found
-    }
-    fputs("Error: Not inside a git repository.\n", stderr)
-    throw ExitCode(1)
-  }
-
   private func verifyRegistry(repoRootURL: URL, registryManager: RegistryManager) async throws -> Registry {
     do {
       return try await registryManager.loadAndVerify(

@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import InvariantCore
 
@@ -18,6 +19,15 @@ enum CLIHelpers {
       }
       current = parent
     }
+  }
+
+  /// Locates the enclosing git repository root directory or exits with an error.
+  static func requireRepoRoot() throws -> URL {
+    guard let root = findRepoRoot() else {
+      fputs("Error: Not inside a git repository.\n", stderr)
+      throw ExitCode(1)
+    }
+    return root
   }
 
   /// Whether current process has an interactive standard input terminal attached.

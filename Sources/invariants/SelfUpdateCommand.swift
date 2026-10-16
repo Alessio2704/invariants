@@ -11,7 +11,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
   @Argument(help: "Signed Git tag to update to (e.g. v1.0.1).")
   var tag: String
 
-  @Option(name: .long, help: "Pre-built stage directory path (used in offline mode / testing).")
+  @Option(name: .long, help: "Pre-built stage directory path for offline installation.")
   var stagePath: String?
 
   func run() async throws {

@@ -22,7 +22,7 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      let repoRoot = try CLIHelpers.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
@@ -68,7 +68,7 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      let repoRoot = try CLIHelpers.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       let keyContent: String
@@ -119,7 +119,7 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      let repoRoot = try CLIHelpers.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
@@ -184,7 +184,7 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      let repoRoot = try CLIHelpers.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
       let defaultKey = SystemEnvironment.defaultSigningKeyURL
 

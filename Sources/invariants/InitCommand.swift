@@ -23,19 +23,8 @@ struct InitCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
 
-  @Option(name: .long, help: "Explicit repository root path (used in testing).")
-  var repoPath: String?
-
   func run() async throws {
-    let repoRootURL: URL
-    if let repoPath {
-      repoRootURL = URL(fileURLWithPath: repoPath)
-    } else if let found = CLIHelpers.findRepoRoot() {
-      repoRootURL = found
-    } else {
-      fputs("Error: Not inside a git repository.\n", stderr)
-      throw ExitCode(1)
-    }
+    let repoRootURL = try CLIHelpers.requireRepoRoot()
 
     let repoId = repo ?? repoRootURL.lastPathComponent.lowercased()
     let env = SystemEnvironment.standard

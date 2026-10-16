@@ -20,11 +20,8 @@ struct UpdateCommand: AsyncParsableCommand {
   @Flag(name: .long, help: "Confirm update even if red-flag weakening is detected.")
   var confirm: Bool = false
 
-  @Option(name: .long, help: "Explicit repository root path (used in testing).")
-  var repoPath: String?
-
   func run() async throws {
-    let repoRootURL = try resolveRepoRoot()
+    let repoRootURL = try CLIHelpers.requireRepoRoot()
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
     let gitClient = GitClient()
@@ -102,17 +99,6 @@ private struct UpdateContext {
 }
 
 extension UpdateCommand {
-  private func resolveRepoRoot() throws -> URL {
-    if let repoPath {
-      return URL(fileURLWithPath: repoPath)
-    }
-    if let found = CLIHelpers.findRepoRoot() {
-      return found
-    }
-    fputs("Error: Not inside a git repository.\n", stderr)
-    throw ExitCode(1)
-  }
-
   private func parseManifests(
     ruleDir: URL,
     tempOldSnapshot: URL,
