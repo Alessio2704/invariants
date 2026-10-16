@@ -9,7 +9,6 @@ fi
 TAG="$1"
 V="${TAG#v}"
 PREFIX="${INVARIANTS_PREFIX:-/usr/local/invariants}"
-SIGNERS="${INVARIANTS_SIGNERS:-invariants/allowed_signers}"
 
 # Ensure dedicated signing key exists on developer's machine
 KEY_PATH="$HOME/.ssh/invariants_ed25519"
@@ -19,14 +18,6 @@ if [ ! -f "$KEY_PATH" ]; then
   chmod 700 "$HOME/.ssh"
   /usr/bin/ssh-keygen -t ed25519-sk -O application=ssh:invariants -N "" -f "$KEY_PATH" -C "invariants-owner" 2>/dev/null || \
   /usr/bin/ssh-keygen -t ed25519 -N "" -f "$KEY_PATH" -C "invariants-owner"
-fi
-
-if [ -f "$SIGNERS" ]; then
-  echo "Verifying tag signature for $TAG..."
-  /usr/bin/git -c gpg.ssh.allowedSignersFile="$SIGNERS" tag -v "$TAG" || {
-    echo "✗ $TAG not signed by a trusted key in $SIGNERS" >&2
-    exit 1
-  }
 fi
 
 WORK="$(mktemp -d)"

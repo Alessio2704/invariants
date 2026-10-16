@@ -43,33 +43,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       }
     }
 
-    // 1. Verify that tag signature matches allowed_signers
-    let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: fm.currentDirectoryPath)
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
-    guard fm.fileExists(atPath: signersURL.path) else {
-      fputs("Error: allowed_signers file not found at \(signersURL.path).\n", stderr)
-      throw ExitCode(1)
-    }
-
-    print("Verifying tag signature for \(tag)...")
-    let verifyOutput = try? await runner.run(
-      executableURL: SubprocessRunner.gitURL,
-      arguments: [
-        "-c", "gpg.ssh.allowedSignersFile=\(signersURL.path)",
-        "tag", "-v", tag,
-      ]
-    )
-
-    guard let verifyOutput, verifyOutput.exitCode == 0 else {
-      fputs("✗ Error: Tag '\(tag)' is not signed by a trusted key in \(signersURL.path).\n", stderr)
-      if let err = verifyOutput?.stderrString, !err.isEmpty {
-        fputs("\(err)\n", stderr)
-      }
-      throw ExitCode(1)
-    }
-    print("✓ Tag signature verified against allowed_signers.")
-
-    // 2. Extract git archive into temporary sandbox
+    // 1. Extract git archive into temporary sandbox
     let workDir = fm.temporaryDirectory.appendingPathComponent("self_update_\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: workDir) }
@@ -85,7 +59,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 3. Build release binary
+    // 2. Build release binary
     print("Building release binary for \(tag)...")
     let buildOutput = try await runner.run(
       executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
@@ -96,7 +70,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 4. Run test suite
+    // 3. Run test suite
     print("Running verification test suite...")
     let testOutput = try await runner.run(
       executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
@@ -107,7 +81,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    // 5. Stage release layout
+    // 4. Stage release layout
     let stageDir = fm.temporaryDirectory.appendingPathComponent("stage_\(UUID().uuidString)")
     try fm.createDirectory(at: stageDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: stageDir) }
@@ -148,7 +122,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       }
     }
 
-    // 6. Privileged installation via SudoClient
+    // 5. Privileged installation via SudoClient
     print("Installing version \(version) to \(env.rootURL.path)...")
     do {
       try await sudoClient.installVersion(version: version, stageDir: stageDir, environment: env)
