@@ -55,7 +55,7 @@ enum CLIHelpers {
   /// 1. Uses explicit customPath if passed and valid.
   /// 2. Uses dedicated default key at ~/.ssh/invariants_ed25519 (or .pub).
   /// 3. Returns nil if not found.
-  static func resolveSigningKey(customPath: String? = nil, repoRoot: URL? = nil) -> URL? {
+  static func resolveSigningKey(customPath: String? = nil) -> URL? {
     if let customPath, !customPath.isEmpty {
       let url = URL(fileURLWithPath: (customPath as NSString).expandingTildeInPath)
       if FileManager.default.fileExists(atPath: url.path) {
@@ -76,8 +76,8 @@ enum CLIHelpers {
   }
 
   /// Prompts user to select or provide a signing key during interactive init/commands.
-  static func promptForSigningKey(customPath: String? = nil, repoRoot: URL? = nil) -> URL? {
-    if let resolved = resolveSigningKey(customPath: customPath, repoRoot: repoRoot) {
+  static func promptForSigningKey(customPath: String? = nil) -> URL? {
+    if let resolved = resolveSigningKey(customPath: customPath) {
       return resolved
     }
 

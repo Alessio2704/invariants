@@ -148,7 +148,7 @@ struct AddCommand: AsyncParsableCommand {
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found. Specify --key <path> or configure git user.signingkey\n", stderr)
       throw ExitCode(1)
     }

@@ -167,7 +167,7 @@ struct ConfigCommand: AsyncParsableCommand {
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key, repoRoot: repoRootURL) else {
+    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }
