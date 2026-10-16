@@ -7,11 +7,6 @@ public struct SystemEnvironment: Sendable {
   public let rootURL: URL
   public let binURL: URL
 
-  /// Returns the repository-scoped allowed_signers URL.
-  public static func allowedSignersURL(in repoRoot: URL) -> URL {
-    repoRoot.appendingPathComponent("invariants/allowed_signers")
-  }
-
   /// Default user signing key location at `~/.ssh/invariants_ed25519`.
   public static var defaultSigningKeyURL: URL {
     FileManager.default.homeDirectoryForCurrentUser

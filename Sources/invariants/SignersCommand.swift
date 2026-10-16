@@ -23,7 +23,7 @@ struct SignersCommand: AsyncParsableCommand {
 
     func run() async throws {
       let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
         print("No invariants/allowed_signers file found at \(signersURL.path).")
@@ -69,7 +69,7 @@ struct SignersCommand: AsyncParsableCommand {
 
     func run() async throws {
       let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       let keyContent: String
       let expanded = (key as NSString).expandingTildeInPath
@@ -120,7 +120,7 @@ struct SignersCommand: AsyncParsableCommand {
 
     func run() async throws {
       let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
         fputs("Error: invariants/allowed_signers not found at \(signersURL.path).\n", stderr)
@@ -185,7 +185,7 @@ struct SignersCommand: AsyncParsableCommand {
 
     func run() async throws {
       let repoRoot = CLIHelpers.findRepoRoot() ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
       let defaultKey = SystemEnvironment.defaultSigningKeyURL
 
       guard FileManager.default.fileExists(atPath: defaultKey.path) else {

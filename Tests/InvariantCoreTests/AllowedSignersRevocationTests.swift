@@ -25,7 +25,7 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
     // Set valid-before to a timestamp in the distant past (2020-01-01)
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
     let signersContent = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
@@ -59,7 +59,7 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
     // Set valid-after to a timestamp in the distant future (2035-01-01)
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
     let signersContent = "* namespaces=\"invariants\",valid-after=\"20350101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
@@ -92,7 +92,7 @@ struct AllowedSignersRevocationTests {
     let invariantsDir = repoDir.appendingPathComponent("invariants")
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
@@ -168,7 +168,7 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
     // 2. Initial signers has both A and B
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
@@ -241,7 +241,7 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
     // Commit 1: Version 1 with senior key in allowed_signers
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoURL)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
     let initialSigners = "* namespaces=\"invariants\" \(seniorPub)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 

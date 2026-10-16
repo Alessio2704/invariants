@@ -39,7 +39,7 @@ final class TestRepo: @unchecked Sendable {
     let pubKeyData = try Data(contentsOf: pubKeyURL)
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
     try fm.createDirectory(at: signersURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: signersURL)

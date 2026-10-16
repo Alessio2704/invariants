@@ -25,6 +25,10 @@ public struct RegistryManager: Sendable {
     repoRoot.appendingPathComponent("invariants/registry.lock.sig")
   }
 
+  public static func allowedSignersURL(repoRoot: URL) -> URL {
+    repoRoot.appendingPathComponent("invariants/allowed_signers")
+  }
+
   /// Loads, parses, and cryptographically verifies `registry.lock`.
   public func loadAndVerify(
     repoRoot: URL,
@@ -33,7 +37,7 @@ public struct RegistryManager: Sendable {
   ) async throws(RegistryError) -> Registry {
     let lockURL = Self.registryURL(repoRoot: repoRoot)
     let sigURL = Self.signatureURL(repoRoot: repoRoot)
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+    let signersURL = Self.allowedSignersURL(repoRoot: repoRoot)
 
     guard FileManager.default.fileExists(atPath: lockURL.path) else {
       throw RegistryError.fileNotFound(lockURL)
@@ -112,7 +116,7 @@ public struct RegistryManager: Sendable {
       throw RegistryError.encodingFailed("Could not create invariants directory: \(error.localizedDescription)")
     }
 
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRoot)
+    let signersURL = Self.allowedSignersURL(repoRoot: repoRoot)
     var updatedRegistry = registry
     if FileManager.default.fileExists(atPath: signersURL.path) {
       if let signersData = try? Data(contentsOf: signersURL) {

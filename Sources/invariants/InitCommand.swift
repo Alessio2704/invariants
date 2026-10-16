@@ -284,7 +284,7 @@ struct InitCommand: AsyncParsableCommand {
   }
 
   static func writeInitialAllowedSigners(keyURL: URL, repoRootURL: URL) throws {
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repoRootURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRootURL)
     let parent = signersURL.deletingLastPathComponent()
     try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 

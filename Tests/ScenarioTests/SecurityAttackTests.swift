@@ -13,7 +13,7 @@ struct SecurityAttackTests {
     try await repo.signed(repo: "attack-repo-1", version: 1)
 
     // Attacker injects a rogue key into invariants/allowed_signers
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     let rogueKey = "* namespaces=\"invariants\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRogueKey1 rogue@attacker\n"
     var content = try String(contentsOf: signersURL, encoding: .utf8)
     content.append(rogueKey)
@@ -41,7 +41,7 @@ struct SecurityAttackTests {
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Attacker appends rogue key to allowed_signers
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     var signersContent = try String(contentsOf: signersURL, encoding: .utf8)
     signersContent.append("* namespaces=\"invariants\" \(roguePub)\n")
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
@@ -112,7 +112,7 @@ struct SecurityAttackTests {
     try repo.withRule("attack-rule-5")
 
     // Expire the key in allowed_signers with valid-before in the past
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     let pubKeyStr = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
       in: .whitespacesAndNewlines)
     let expiredSigners = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"

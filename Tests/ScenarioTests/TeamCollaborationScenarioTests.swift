@@ -46,7 +46,7 @@ struct TeamCollaborationScenarioTests {
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Senior adds Junior's key to invariants/allowed_signers
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     var signersContent = try String(contentsOf: signersURL, encoding: .utf8)
     signersContent.append("* namespaces=\"invariants\" \(juniorPub)\n")
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
@@ -107,7 +107,7 @@ struct TeamCollaborationScenarioTests {
     let validBeforeTs = formatter.string(from: Date().addingTimeInterval(86400))
     let validAfterTs = formatter.string(from: Date())
 
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     let rotatedSigners = """
       * namespaces=\"invariants\",valid-before=\"\(validBeforeTs)\" \(oldPub)
       * namespaces=\"invariants\",valid-after=\"\(validAfterTs)\" \(newPub)
@@ -164,7 +164,7 @@ struct TeamCollaborationScenarioTests {
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Initial signers has both Senior A and Senior B
-    let signersURL = SystemEnvironment.allowedSignersURL(in: repo.repoURL)
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 

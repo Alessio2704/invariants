@@ -97,7 +97,7 @@ struct RegistryTests {
     let invariantsDir = repoDir.appendingPathComponent("invariants")
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
-    let allowedSignersURL = SystemEnvironment.allowedSignersURL(in: repoDir)
+    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
