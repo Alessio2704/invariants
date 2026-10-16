@@ -133,19 +133,33 @@ struct SudoClientTests {
     // 1. Install version 1.0.0
     try await client.installVersion(version: "1.0.0", stageDir: stageDir, environment: env)
 
-    let installedBin = env.versionsDirectoryURL.appendingPathComponent("1.0.0/invariants")
-    #expect(FileManager.default.fileExists(atPath: installedBin.path))
+    let installedBin1 = env.versionsDirectoryURL.appendingPathComponent("1.0.0/invariants")
+    #expect(FileManager.default.fileExists(atPath: installedBin1.path))
     #expect(FileManager.default.fileExists(atPath: env.currentVersionURL.path))
     #expect(FileManager.default.fileExists(atPath: env.binURL.path))
     #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "dummy binary")
 
-    // 2. Uninstall (first call)
+    // 2. Upgrade to version 1.1.0 and verify atomic symlink flip
+    let stageDir2 = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "invariants_stage2_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: stageDir2, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: stageDir2) }
+    try "v1.1.0 binary".write(to: stageDir2.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
+
+    try await client.installVersion(version: "1.1.0", stageDir: stageDir2, environment: env)
+
+    let installedBin2 = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
+    #expect(FileManager.default.fileExists(atPath: installedBin1.path))
+    #expect(FileManager.default.fileExists(atPath: installedBin2.path))
+    #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "v1.1.0 binary")
+
+    // 3. Uninstall (first call)
     try await client.uninstall(environment: env)
 
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
 
-    // 3. Uninstall idempotency: calling uninstall again must be a safe, non-throwing no-op
+    // 4. Uninstall idempotency: calling uninstall again must be a safe, non-throwing no-op
     try await client.uninstall(environment: env)
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))

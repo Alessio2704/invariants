@@ -81,17 +81,23 @@ public struct SudoClient: Sendable {
     environment: SystemEnvironment
   ) async throws(SystemError) {
     let targetVersionDir = environment.versionsDirectoryURL.appendingPathComponent(version)
-    let binParent = environment.binURL.deletingLastPathComponent()
-    let command = """
+    let copyCommand = """
       set -e
-      mkdir -p '\(targetVersionDir.path)' '\(environment.floorsDirectoryURL.path)' '\(binParent.path)'
+      mkdir -p '\(targetVersionDir.path)' '\(environment.floorsDirectoryURL.path)'
       cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
-      ln -sfn '\(targetVersionDir.path)' '\(environment.currentVersionURL.path)'
-      ln -sfn '\(environment.currentVersionURL.path)/invariants' '\(environment.binURL.path)'
+      """
+    try await runPrivilegedOrDirect(command: copyCommand, targetURL: environment.rootURL)
+
+    try await createSymlink(from: targetVersionDir, to: environment.currentVersionURL)
+
+    let currentBinary = environment.currentVersionURL.appendingPathComponent("invariants")
+    try await createSymlink(from: currentBinary, to: environment.binURL)
+
+    let permsCommand = """
       chown -R root:wheel '\(environment.rootURL.path)' 2>/dev/null || true
       chmod -R go-w '\(environment.rootURL.path)' 2>/dev/null || true
       """
-    try await runPrivilegedOrDirect(command: command, targetURL: environment.rootURL)
+    try await runPrivilegedOrDirect(command: permsCommand, targetURL: environment.rootURL)
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
