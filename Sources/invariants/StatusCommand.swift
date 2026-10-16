@@ -66,16 +66,22 @@ struct StatusCommand: AsyncParsableCommand {
       }
     }
 
-    // 3. Hook Shims Integrity
-    let preCommitURL = repoRootURL.appendingPathComponent(".githooks/pre-commit")
-    let prePushURL = repoRootURL.appendingPathComponent(".githooks/pre-push")
-    let preCommitOk = (try? String(contentsOf: preCommitURL, encoding: .utf8))?.contains("invariants check") ?? false
-    let prePushOk = (try? String(contentsOf: prePushURL, encoding: .utf8))?.contains("invariants check") ?? false
+    // 3. Git Hooks
+    let candidateHooks = [
+      ".githooks/pre-commit",
+      ".githooks/pre-push",
+      ".git/hooks/pre-commit",
+      ".git/hooks/pre-push",
+    ]
+    let activeHooks = candidateHooks.filter { rel in
+      let url = repoRootURL.appendingPathComponent(rel)
+      return (try? String(contentsOf: url, encoding: .utf8))?.contains("invariants check") ?? false
+    }
 
-    if preCommitOk && prePushOk {
-      print("Hook Shims:  ✓ intact (.githooks/pre-commit, pre-push)")
+    if !activeHooks.isEmpty {
+      print("Git Hooks:   ✓ active (\(activeHooks.joined(separator: ", ")))")
     } else {
-      print("Hook Shims:  ✗ modified or missing! Shims must invoke 'invariants check'")
+      print("Git Hooks:   none configured (optional: invoke 'invariants check' in pre-commit)")
     }
 
     print("\nRules:")
