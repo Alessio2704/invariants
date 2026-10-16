@@ -39,7 +39,7 @@ struct CheckCommand: AsyncParsableCommand {
     let floorGuard = FloorGuard()
 
     let registry = try await verifyRegistry(repoRootURL: repoRootURL, registryManager: registryManager)
-    try await verifyFloor(repoRootURL: repoRootURL, registry: registry, floorGuard: floorGuard, env: env)
+    try await verifyFloor(repoRootURL: repoRootURL, registry: registry, floorGuard: floorGuard)
 
     let context = CheckContext(
       repoRootURL: repoRootURL,
@@ -95,12 +95,10 @@ extension CheckCommand {
   private func verifyFloor(
     repoRootURL: URL,
     registry: Registry,
-    floorGuard: FloorGuard,
-    env: SystemEnvironment
+    floorGuard: FloorGuard
   ) async throws {
     do {
       _ = try await floorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: registry.version)
-      _ = try floorGuard.checkRootFloor(repo: registry.repo, currentVersion: registry.version, environment: env)
 
       let lockURL = RegistryManager.registryURL(repoRoot: repoRootURL)
       let sigURL = RegistryManager.signatureURL(repoRoot: repoRootURL)

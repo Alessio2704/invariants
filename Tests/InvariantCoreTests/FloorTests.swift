@@ -5,31 +5,46 @@ import Testing
 
 @Suite("Rollback & Floor Protection", .tags(.unit))
 struct FloorTests {
-  @Test("Root floor check refuses versions lower than recorded floor")
-  func rootFloorCheck() throws {
+  @Test("Git history ancestry check refuses versions lower than recorded commit history")
+  func historyFloorCheck() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let fm = FileManager.default
-    let floorsDir = tmpDir.appendingPathComponent("floors")
-    try fm.createDirectory(at: floorsDir, withIntermediateDirectories: true)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let env = SystemEnvironment(customRoot: tmpDir)
-    let floorFile = floorsDir.appendingPathComponent("sample-repo")
-    try Data("5\n".utf8).write(to: floorFile)
+    let runner = SubprocessRunner()
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL, arguments: ["-C", tmpDir.path, "config", "user.name", "Tester"])
+    _ = try await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", tmpDir.path, "config", "user.email", "test@invariants.local"]
+    )
 
-    let guardObj = FloorGuard()
+    let invDir = tmpDir.appendingPathComponent("invariants")
+    try fm.createDirectory(at: invDir, withIntermediateDirectories: true)
+    let lockFile = invDir.appendingPathComponent("registry.lock")
+    let gitClient = GitClient()
+    let guardObj = FloorGuard(gitClient: gitClient)
 
-    // Version 5 is allowed
-    let v5 = try guardObj.checkRootFloor(repo: "sample-repo", currentVersion: 5, environment: env)
-    #expect(v5 == 5)
+    // Commit v1
+    let reg1 = Registry(version: 1, engine: "^1.0.0")
+    try CanonicalJSON.serialize(reg1).data(using: .utf8)?.write(to: lockFile)
+    try await gitClient.commit(repoRoot: tmpDir, paths: ["invariants/registry.lock"], message: "v1")
 
-    // Version 6 is allowed
-    let v6 = try guardObj.checkRootFloor(repo: "sample-repo", currentVersion: 6, environment: env)
-    #expect(v6 == 5)
+    // Commit v2
+    let reg2 = Registry(version: 2, engine: "^1.0.0")
+    try CanonicalJSON.serialize(reg2).data(using: .utf8)?.write(to: lockFile)
+    try await gitClient.commit(repoRoot: tmpDir, paths: ["invariants/registry.lock"], message: "v2")
 
-    // Version 4 is below floor 5 -> must throw versionBelowRootFloor
-    #expect(throws: FloorError.versionBelowRootFloor(current: 4, rootFloor: 5, repo: "sample-repo")) {
-      _ = try guardObj.checkRootFloor(repo: "sample-repo", currentVersion: 4, environment: env)
+    // Current version 2 is valid
+    let maxV = try await guardObj.checkHistory(repoRoot: tmpDir, currentVersion: 2)
+    #expect(maxV == 2)
+
+    // Attempting to evaluate with version 1 must throw versionBelowHistory
+    await #expect(throws: FloorError.versionBelowHistory(current: 1, maxHistoryVersion: 2)) {
+      _ = try await guardObj.checkHistory(repoRoot: tmpDir, currentVersion: 1)
     }
   }
 

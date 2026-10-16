@@ -10,7 +10,7 @@ struct TeamCollaborationScenarioTests {
   func scenarioA_juniorOnboarding() async throws {
     let repo = try await TestRepo()
     try repo.withRule("team-rule-1")
-    try await repo.signed(repo: "team-repo", version: 1)
+    try await repo.signed(version: 1)
 
     // Junior has no signing key, but can load and verify rules immediately
     let manager = RegistryManager(environment: repo.environment)
@@ -36,7 +36,7 @@ struct TeamCollaborationScenarioTests {
   func scenarioB_authorityDelegation() async throws {
     let repo = try await TestRepo()
     try repo.withRule("team-rule-2")
-    try await repo.signed(repo: "team-repo", version: 1)
+    try await repo.signed(version: 1)
 
     let sshClient = SSHKeygenClient()
     let juniorKeyURL = repo.repoURL.appendingPathComponent("id_junior")
@@ -53,7 +53,7 @@ struct TeamCollaborationScenarioTests {
 
     // Senior bumps registry to v2 and signs with Senior's key
     let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
-    let reg2 = Registry(repo: "team-repo", version: 2, engine: "^1.0.0", rules: ["team-rule-2": "hash"])
+    let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-2": "hash"])
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     let gitClient = GitClient()
@@ -89,7 +89,7 @@ struct TeamCollaborationScenarioTests {
   func scenarioC_keyRotation() async throws {
     let repo = try await TestRepo()
     try repo.withRule("team-rule-3")
-    try await repo.signed(repo: "team-repo", version: 1)
+    try await repo.signed(version: 1)
 
     let sshClient = SSHKeygenClient()
     let seniorKeyV2 = repo.repoURL.appendingPathComponent("id_senior_v2")
@@ -117,7 +117,7 @@ struct TeamCollaborationScenarioTests {
 
     // Rotation transaction (v2) is signed with the old key to establish authority transition
     let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
-    let reg2 = Registry(repo: "team-repo", version: 2, engine: "^1.0.0", rules: ["team-rule-3": "hash"])
+    let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-3": "hash"])
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     let gitClient = GitClient()
@@ -169,7 +169,7 @@ struct TeamCollaborationScenarioTests {
     try initialSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
     let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
-    let reg1 = Registry(repo: "team-repo", version: 1, engine: "^1.0.0", rules: ["team-rule-4": "hash"])
+    let reg1 = Registry(version: 1, engine: "^1.0.0", rules: ["team-rule-4": "hash"])
     try await manager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: seniorAKey)
 
     let gitClient = GitClient()

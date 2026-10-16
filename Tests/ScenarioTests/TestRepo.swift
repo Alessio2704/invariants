@@ -129,7 +129,6 @@ final class TestRepo: @unchecked Sendable {
   /// Signs the registry and commits it.
   @discardableResult
   func signed(
-    repo: String = "test-repo",
     version: Int = 1,
     defaultBranch: String = "main"
   ) async throws -> TestRepo {
@@ -145,7 +144,6 @@ final class TestRepo: @unchecked Sendable {
     }
 
     let reg = Registry(
-      repo: repo,
       version: version,
       engine: "^1.0.0",
       defaultBranch: defaultBranch,

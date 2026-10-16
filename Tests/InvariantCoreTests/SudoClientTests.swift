@@ -88,29 +88,6 @@ struct SudoClientTests {
     #expect(try String(contentsOf: link, encoding: .utf8) == "T2")
   }
 
-  @Test("writeFloor writes version to writable directory and overwrites correctly")
-  func writeFloorInSandbox() async throws {
-    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tmpDir) }
-
-    let env = SystemEnvironment(customRoot: tmpDir)
-    let client = SudoClient()
-
-    try await client.writeFloor(repo: "plans-app", version: 1, environment: env)
-
-    let floorFile = env.floorsDirectoryURL.appendingPathComponent("plans-app")
-    #expect(FileManager.default.fileExists(atPath: floorFile.path))
-
-    let content1 = try String(contentsOf: floorFile, encoding: .utf8)
-    #expect(content1 == "1\n")
-
-    try await client.writeFloor(repo: "plans-app", version: 2, environment: env)
-
-    let content2 = try String(contentsOf: floorFile, encoding: .utf8)
-    #expect(content2 == "2\n")
-  }
-
   @Test("installVersion packages version and sets symlinks, uninstall removes them")
   func installVersionAndUninstall() async throws {
     let tmpRoot = FileManager.default.temporaryDirectory.appendingPathComponent("invariants_root_\(UUID().uuidString)")

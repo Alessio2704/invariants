@@ -2,7 +2,6 @@ public import Foundation
 
 public enum FloorError: Error, Equatable, Sendable {
   case versionBelowHistory(current: Int, maxHistoryVersion: Int)
-  case versionBelowRootFloor(current: Int, rootFloor: Int, repo: String)
   case nonFastForwardPush(branch: String)
   case branchDeletion(branch: String)
   case unauthorizedSigner(version: Int, parentVersion: Int)
@@ -56,34 +55,6 @@ public struct FloorGuard: Sendable {
       throw FloorError.versionBelowHistory(current: currentVersion, maxHistoryVersion: maxVersion)
     }
     return maxVersion
-  }
-
-  public func checkRootFloor(
-    repo: String,
-    currentVersion: Int,
-    environment: SystemEnvironment
-  ) throws(FloorError) -> Int {
-    let floorFile = environment.floorsDirectoryURL.appendingPathComponent(repo)
-    guard FileManager.default.fileExists(atPath: floorFile.path) else {
-      return currentVersion
-    }
-
-    let content: String
-    do {
-      content = try String(contentsOf: floorFile, encoding: .utf8)
-    } catch {
-      throw FloorError.systemError("Failed to read root floor file at \(floorFile.path): \(error.localizedDescription)")
-    }
-
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let rootFloor = Int(trimmed) else {
-      throw FloorError.systemError("Invalid content in root floor file \(floorFile.path): '\(trimmed)'")
-    }
-
-    if currentVersion < rootFloor {
-      throw FloorError.versionBelowRootFloor(current: currentVersion, rootFloor: rootFloor, repo: repo)
-    }
-    return rootFloor
   }
 
   /// Pre-push hook guard: Rejects force-pushes or deletions of the default branch.

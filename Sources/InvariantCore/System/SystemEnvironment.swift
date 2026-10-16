@@ -13,10 +13,6 @@ public struct SystemEnvironment: Sendable {
       .appendingPathComponent(".ssh/invariants_ed25519")
   }
 
-  public var floorsDirectoryURL: URL {
-    rootURL.appendingPathComponent("floors")
-  }
-
   public var versionsDirectoryURL: URL {
     rootURL.appendingPathComponent("versions")
   }

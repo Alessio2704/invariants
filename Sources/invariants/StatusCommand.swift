@@ -29,7 +29,7 @@ struct StatusCommand: AsyncParsableCommand {
       registry = loaded
       print("Engine:      \(CLIHelpers.engineVersion) (satisfies range '\(loaded.engine)')")
       print("Signature:   ✓ valid (verified against allowed_signers)")
-      print("Registry:    v\(loaded.version) (repo: \(loaded.repo))")
+      print("Registry:    v\(loaded.version)")
     } catch let regErr {
       switch regErr {
       case .signatureInvalid:
@@ -45,13 +45,9 @@ struct StatusCommand: AsyncParsableCommand {
 
     // 2. Floor
     if let reg = registry {
-      let floorFile = env.floorsDirectoryURL.appendingPathComponent(reg.repo)
-      let floorContent = try? String(contentsOf: floorFile, encoding: .utf8)
-      if fm.fileExists(atPath: floorFile.path), let content = floorContent {
-        let floorVal = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        print("Root Floor:  \(floorVal) (registry is v\(reg.version))")
-      } else {
-        print("Root Floor:  none recorded")
+      let floorGuard = FloorGuard()
+      if let histFloor = try? await floorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: reg.version) {
+        print("Git Floor:   v\(histFloor) (history max)")
       }
     }
 

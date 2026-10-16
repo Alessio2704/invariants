@@ -2,7 +2,6 @@ public import Foundation
 
 /// Options for initializing invariants in a repository.
 public struct InitOptions: Sendable {
-  public var repoId: String
   public var engineVersion: String
   public var defaultBranch: String
   public var swiftIndexStore: String?
@@ -10,14 +9,12 @@ public struct InitOptions: Sendable {
   public var keyURL: URL
 
   public init(
-    repoId: String,
     engineVersion: String = "1.0.0",
     defaultBranch: String = "main",
     swiftIndexStore: String? = nil,
     tsconfigs: [String] = [],
     keyURL: URL
   ) {
-    self.repoId = repoId
     self.engineVersion = engineVersion
     self.defaultBranch = defaultBranch
     self.swiftIndexStore = swiftIndexStore
@@ -65,7 +62,6 @@ public struct InitManager: Sendable {
 
     // 3. Create Registry v1
     let registry = Registry(
-      repo: options.repoId,
       version: 1,
       engine: "^\(options.engineVersion)",
       defaultBranch: options.defaultBranch,

@@ -5,16 +5,13 @@ public import Foundation
 public struct RegistryManager: Sendable {
   public let environment: SystemEnvironment
   private let sshClient: SSHKeygenClient
-  private let sudoClient: SudoClient
 
   public init(
     environment: SystemEnvironment = .standard,
-    sshClient: SSHKeygenClient = SSHKeygenClient(),
-    sudoClient: SudoClient = SudoClient()
+    sshClient: SSHKeygenClient = SSHKeygenClient()
   ) {
     self.environment = environment
     self.sshClient = sshClient
-    self.sudoClient = sudoClient
   }
 
   public static func registryURL(repoRoot: URL) -> URL {
@@ -146,17 +143,6 @@ public struct RegistryManager: Sendable {
       )
     } catch {
       throw RegistryError.signatureInvalid("Failed to sign registry.lock: \(error)")
-    }
-
-    // Update root floor
-    do {
-      try await sudoClient.writeFloor(
-        repo: updatedRegistry.repo,
-        version: updatedRegistry.version,
-        environment: environment
-      )
-    } catch {
-      throw RegistryError.signatureInvalid("Failed to write root floor for repo \(updatedRegistry.repo): \(error)")
     }
   }
 }

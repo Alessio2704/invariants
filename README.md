@@ -140,7 +140,6 @@ The engine verifies all fixtures before allowing a rule to be locked into the re
 
 ### 3. Cryptographically Signed Registry (`registry.lock`)
 All active rules are tracked in `invariants/registry.lock`, formatted in deterministic Canonical JSON:
-- `repo`: Unique project identifier.
 - `version`: Monotonically increasing version counter.
 - `default_branch`: The cryptographically protected trunk branch (`main`, `develop`, etc.).
 - `rules`: Mapping of rule IDs to their SHA-256 directory tree fingerprints.
@@ -184,7 +183,6 @@ Because `default_branch` is inside the signed `registry.lock`, the engine enforc
 
 ### Local Developer Storage
 - `~/.ssh/invariants_ed25519`: Dedicated Touch ID SSH key generated in the Apple Secure Enclave.
-- `~/.invariants/floors/<repo-id>`: Local monotonic floor preventing version rollback.
 
 ---
 
@@ -198,7 +196,7 @@ Because `default_branch` is inside the signed `registry.lock`, the engine enforc
 | **Rogue Authorization** | Signs a weakened registry using its own newly generated key. | `FloorGuard.checkSignerAncestry` walks Git history and confirms the key was absent in the parent commit's `allowed_signers`. | ❌ **Rejected** (`unauthorizedSigner`) |
 | **Trunk Force Push** | Attempts `git push --force` to rewind trunk history before an invariant existed. | `FloorGuard.checkNoRewrite` evaluates `git merge-base --is-ancestor` on `default_branch`. | ❌ **Rejected** (`nonFastForwardPush`) |
 | **Trunk Deletion** | Attempts `git push origin :main` to delete the trunk branch. | `FloorGuard.checkNoRewrite` detects zero SHA `000000...` on the protected ref. | ❌ **Rejected** (`branchDeletion`) |
-| **Version Downgrade** | Reverts Git working tree to an older registry version ($v1 < v5$). | Local root floor (`~/.invariants/floors/<repo>`) and Git log history assert $v_{\text{current}} \ge v_{\text{max}}$. | ❌ **Rejected** (`versionBelowRootFloor`) |
+| **Version Downgrade** | Reverts Git working tree to an older registry version ($v1 < v5$). | Git DAG commit ancestry walking (`FloorGuard.checkHistory`) asserts $v_{\text{current}} \ge v_{\text{max}}$. | ❌ **Rejected** (`versionBelowHistory`) |
 | **Local Hook Bypass** | Executes `git commit --no-verify` or `git push --no-verify`. | The ultimate floor is CI: running `invariants check` in GitHub Actions blocks the merge. | ❌ **Blocked at CI Gate** |
 
 ---
@@ -210,8 +208,8 @@ Because `default_branch` is inside the signed `registry.lock`, the engine enforc
 # Initialize invariants/allowed_signers, registry.lock, and sign v1 with Touch ID
 invariants init
 
-# Specify custom repo ID or trunk branch
-invariants init --repo my-app --branch main --key ~/.ssh/custom_key
+# Specify custom trunk branch
+invariants init --branch main
 ```
 
 ### Authoring Rules with Full IDE Autocompletion
@@ -249,7 +247,7 @@ invariants check --stage pre-push
 ```bash
 invariants status
 ```
-Displays installed engine version, signature validity, root floor, configured Git hooks, and the status of all active and draft rules.
+Displays installed engine version, signature validity, Git floor, configured Git hooks, and the status of all active and draft rules.
 
 ---
 

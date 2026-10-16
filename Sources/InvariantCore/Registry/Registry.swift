@@ -36,7 +36,6 @@ public struct Registry: Sendable, Equatable, Codable {
   public var defaultBranch: String
   public var engine: String
   public var project: ProjectConfig?
-  public var repo: String
   public var rules: [String: String]
   public var signersHash: String?
   public var version: Int
@@ -45,14 +44,12 @@ public struct Registry: Sendable, Equatable, Codable {
     case defaultBranch = "default_branch"
     case engine
     case project
-    case repo
     case rules
     case signersHash = "signers_hash"
     case version
   }
 
   public init(
-    repo: String,
     version: Int = 1,
     engine: String = "^1.0.0",
     defaultBranch: String = "main",
@@ -60,7 +57,6 @@ public struct Registry: Sendable, Equatable, Codable {
     rules: [String: String] = [:],
     signersHash: String? = nil
   ) {
-    self.repo = repo
     self.version = version
     self.engine = engine
     self.defaultBranch = defaultBranch
@@ -71,7 +67,6 @@ public struct Registry: Sendable, Equatable, Codable {
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.repo = try container.decode(String.self, forKey: .repo)
     self.version = try container.decode(Int.self, forKey: .version)
     self.engine = try container.decode(String.self, forKey: .engine)
     self.defaultBranch = try container.decodeIfPresent(String.self, forKey: .defaultBranch) ?? "main"
@@ -93,7 +88,7 @@ public enum CanonicalJSON {
     // 2. "engine"
     lines.append("  \"engine\": \"\(escape(registry.engine))\",")
 
-    // 2. "project" (optional)
+    // 3. "project" (optional)
     if let project = registry.project, !project.isEmpty {
       lines.append("  \"project\": {")
       var projEntries: [String] = []
@@ -112,9 +107,6 @@ public enum CanonicalJSON {
       }
       lines.append("  },")
     }
-
-    // 3. "repo"
-    lines.append("  \"repo\": \"\(escape(registry.repo))\",")
 
     // 4. "rules"
     if registry.rules.isEmpty {

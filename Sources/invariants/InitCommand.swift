@@ -8,9 +8,6 @@ struct InitCommand: AsyncParsableCommand {
     abstract: "Initialize invariants in a project and sign registry v1."
   )
 
-  @Option(name: .long, help: "Unique identifier for this repository.")
-  var repo: String?
-
   @Option(name: .long, help: "Default branch name (default: auto-detected or main).")
   var branch: String?
 
@@ -26,12 +23,11 @@ struct InitCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
-    let repoId = repo ?? repoRootURL.lastPathComponent.lowercased()
     let env = SystemEnvironment.standard
     let registryManager = RegistryManager(environment: env)
     let gitClient = GitClient()
 
-    print("Initializing invariants in \(repoRootURL.lastPathComponent) (repo ID: '\(repoId)')...")
+    print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Detect project inputs interactively or via flags
     let configuredSwiftIndex = selectSwiftIndex(repoRootURL: repoRootURL)
@@ -54,7 +50,6 @@ struct InitCommand: AsyncParsableCommand {
     // 4. Initialize repository
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
-      repoId: repoId,
       engineVersion: CLIHelpers.engineVersion,
       defaultBranch: defaultBranch,
       swiftIndexStore: configuredSwiftIndex,

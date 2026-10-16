@@ -10,7 +10,7 @@ struct AgentHijackingAttackTests {
   func attack1_tamperDefaultBranchWithoutSignature() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-1")
-    try await repo.signed(repo: "agent-tamper-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
     let originalContent = try String(contentsOf: lockURL, encoding: .utf8)
@@ -34,7 +34,7 @@ struct AgentHijackingAttackTests {
   func attack2_selfAuthorizedKeyCannotChangeDefaultBranch() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-2")
-    try await repo.signed(repo: "agent-key-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     // Agent generates throwaway Ed25519 key
     let sshClient = SSHKeygenClient()
@@ -52,7 +52,6 @@ struct AgentHijackingAttackTests {
     // Agent attempts to retarget default_branch to "unprotected" in version 2
     let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
     let reg2 = Registry(
-      repo: "agent-key-repo",
       version: 2,
       engine: "^1.0.0",
       defaultBranch: "unprotected"
@@ -79,7 +78,7 @@ struct AgentHijackingAttackTests {
   func attack3_forcePushOverSignedTrunkBranchRejected() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-3")
-    try await repo.signed(repo: "force-push-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     let manager = RegistryManager(environment: repo.environment)
     let reg = try await manager.loadAndVerify(repoRoot: repo.repoURL)
@@ -104,7 +103,7 @@ struct AgentHijackingAttackTests {
   func attack4_forcePushOverCustomTrunkBranchRejected() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-4")
-    try await repo.signed(repo: "custom-trunk-repo", version: 1, defaultBranch: "develop")
+    try await repo.signed(version: 1, defaultBranch: "develop")
 
     let manager = RegistryManager(environment: repo.environment)
     let reg = try await manager.loadAndVerify(repoRoot: repo.repoURL)
@@ -129,7 +128,7 @@ struct AgentHijackingAttackTests {
   func attack5_batchedPushForcePushDetectedAndBlocked() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-5")
-    try await repo.signed(repo: "batched-push-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     let floorGuard = FloorGuard()
 
@@ -152,7 +151,7 @@ struct AgentHijackingAttackTests {
   func attack6_trunkDeletionBlocked() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-6")
-    try await repo.signed(repo: "delete-trunk-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     let floorGuard = FloorGuard()
 
@@ -184,7 +183,7 @@ struct AgentHijackingAttackTests {
   func attack7_featureBranchPushesAllowed() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-7")
-    try await repo.signed(repo: "feature-push-repo", version: 1, defaultBranch: "main")
+    try await repo.signed(version: 1, defaultBranch: "main")
 
     let floorGuard = FloorGuard()
 
@@ -205,7 +204,7 @@ struct AgentHijackingAttackTests {
   func attack8_omittingDefaultBranchBreaksSignatureAndDefaultsToMain() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-8")
-    try await repo.signed(repo: "omitted-branch-repo", version: 1, defaultBranch: "custom")
+    try await repo.signed(version: 1, defaultBranch: "custom")
 
     let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
     let original = try String(contentsOf: lockURL, encoding: .utf8)

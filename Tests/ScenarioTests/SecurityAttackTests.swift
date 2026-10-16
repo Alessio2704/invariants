@@ -10,7 +10,7 @@ struct SecurityAttackTests {
   func attack1_unsignedSignersInjection() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-1")
-    try await repo.signed(repo: "attack-repo-1", version: 1)
+    try await repo.signed(version: 1)
 
     // Attacker injects a rogue key into invariants/allowed_signers
     let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
@@ -30,7 +30,7 @@ struct SecurityAttackTests {
   func attack2_unauthorizedKeyForgedRegistry() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-2")
-    try await repo.signed(repo: "attack-repo-2", version: 1)
+    try await repo.signed(version: 1)
 
     // Attacker generates throwaway key
     let sshClient = SSHKeygenClient()
@@ -48,7 +48,7 @@ struct SecurityAttackTests {
 
     // Attacker creates version 2 registry and signs with rogueKey
     let manager = RegistryManager(environment: repo.environment, sshClient: sshClient)
-    let reg2 = Registry(repo: "attack-repo-2", version: 2, engine: "^1.0.0")
+    let reg2 = Registry(version: 2, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
 
     // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers!
@@ -71,12 +71,12 @@ struct SecurityAttackTests {
   func attack3_rollbackAttack() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-3")
-    try await repo.signed(repo: "attack-repo-3", version: 1)
-    try await repo.signed(repo: "attack-repo-3", version: 2)
+    try await repo.signed(version: 1)
+    try await repo.signed(version: 2)
 
     // Attacker attempts to revert working tree registry.lock to version 1
     let manager = RegistryManager(environment: repo.environment)
-    let reg1 = Registry(repo: "attack-repo-3", version: 1, engine: "^1.0.0")
+    let reg1 = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // FloorGuard history check must reject version 1 because history max is 2
@@ -90,7 +90,7 @@ struct SecurityAttackTests {
   func attack4_fingerprintDrift() async throws {
     let repo = try await TestRepo()
     try repo.withRule("attack-rule-4")
-    try await repo.signed(repo: "attack-repo-4", version: 1)
+    try await repo.signed(version: 1)
 
     let manager = RegistryManager(environment: repo.environment)
     let reg = try await manager.loadAndVerify(repoRoot: repo.repoURL)
@@ -120,7 +120,7 @@ struct SecurityAttackTests {
 
     // Save and sign with the expired key
     let manager = RegistryManager(environment: repo.environment)
-    let reg = Registry(repo: "attack-repo-5", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // loadAndVerify must reject with signatureInvalid (key expired)

@@ -32,7 +32,7 @@ struct AllowedSignersRevocationTests {
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg = Registry(repo: "test-rev", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject expired key
@@ -66,7 +66,7 @@ struct AllowedSignersRevocationTests {
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg = Registry(repo: "test-pre", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject not-yet-valid key
@@ -99,12 +99,12 @@ struct AllowedSignersRevocationTests {
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg = Registry(repo: "test-tamper", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Valid initially
     let loaded = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
-    #expect(loaded.repo == "test-tamper")
+    #expect(loaded.version == 1)
 
     // Tamper allowed_signers in working tree (e.g. Rogue AI appends key)
     let rogueKey = "* namespaces=\"invariants\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRogueKey rogue@ai\n"
@@ -134,7 +134,7 @@ struct AllowedSignersRevocationTests {
     // Create dummy registry and sig files
     let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
     let sigURL = RegistryManager.signatureURL(repoRoot: repoDir)
-    try "{\"engine\":\"^1.0.0\",\"repo\":\"test\",\"rules\":{},\"version\":1}".write(
+    try "{\"engine\":\"^1.0.0\",\"rules\":{},\"version\":1}".write(
       to: lockURL, atomically: true, encoding: .utf8)
     try "dummy sig".write(to: sigURL, atomically: true, encoding: .utf8)
 
@@ -175,7 +175,7 @@ struct AllowedSignersRevocationTests {
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg = Registry(repo: "test-hard-rev", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyB)
 
     // Initially valid when signed by B
@@ -248,7 +248,7 @@ struct AllowedSignersRevocationTests {
     let fakeEnv = SystemEnvironment(customRoot: fakeRoot)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg1 = Registry(repo: "ancestry-test", version: 1, engine: "^1.0.0")
+    let reg1 = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg1, repoRoot: repoURL, keyURL: seniorKey)
 
     let gitClient = GitClient()

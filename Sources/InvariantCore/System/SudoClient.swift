@@ -68,12 +68,6 @@ public struct SudoClient: Sendable {
     try await runPrivilegedOrDirect(command: command, targetURL: destinationURL)
   }
 
-  /// Writes the floor version for a repo to the environment's floors directory.
-  public func writeFloor(repo: String, version: Int, environment: SystemEnvironment) async throws(SystemError) {
-    let floorFile = environment.floorsDirectoryURL.appendingPathComponent(repo)
-    try await writePrivilegedFile(at: floorFile, content: "\(version)\n")
-  }
-
   /// Installs an engine version payload from a staging directory into the system environment.
   public func installVersion(
     version: String,
@@ -83,7 +77,7 @@ public struct SudoClient: Sendable {
     let targetVersionDir = environment.versionsDirectoryURL.appendingPathComponent(version)
     let copyCommand = """
       set -e
-      mkdir -p '\(targetVersionDir.path)' '\(environment.floorsDirectoryURL.path)'
+      mkdir -p '\(targetVersionDir.path)'
       cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
       """
     try await runPrivilegedOrDirect(command: copyCommand, targetURL: environment.rootURL)

@@ -17,7 +17,7 @@ struct ScenarioTests {
         return []
         """, extraFiles: ["App/Main.swift": "// Swift file\n"])
 
-    try await repo.signed(repo: "test-happy", version: 1)
+    try await repo.signed(version: 1)
 
     let manager = RegistryManager(environment: repo.environment)
     let loaded = try await manager.loadAndVerify(repoRoot: repo.repoURL, installedEngineVersion: "1.0.0")
@@ -28,16 +28,13 @@ struct ScenarioTests {
     let floorGuard = FloorGuard()
     let histFloor = try await floorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: loaded.version)
     #expect(histFloor == 1)
-    let rootFloor = try floorGuard.checkRootFloor(
-      repo: "test-happy", currentVersion: loaded.version, environment: repo.environment)
-    #expect(rootFloor == 1)
   }
 
   @Test("Working tree mutation: drift detected, signed snapshot is enforced")
   func workingTreeMutationDrift() async throws {
     let repo = try await TestRepo()
     try repo.withRule("toy", targets: [.swift])
-    try await repo.signed(repo: "test-drift", version: 1)
+    try await repo.signed(version: 1)
 
     let originalHash = try await FingerprintEngine().computeFingerprint(repoRoot: repo.repoURL, ruleId: "toy")
 
@@ -67,7 +64,7 @@ struct ScenarioTests {
   func tamperDefenses() async throws {
     let repo = try await TestRepo()
     try repo.withRule("toy", targets: [.swift])
-    try await repo.signed(repo: "test-tamper", version: 1)
+    try await repo.signed(version: 1)
 
     let manager = RegistryManager(environment: repo.environment)
 
@@ -84,7 +81,7 @@ struct ScenarioTests {
     // 2. Engine range mismatch
     let repo2 = try await TestRepo()
     try repo2.withRule("toy2", targets: [.swift])
-    let reg2 = Registry(repo: "test-range", version: 1, engine: "^2.0.0", rules: [:])
+    let reg2 = Registry(version: 1, engine: "^2.0.0", rules: [:])
     let manager2 = RegistryManager(environment: repo2.environment)
     try await manager2.saveAndSign(registry: reg2, repoRoot: repo2.repoURL, keyURL: repo2.keyURL)
 
@@ -165,17 +162,17 @@ struct ScenarioTests {
     #expect(jsonOutput.contains("\"ruleId\" : \"rule-a\"") || jsonOutput.contains("\"ruleId\": \"rule-a\""))
   }
 
-  @Test("Rollback defense: version below floor is blocked")
+  @Test("Rollback defense: version below history is blocked")
   func rollbackDefense() async throws {
     let repo = try await TestRepo()
+    try await repo.signed(version: 1)
+    try await repo.signed(version: 3)
+
     let guardObj = FloorGuard()
 
-    // Set root floor to 3
-    try await SudoClient().writeFloor(repo: "test-repo", version: 3, environment: repo.environment)
-
-    // Attempting to run with version 2 must throw versionBelowRootFloor
-    #expect(throws: FloorError.versionBelowRootFloor(current: 2, rootFloor: 3, repo: "test-repo")) {
-      _ = try guardObj.checkRootFloor(repo: "test-repo", currentVersion: 2, environment: repo.environment)
+    // Attempting to evaluate with version 2 when history max is 3 must throw versionBelowHistory
+    await #expect(throws: FloorError.versionBelowHistory(current: 2, maxHistoryVersion: 3)) {
+      _ = try await guardObj.checkHistory(repoRoot: repo.repoURL, currentVersion: 2)
     }
   }
 

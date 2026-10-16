@@ -8,7 +8,6 @@ struct RegistryTests {
   @Test("Canonical JSON serialization produces deterministic sorted keys")
   func canonicalJSONOrdering() {
     let reg = Registry(
-      repo: "sample-repo",
       version: 8,
       engine: "^1.2.0",
       project: ProjectConfig(
@@ -31,7 +30,6 @@ struct RegistryTests {
           "swift": { "indexStore": "Index/DataStore" },
           "ts": { "tsconfig": ["tsconfig.json"] }
         },
-        "repo": "sample-repo",
         "rules": {
           "no-raw-text": "a81b02d4",
           "tooling": "77de4e10"
@@ -46,7 +44,6 @@ struct RegistryTests {
   @Test("Canonical JSON round-trip serialization is identical")
   func canonicalJSONRoundTrip() throws {
     let original = Registry(
-      repo: "test-repo",
       version: 3,
       engine: "^1.0.0",
       rules: ["toy": "abc12345"]
@@ -105,12 +102,11 @@ struct RegistryTests {
     let fakeEnv = SystemEnvironment(customRoot: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, sshClient: sshClient)
 
-    let reg = Registry(repo: "test-repo", version: 1, engine: "^1.0.0")
+    let reg = Registry(version: 1, engine: "^1.0.0")
     try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Verify valid
     let loaded = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
-    #expect(loaded.repo == reg.repo)
     #expect(loaded.version == reg.version)
     #expect(loaded.signersHash != nil)
 

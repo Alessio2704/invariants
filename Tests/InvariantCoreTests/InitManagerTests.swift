@@ -37,7 +37,6 @@ struct InitManagerTests {
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
     let options = InitOptions(
-      repoId: "test-init-repo",
       engineVersion: "1.0.0",
       swiftIndexStore: "build/Index.noindex/DataStore",
       tsconfigs: ["tsconfig.json"],
@@ -64,7 +63,6 @@ struct InitManagerTests {
     // 3. Verify registry can be loaded and cryptographically verified
     let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
-    #expect(loaded.repo == "test-init-repo")
     #expect(loaded.defaultBranch == "main")
     #expect(loaded.project?.swift?.indexStore == "build/Index.noindex/DataStore")
     #expect(loaded.project?.ts?.tsconfig == ["tsconfig.json"])
@@ -121,7 +119,6 @@ struct InitManagerTests {
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
     let options = InitOptions(
-      repoId: "custom-branch-repo",
       engineVersion: "1.0.0",
       defaultBranch: "develop",
       keyURL: keyURL
