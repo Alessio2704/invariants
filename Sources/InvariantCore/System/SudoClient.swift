@@ -41,26 +41,6 @@ public struct SudoClient: Sendable {
     }
   }
 
-  /// Writes or appends content to a file, elevating via `sudo` only if the destination requires root privileges.
-  public func writePrivilegedFile(at targetURL: URL, content: String, append: Bool = false) async throws(SystemError) {
-    let tmpUserFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    guard let data = content.data(using: .utf8) else {
-      throw SystemError.fileIOError("Failed to encode content as UTF-8")
-    }
-    do {
-      try data.write(to: tmpUserFile)
-    } catch {
-      throw SystemError.fileIOError("Failed to prepare temp staging file: \(error.localizedDescription)")
-    }
-    defer { try? FileManager.default.removeItem(at: tmpUserFile) }
-
-    let parent = targetURL.deletingLastPathComponent()
-    let op =
-      append ? "cat '\(tmpUserFile.path)' >> '\(targetURL.path)'" : "cp '\(tmpUserFile.path)' '\(targetURL.path)'"
-    let command = "mkdir -p '\(parent.path)' && \(op)"
-    try await runPrivilegedOrDirect(command: command, targetURL: targetURL)
-  }
-
   /// Creates a symbolic link, elevating via `sudo` only if the destination requires root privileges.
   public func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()

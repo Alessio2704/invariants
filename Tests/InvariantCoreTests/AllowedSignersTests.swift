@@ -88,7 +88,7 @@ struct AllowedSignersTests {
 
     // 3. Revoke
     let revoked = file.revoke(keyDataOrSubstring: "AAAAE2VjZHNh2...", effectiveDate: now)
-    #expect(revoked == true)
+    #expect(revoked > 0)
     #expect(file.entries[1].validBefore != nil)
   }
 

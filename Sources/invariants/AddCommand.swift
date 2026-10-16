@@ -44,8 +44,7 @@ struct AddCommand: AsyncParsableCommand {
     }
 
     // 2. Validate manifest and structure
-    let manifestData = try Data(contentsOf: ruleDir.appendingPathComponent("manifest.json"))
-    let manifest = try ManifestParser.parse(data: manifestData, expectedId: id)
+    let manifest = try ManifestParser.load(from: ruleDir.appendingPathComponent("manifest.json"), expectedId: id)
     try manifestValidator.validateStructure(
       ruleDirectory: ruleDir,
       manifest: manifest,

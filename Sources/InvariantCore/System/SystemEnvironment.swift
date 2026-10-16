@@ -29,21 +29,18 @@ public struct SystemEnvironment: Sendable {
     currentVersionURL.appendingPathComponent("kit-ts")
   }
 
-  /// Default production root at `/usr/local/invariants` (or `INVARIANTS_PREFIX` if set).
-  public init() {
-    if let envPrefix = ProcessInfo.processInfo.environment["INVARIANTS_PREFIX"], !envPrefix.isEmpty {
+  /// System environment root and binary locations, with optional overrides for testing and sandboxing.
+  public init(rootURL: URL? = nil, binURL: URL? = nil) {
+    if let rootURL {
+      self.rootURL = rootURL
+      self.binURL = binURL ?? rootURL.appendingPathComponent("bin/invariants")
+    } else if let envPrefix = ProcessInfo.processInfo.environment["INVARIANTS_PREFIX"], !envPrefix.isEmpty {
       let root = URL(fileURLWithPath: envPrefix)
       self.rootURL = root
-      self.binURL = root.appendingPathComponent("bin/invariants")
+      self.binURL = binURL ?? root.appendingPathComponent("bin/invariants")
     } else {
       self.rootURL = URL(fileURLWithPath: "/usr/local/invariants")
-      self.binURL = URL(fileURLWithPath: "/usr/local/bin/invariants")
+      self.binURL = binURL ?? URL(fileURLWithPath: "/usr/local/bin/invariants")
     }
-  }
-
-  /// Internal test seam allowing unit and scenario tests to inject a sandboxed root.
-  internal init(customRoot: URL, customBin: URL? = nil) {
-    self.rootURL = customRoot
-    self.binURL = customBin ?? customRoot.appendingPathComponent("bin/invariants")
   }
 }

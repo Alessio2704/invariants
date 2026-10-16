@@ -41,8 +41,8 @@ struct UpgradeCommand: AsyncParsableCommand {
         destinationURL: tempSnapshot
       )
 
-      let manifestData = try Data(contentsOf: tempSnapshot.appendingPathComponent("manifest.json"))
-      let manifest = try ManifestParser.parse(data: manifestData, expectedId: ruleId)
+      let manifest = try ManifestParser.load(
+        from: tempSnapshot.appendingPathComponent("manifest.json"), expectedId: ruleId)
 
       // Test fixtures
       for target in manifest.targets {

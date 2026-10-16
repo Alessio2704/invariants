@@ -32,7 +32,7 @@ struct InitManagerTests {
 
     // Run InitManager
     let gitClient = GitClient()
-    let env = SystemEnvironment(customRoot: tmpDir.appendingPathComponent("fake_root"))
+    let env = SystemEnvironment(rootURL: tmpDir.appendingPathComponent("fake_root"))
     let registryManager = RegistryManager(environment: env, signingClient: signingClient)
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
@@ -76,8 +76,11 @@ struct InitManagerTests {
     // 5. Verify NO git hooks hijacked
     let githooksDir = repoURL.appendingPathComponent(".githooks")
     #expect(!fm.fileExists(atPath: githooksDir.path))
-    let configuredHooksPath = try await gitClient.getHooksPath(repoRoot: repoURL)
-    #expect(configuredHooksPath == nil)
+    let hooksCheck = try await runner.run(
+      executableURL: SubprocessRunner.gitURL,
+      arguments: ["-C", repoURL.path, "config", "--get", "core.hooksPath"]
+    )
+    #expect(hooksCheck.exitCode != 0 || hooksCheck.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
     // 6. Verify git commit exists with initial commit
     let logOutput = try await runner.run(
@@ -111,10 +114,10 @@ struct InitManagerTests {
     try signingClient.generateThrowawayKey(at: keyURL)
 
     let gitClient = GitClient()
-    let detected = await gitClient.detectDefaultBranch(repoRoot: repoURL)
+    let detected = (await gitClient.discoverBranches(repoRoot: repoURL)).first
     #expect(detected == "develop")
 
-    let env = SystemEnvironment(customRoot: tmpDir.appendingPathComponent("fake_root"))
+    let env = SystemEnvironment(rootURL: tmpDir.appendingPathComponent("fake_root"))
     let registryManager = RegistryManager(environment: env, signingClient: signingClient)
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 

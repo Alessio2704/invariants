@@ -188,10 +188,12 @@ extension CheckCommand {
     }
 
     let manifestURL = tempSnapshotDir.appendingPathComponent("manifest.json")
-    guard let manifestData = try? Data(contentsOf: manifestURL),
-      let manifest = try? ManifestParser.parse(data: manifestData, expectedId: ruleId)
-    else {
-      return RuleReportItem(ruleId: ruleId, statusKind: .broken, message: "manifest.json invalid in signed snapshot")
+    let manifest: RuleManifest
+    do {
+      manifest = try ManifestParser.load(from: manifestURL, expectedId: ruleId)
+    } catch {
+      return RuleReportItem(
+        ruleId: ruleId, statusKind: .broken, message: "manifest.json invalid in signed snapshot: \(error)")
     }
 
     do {
@@ -256,32 +258,34 @@ extension CheckCommand {
             files: fixtureCase.files.map { $0.path },
             project: context.registry.project
           )
-          let violations = try await context.ruleRunner.execute(
-            target: target,
-            ruleDirectory: tempSnapshotDir,
-            ruleTreeHash: signedTreeHash,
-            request: req,
-            engineVersion: CLIHelpers.engineVersion
-          )
-
-          let expected = Set(fixtureCase.expectedViolations)
-          let reported = Set(
-            violations.map {
-              ExpectedViolation(
-                relativePath: URL(fileURLWithPath: $0.file).lastPathComponent,
-                line: $0.line,
-                code: $0.code
-              )
-            })
-
-          if fixtureCase.isShouldPass {
-            if !violations.isEmpty {
-              return "should_pass fixture '\(fixtureCase.id)' emitted \(violations.count) unexpected violations"
+          let violations: [ReportedViolation]
+          do {
+            violations = try await context.ruleRunner.execute(
+              target: target,
+              ruleDirectory: tempSnapshotDir,
+              ruleTreeHash: signedTreeHash,
+              request: req,
+              engineVersion: CLIHelpers.engineVersion
+            )
+          } catch let runnerErr {
+            switch runnerErr {
+            case .ruleCrashed(_, let stderr):
+              return HarnessError.ruleCrashed(caseId: fixtureCase.id, message: stderr).description
+            case .ruleHung:
+              return HarnessError.ruleHung(caseId: fixtureCase.id).description
+            default:
+              return "Self-test runner error on '\(fixtureCase.id)': \(runnerErr)"
             }
-          } else if expected != reported {
-            let missing = expected.subtracting(reported)
-            let unexpected = reported.subtracting(expected)
-            return "should_fail fixture '\(fixtureCase.id)' mismatch: missing \(missing), unexpected \(unexpected)"
+          }
+
+          if let error = fixtureCase.evaluateExpectations(reportedViolations: violations) {
+            return error.description
+          }
+
+          do {
+            try context.manifestValidator.validateReportedViolations(manifest: manifest, violations: violations)
+          } catch {
+            return error.description
           }
         }
       } catch {
@@ -324,6 +328,10 @@ extension CheckCommand {
           ruleTreeHash: ruleCtx.signedTreeHash,
           request: req,
           engineVersion: CLIHelpers.engineVersion
+        )
+        try context.manifestValidator.validateReportedViolations(
+          manifest: ruleCtx.manifest,
+          violations: targetViolations
         )
         repoViolations.append(contentsOf: targetViolations)
       } catch {
@@ -385,8 +393,11 @@ extension CheckCommand {
   ) async -> (Int, Int) {
     var draftPassed = 0
     var draftTotal = 0
-    guard let manifestData = try? Data(contentsOf: draftDir.appendingPathComponent("manifest.json")),
-      let manifest = try? ManifestParser.parse(data: manifestData, expectedId: dirName)
+    guard
+      let manifest = try? ManifestParser.load(
+        from: draftDir.appendingPathComponent("manifest.json"),
+        expectedId: dirName
+      )
     else {
       return (0, 0)
     }

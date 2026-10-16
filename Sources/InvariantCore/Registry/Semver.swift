@@ -1,7 +1,7 @@
 import Foundation
 
 /// Semantic version representation: major.minor.patch.
-public struct Semver: Sendable, Equatable, Comparable {
+public struct Semver: Sendable, Equatable, Comparable, CustomStringConvertible {
   public let major: Int
   public let minor: Int
   public let patch: Int
@@ -31,9 +31,7 @@ public struct Semver: Sendable, Equatable, Comparable {
     } else {
       pat = 0
     }
-    self.major = maj
-    self.minor = min
-    self.patch = pat
+    self.init(major: maj, minor: min, patch: pat)
   }
 
   public static func < (lhs: Self, rhs: Self) -> Bool {

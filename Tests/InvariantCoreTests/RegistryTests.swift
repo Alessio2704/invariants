@@ -60,6 +60,28 @@ struct RegistryTests {
     #expect(reSerialized == jsonStr)
   }
 
+  @Test("CanonicalJSON.parse rejects malformed JSON with invalidCanonicalJSON")
+  func invalidCanonicalJSONSyntax() {
+    let badData = Data("not json at all".utf8)
+    #expect {
+      try CanonicalJSON.parse(data: badData)
+    } throws: { error in
+      guard let regErr = error as? RegistryError, case .invalidCanonicalJSON = regErr else { return false }
+      return !regErr.description.isEmpty
+    }
+  }
+
+  @Test("CanonicalJSON.parse rejects valid JSON with missing schema fields with decodingFailed")
+  func decodingFailedSchema() {
+    let schemaMismatch = Data("{\"unrelated\": 123}".utf8)
+    #expect {
+      try CanonicalJSON.parse(data: schemaMismatch)
+    } throws: { error in
+      guard let regErr = error as? RegistryError, case .decodingFailed = regErr else { return false }
+      return !regErr.description.isEmpty
+    }
+  }
+
   @Test("Semver range matching behaves accurately")
   func semverRangeCheck() throws {
     let v1_0_0 = try #require(Semver(string: "1.0.0"))
@@ -99,7 +121,7 @@ struct RegistryTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
+    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")

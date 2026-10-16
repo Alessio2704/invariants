@@ -129,37 +129,6 @@ public struct GitClient: Sendable {
     return output.exitCode == 0
   }
 
-  /// Configures core.hooksPath.
-  public func setHooksPath(repoRoot: URL, path: String) async throws(SystemError) {
-    let output = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
-      arguments: ["-C", repoRoot.path, "config", "core.hooksPath", path],
-      workingDirectory: repoRoot
-    )
-    guard output.exitCode == 0 else {
-      throw SystemError.processFailed(
-        executable: SubprocessRunner.gitURL.path,
-        arguments: ["config", "core.hooksPath", path],
-        exitCode: output.exitCode,
-        stderr: output.stderrString
-      )
-    }
-  }
-
-  /// Gets core.hooksPath.
-  public func getHooksPath(repoRoot: URL) async throws(SystemError) -> String? {
-    let output = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
-      arguments: ["-C", repoRoot.path, "config", "--get", "core.hooksPath"],
-      workingDirectory: repoRoot
-    )
-    if output.exitCode != 0 {
-      return nil
-    }
-    let trimmed = output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
-  }
-
   /// Stages files and commits them.
   public func commit(repoRoot: URL, paths: [String], message: String) async throws(SystemError) {
     var addArgs = ["-C", repoRoot.path, "add"]
@@ -263,11 +232,5 @@ public struct GitClient: Sendable {
     }
 
     return sorted
-  }
-
-  /// Detects the repository's default trunk branch using discovered branches.
-  public func detectDefaultBranch(repoRoot: URL) async -> String {
-    let branches = await discoverBranches(repoRoot: repoRoot)
-    return branches.first ?? "main"
   }
 }

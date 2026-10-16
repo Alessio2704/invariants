@@ -19,8 +19,4 @@ public actor FixtureCache {
   public func recordPass(engineVersion: String, ruleTreeHash: String) {
     passedHashes.insert(cacheKey(engineVersion: engineVersion, ruleTreeHash: ruleTreeHash))
   }
-
-  public func clear() {
-    passedHashes.removeAll()
-  }
 }

@@ -126,4 +126,61 @@ struct ManifestTests {
     #expect(excludeMatcher.matches("App/Previews/ViewPreview.swift"))
     #expect(!excludeMatcher.matches("App/Views/MainView.swift"))
   }
+
+  @Test("ManifestParser.load throws fileNotFound for nonexistent URL")
+  func manifestLoadFileNotFound() {
+    let nonExistentURL = URL(fileURLWithPath: "/nonexistent/manifest.json")
+    #expect {
+      try ManifestParser.load(from: nonExistentURL)
+    } throws: { error in
+      guard let err = error as? ManifestError, case .fileNotFound(let url) = err else { return false }
+      return url == nonExistentURL && !err.description.isEmpty
+    }
+  }
+
+  @Test("ManifestValidator validates codes coverage")
+  func manifestValidatorCoverage() throws {
+    let manifest = RuleManifest(
+      id: "rule1",
+      summary: "Rule",
+      targets: [.swift],
+      scope: [.swift: TargetScope(include: ["**/*.swift"])],
+      codes: ["C1": "Code 1", "C2": "Code 2"]
+    )
+    let validator = ManifestValidator()
+    #expect {
+      try validator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1"])
+    } throws: { error in
+      guard let err = error as? ManifestError, case .codeNotTestedByFixtures(let code) = err else { return false }
+      return code == "C2" && !err.description.isEmpty
+    }
+
+    // Full coverage passes
+    try validator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1", "C2"])
+  }
+
+  @Test("ManifestValidator rejects undeclared codes in reported violations")
+  func manifestValidatorUndeclaredCode() throws {
+    let manifest = RuleManifest(
+      id: "rule1",
+      summary: "Rule",
+      targets: [.swift],
+      scope: [.swift: TargetScope(include: ["**/*.swift"])],
+      codes: ["C1": "Code 1"]
+    )
+    let validator = ManifestValidator()
+    let badViolation = ReportedViolation(
+      code: "UNKNOWN", file: "foo.swift", line: 1, column: 1, message: "msg", fix: "")
+    #expect {
+      try validator.validateReportedViolations(manifest: manifest, violations: [badViolation])
+    } throws: { error in
+      guard let err = error as? ManifestError, case .undeclaredCodeEmitted(let code, let ruleId) = err else {
+        return false
+      }
+      return code == "UNKNOWN" && ruleId == "rule1" && !err.description.isEmpty
+    }
+
+    let goodViolation = ReportedViolation(code: "C1", file: "foo.swift", line: 1, column: 1, message: "msg", fix: "")
+    try validator.validateReportedViolations(manifest: manifest, violations: [goodViolation])
+  }
 }

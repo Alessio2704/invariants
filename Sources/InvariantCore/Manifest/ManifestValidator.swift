@@ -130,4 +130,24 @@ public struct ManifestValidator: Sendable {
 
     return results.sorted { $0.path < $1.path }
   }
+
+  /// Validates that all codes declared in the manifest are covered by at least one fixture.
+  public func validateCodesCoverage(
+    manifest: RuleManifest,
+    coveredCodes: Set<String>
+  ) throws(ManifestError) {
+    for code in manifest.codes.keys.sorted() where !coveredCodes.contains(code) {
+      throw ManifestError.codeNotTestedByFixtures(code)
+    }
+  }
+
+  /// Validates that all violations emitted by a rule correspond to codes declared in the manifest.
+  public func validateReportedViolations(
+    manifest: RuleManifest,
+    violations: [ReportedViolation]
+  ) throws(ManifestError) {
+    for violation in violations where manifest.codes[violation.code] == nil {
+      throw ManifestError.undeclaredCodeEmitted(code: violation.code, ruleId: manifest.id)
+    }
+  }
 }

@@ -123,18 +123,7 @@ struct SignersCommand: AsyncParsableCommand {
         }
         matchedCount = initialCount - signersFile.entries.count
       } else {
-        var count = 0
-        for i in 0..<signersFile.entries.count {
-          let matches =
-            signersFile.entries[i].matches(keyString: pattern)
-            || signersFile.entries[i].principals.contains(pattern)
-            || signersFile.entries[i].comment?.contains(pattern) == true
-          if matches {
-            signersFile.entries[i].validBefore = Date()
-            count += 1
-          }
-        }
-        matchedCount = count
+        matchedCount = signersFile.revoke(keyDataOrSubstring: pattern, effectiveDate: Date())
       }
 
       guard matchedCount > 0 else {

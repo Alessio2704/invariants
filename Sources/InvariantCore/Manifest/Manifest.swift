@@ -40,7 +40,7 @@ public struct RuleManifest: Sendable, Equatable {
   }
 }
 
-public enum ManifestError: Error, Equatable, Sendable {
+public enum ManifestError: Error, Equatable, Sendable, CustomStringConvertible {
   case fileNotFound(URL)
   case invalidJSON(String)
   case unknownKey(String)
@@ -59,4 +59,45 @@ public enum ManifestError: Error, Equatable, Sendable {
   case emptyCodes
   case codeNotTestedByFixtures(String)
   case undeclaredCodeEmitted(code: String, ruleId: String)
+
+  public var description: String {
+    switch self {
+    case .fileNotFound(let url):
+      return "Manifest file not found: \(url.path)"
+    case .invalidJSON(let msg):
+      return "Invalid JSON in manifest: \(msg)"
+    case .unknownKey(let key):
+      return "Unknown key in manifest: '\(key)'"
+    case .idMismatch(let expected, let found):
+      return "Manifest ID mismatch: expected '\(expected)', found '\(found)'"
+    case .missingField(let field):
+      return "Missing required field in manifest: '\(field)'"
+    case .emptyTargets:
+      return "Manifest targets list cannot be empty"
+    case .invalidTarget(let target):
+      return "Invalid target language: '\(target)'"
+    case .missingTargetScope(let target):
+      return "Missing scope configuration for target '\(target.rawValue)'"
+    case .emptyScopeInclude(let target):
+      return "Scope include patterns for target '\(target.rawValue)' cannot be empty"
+    case .scopeMatchesNoFiles(let target, let patterns):
+      return "Scope for target '\(target.rawValue)' matches no files with patterns: \(patterns)"
+    case .missingRuleFile(let target, let filename):
+      return "Missing required rule implementation for \(target.rawValue): '\(filename)'"
+    case .forbiddenRuleFile(let target, let filename):
+      return "Forbidden rule file for undeclared target \(target.rawValue): '\(filename)'"
+    case .missingFixtureFolder(let folder):
+      return "Missing required fixture folder: '\(folder)'"
+    case .emptyFixtureFolder(let folder):
+      return "Fixture folder is empty: '\(folder)'"
+    case .missingTargetInRegistryProject(let target):
+      return "Target '\(target.rawValue)' declared in rule is not configured in registry.project"
+    case .emptyCodes:
+      return "Manifest codes dictionary cannot be empty"
+    case .codeNotTestedByFixtures(let code):
+      return "Rule manifest code '\(code)' is not covered by any should_fail fixture"
+    case .undeclaredCodeEmitted(let code, let ruleId):
+      return "Rule '\(ruleId)' emitted undeclared violation code '\(code)'"
+    }
+  }
 }

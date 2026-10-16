@@ -79,7 +79,7 @@ struct BranchingScenarioTests {
     )
 
     // 3. Initialize invariants using automatic default branch detection (as InitCommand does)
-    let detectedBranch = await gitClient.detectDefaultBranch(repoRoot: repo.repoURL)
+    let detectedBranch = (await gitClient.discoverBranches(repoRoot: repo.repoURL)).first ?? "main"
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
       engineVersion: "1.0.0",

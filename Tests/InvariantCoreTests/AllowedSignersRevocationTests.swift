@@ -28,7 +28,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
+    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
@@ -62,7 +62,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-after=\"20350101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
+    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
@@ -95,7 +95,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
+    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
@@ -146,7 +146,7 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let fakeEnv = SystemEnvironment(customRoot: tmpDir)
+    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg = Registry(version: 1, engine: "^1.0.0")
@@ -219,7 +219,7 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(seniorPub)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let fakeEnv = SystemEnvironment(customRoot: fakeRoot)
+    let fakeEnv = SystemEnvironment(rootURL: fakeRoot)
     let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
 
     let reg1 = Registry(version: 1, engine: "^1.0.0")

@@ -81,8 +81,8 @@ struct ConfigCommand: AsyncParsableCommand {
         destinationURL: tempSnapshot
       )
 
-      let manifestData = try Data(contentsOf: tempSnapshot.appendingPathComponent("manifest.json"))
-      let manifest = try ManifestParser.parse(data: manifestData, expectedId: ruleId)
+      let manifest = try ManifestParser.load(
+        from: tempSnapshot.appendingPathComponent("manifest.json"), expectedId: ruleId)
 
       // 1. Fixtures must still pass with newProject
       for target in manifest.targets {

@@ -43,28 +43,6 @@ struct SudoClientTests {
     #expect(client.requiresElevation(for: targetFile))
   }
 
-  @Test("writePrivilegedFile writes, overwrites, and appends correctly")
-  func writePrivilegedFileOperations() async throws {
-    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tmpDir) }
-
-    let client = SudoClient()
-    let testFile = tmpDir.appendingPathComponent("sub/test.txt")
-
-    // 1. Initial write
-    try await client.writePrivilegedFile(at: testFile, content: "Line 1\n", append: false)
-    #expect(try String(contentsOf: testFile, encoding: .utf8) == "Line 1\n")
-
-    // 2. Append
-    try await client.writePrivilegedFile(at: testFile, content: "Line 2\n", append: true)
-    #expect(try String(contentsOf: testFile, encoding: .utf8) == "Line 1\nLine 2\n")
-
-    // 3. Overwrite
-    try await client.writePrivilegedFile(at: testFile, content: "New Content\n", append: false)
-    #expect(try String(contentsOf: testFile, encoding: .utf8) == "New Content\n")
-  }
-
   @Test("createSymlink creates and flips links atomically")
   func createSymlinkOperations() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -98,7 +76,7 @@ struct SudoClientTests {
     try FileManager.default.createDirectory(at: stageDir, withIntermediateDirectories: true)
     try "dummy binary".write(to: stageDir.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
 
-    let env = SystemEnvironment(customRoot: tmpRoot, customBin: tmpBinDir.appendingPathComponent("invariants"))
+    let env = SystemEnvironment(rootURL: tmpRoot, binURL: tmpBinDir.appendingPathComponent("invariants"))
     let client = SudoClient()
 
     defer {

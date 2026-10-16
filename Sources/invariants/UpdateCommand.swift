@@ -106,11 +106,14 @@ extension UpdateCommand {
     registry: Registry
   ) throws -> (RuleManifest, RuleManifest) {
     let manifestValidator = ManifestValidator()
-    let oldManifestData = try Data(contentsOf: tempOldSnapshot.appendingPathComponent("manifest.json"))
-    let oldManifest = try ManifestParser.parse(data: oldManifestData, expectedId: id)
-
-    let newManifestData = try Data(contentsOf: ruleDir.appendingPathComponent("manifest.json"))
-    let newManifest = try ManifestParser.parse(data: newManifestData, expectedId: id)
+    let oldManifest = try ManifestParser.load(
+      from: tempOldSnapshot.appendingPathComponent("manifest.json"),
+      expectedId: id
+    )
+    let newManifest = try ManifestParser.load(
+      from: ruleDir.appendingPathComponent("manifest.json"),
+      expectedId: id
+    )
 
     try manifestValidator.validateStructure(
       ruleDirectory: ruleDir,

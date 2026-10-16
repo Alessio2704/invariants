@@ -136,6 +136,11 @@ public enum CanonicalJSON {
 
   /// Parses a `Registry` from JSON Data.
   public static func parse(data: Data) throws(RegistryError) -> Registry {
+    do {
+      _ = try JSONSerialization.jsonObject(with: data, options: [])
+    } catch {
+      throw RegistryError.invalidCanonicalJSON(error.localizedDescription)
+    }
     let decoder = JSONDecoder()
     do {
       return try decoder.decode(Registry.self, from: data)

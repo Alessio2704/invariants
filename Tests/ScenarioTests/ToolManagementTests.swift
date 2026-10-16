@@ -63,7 +63,7 @@ struct ToolManagementTests {
 
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let env = SystemEnvironment(customRoot: rootURL, customBin: binURL)
+    let env = SystemEnvironment(rootURL: rootURL, binURL: binURL)
     let client = SudoClient()
 
     // Install version 1.1.0 from stage
@@ -94,7 +94,7 @@ struct ToolManagementTests {
     try fm.createDirectory(at: binDir, withIntermediateDirectories: true)
     try "dummy bin".write(to: binURL, atomically: true, encoding: .utf8)
 
-    let env = SystemEnvironment(customRoot: rootURL, customBin: binURL)
+    let env = SystemEnvironment(rootURL: rootURL, binURL: binURL)
     let client = SudoClient()
 
     defer { try? fm.removeItem(at: tmpDir) }

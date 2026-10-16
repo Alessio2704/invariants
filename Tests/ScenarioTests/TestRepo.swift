@@ -44,7 +44,7 @@ final class TestRepo: @unchecked Sendable {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: signersURL)
 
-    self.environment = SystemEnvironment(customRoot: rootURL)
+    self.environment = SystemEnvironment(rootURL: rootURL)
     self.gitClient = GitClient()
     self.registryManager = RegistryManager(environment: environment, signingClient: signingClient)
   }

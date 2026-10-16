@@ -271,15 +271,20 @@ public struct AllowedSignersFile: Equatable, Sendable {
 
   /// Revokes a key by setting `valid-before` to the specified timestamp (defaults to now).
   @discardableResult
-  public mutating func revoke(keyDataOrSubstring: String, effectiveDate: Date = Date()) -> Bool {
-    var found = false
+  public mutating func revoke(keyDataOrSubstring: String, effectiveDate: Date = Date()) -> Int {
+    var count = 0
     for i in 0..<entries.count {
-      if entries[i].keyData.contains(keyDataOrSubstring) || entries[i].matches(keyString: keyDataOrSubstring) {
+      let matches =
+        entries[i].keyData.contains(keyDataOrSubstring)
+        || entries[i].matches(keyString: keyDataOrSubstring)
+        || entries[i].principals.contains(keyDataOrSubstring)
+        || entries[i].comment?.contains(keyDataOrSubstring) == true
+      if matches {
         entries[i].validBefore = effectiveDate
-        found = true
+        count += 1
       }
     }
-    return found
+    return count
   }
 
   /// Rotates an existing key with a sunset grace period, enrolling the new key starting now.

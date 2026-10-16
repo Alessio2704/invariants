@@ -14,10 +14,16 @@ if command -v swiftlint >/dev/null 2>&1; then
   swiftlint lint --strict
 fi
 
-# 3. Swift build (0 warnings enforced via -warnings-as-errors)
-swift build
+# 3. Swift build & index store generation (0 warnings enforced via -warnings-as-errors)
+swift build --build-tests -Xswiftc -index-store-path -Xswiftc "$REPO_ROOT/.build/out"
 
-# 4. Swift test unit suite
+# 4. Periphery unused code analysis
+if command -v periphery >/dev/null 2>&1; then
+  echo "Running Periphery unused code analysis..."
+  periphery scan --index-store-path "$REPO_ROOT/.build/out" --skip-build
+fi
+
+# 5. Swift test unit suite
 swift test
 
 # 5. Kit-TS checks

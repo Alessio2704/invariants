@@ -2,6 +2,14 @@ public import Foundation
 
 /// Strict JSON parser for `manifest.json` ensuring no unknown keys and exact types.
 public enum ManifestParser {
+  /// Loads and parses a `manifest.json` file from a URL.
+  public static func load(from url: URL, expectedId: String? = nil) throws(ManifestError) -> RuleManifest {
+    guard let data = try? Data(contentsOf: url) else {
+      throw ManifestError.fileNotFound(url)
+    }
+    return try parse(data: data, expectedId: expectedId)
+  }
+
   public static func parse(data: Data, expectedId: String? = nil) throws(ManifestError) -> RuleManifest {
     let jsonObject: Any
     do {
