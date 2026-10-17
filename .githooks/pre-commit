@@ -23,16 +23,16 @@ if command -v periphery >/dev/null 2>&1; then
   periphery scan --index-store-path "$REPO_ROOT/.build/out" --skip-build
 fi
 
-# 5. Swift test unit suite
+# 5. Full Swift test suite (InvariantCore, InvariantKit, ScenarioTests)
 swift test
 
-# 5. Kit-TS checks
+# 6. Kit-TS checks & test coverage
 (
   cd "$REPO_ROOT/kit-ts"
   npx biome ci
   npx tsc --noEmit
   npm run knip
-  npm test
+  npm run test:coverage
 )
 
 echo "✓ Pre-commit checks passed."

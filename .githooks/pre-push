@@ -6,21 +6,7 @@ cd "$REPO_ROOT"
 
 echo "Running engine pre-push full verification..."
 
-# 1. Pre-commit suite
+# 1. Full engine verification suite (format, lint, build, periphery, all Swift tests, TS coverage)
 "$REPO_ROOT/.githooks/pre-commit"
-
-# 2. Periphery scan
-if command -v periphery >/dev/null 2>&1; then
-  periphery scan --index-store-path "$REPO_ROOT/.build/out" --skip-build
-fi
-
-# 3. Scenario test suite
-swift test --test-product ScenarioTests
-
-# 4. TS Coverage
-(
-  cd "$REPO_ROOT/kit-ts"
-  npm run test:coverage
-)
 
 echo "✓ Full pre-push verification passed."
