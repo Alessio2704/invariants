@@ -16,14 +16,14 @@ public struct GitClient: Sendable {
   ) async throws(SystemError) -> String {
     // Step 1: Add directory contents to temporary index
     let addOutput = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "add", "-A", directoryRelativePath],
       workingDirectory: repoRoot,
       environment: ["GIT_INDEX_FILE": tempIndexURL.path]
     )
     guard addOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: ["add", "-A", directoryRelativePath],
         exitCode: addOutput.exitCode,
         stderr: addOutput.stderrString
@@ -32,14 +32,14 @@ public struct GitClient: Sendable {
 
     // Step 2: Write tree for prefix
     let writeOutput = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "write-tree", "--prefix=\(directoryRelativePath)"],
       workingDirectory: repoRoot,
       environment: ["GIT_INDEX_FILE": tempIndexURL.path]
     )
     guard writeOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: ["write-tree", "--prefix=\(directoryRelativePath)"],
         exitCode: writeOutput.exitCode,
         stderr: writeOutput.stderrString
@@ -53,29 +53,29 @@ public struct GitClient: Sendable {
   /// Extracts a tree hash into destination directory using `git archive | tar -x`.
   public func archiveExtract(repoRoot: URL, treeHash: String, destinationURL: URL) async throws(SystemError) {
     let archiveOutput = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "archive", treeHash],
       workingDirectory: repoRoot
     )
     guard archiveOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: ["archive", treeHash],
         exitCode: archiveOutput.exitCode,
         stderr: archiveOutput.stderrString
       )
     }
 
-    // Extract tar using SystemEnvironment.tarURL
+    // Extract tar using SystemBinary.tar
     let tarOutput = try await runner.run(
-      executableURL: SystemEnvironment.tarURL,
+      binary: .tar,
       arguments: ["-x", "-C", destinationURL.path],
       workingDirectory: destinationURL,
       stdinData: archiveOutput.stdoutData
     )
     guard tarOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.tarURL.path,
+        executable: SystemBinary.tar.path,
         arguments: ["-x", "-C", destinationURL.path],
         exitCode: tarOutput.exitCode,
         stderr: tarOutput.stderrString
@@ -86,7 +86,7 @@ public struct GitClient: Sendable {
   /// Lists all commit hashes touching a specific file in the current ancestry.
   public func commitHistoryTouching(repoRoot: URL, relativePath: String) async throws(SystemError) -> [String] {
     let output = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "log", "--format=%H", "--", relativePath],
       workingDirectory: repoRoot
     )
@@ -103,13 +103,13 @@ public struct GitClient: Sendable {
   /// Reads a file's content at a given commit.
   public func showFile(repoRoot: URL, commit: String, relativePath: String) async throws(SystemError) -> String {
     let output = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "show", "\(commit):\(relativePath)"],
       workingDirectory: repoRoot
     )
     guard output.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: ["show", "\(commit):\(relativePath)"],
         exitCode: output.exitCode,
         stderr: output.stderrString
@@ -121,7 +121,7 @@ public struct GitClient: Sendable {
   /// Checks if `ancestor` is an ancestor of `descendant` (i.e. fast-forward).
   public func isAncestor(repoRoot: URL, ancestor: String, descendant: String) async throws(SystemError) -> Bool {
     let output = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "merge-base", "--is-ancestor", ancestor, descendant],
       workingDirectory: repoRoot
     )
@@ -133,13 +133,13 @@ public struct GitClient: Sendable {
     var addArgs = ["-C", repoRoot.path, "add"]
     addArgs.append(contentsOf: paths)
     let addOutput = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: addArgs,
       workingDirectory: repoRoot
     )
     guard addOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: addArgs,
         exitCode: addOutput.exitCode,
         stderr: addOutput.stderrString
@@ -147,13 +147,13 @@ public struct GitClient: Sendable {
     }
 
     let commitOutput = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "commit", "-m", message],
       workingDirectory: repoRoot
     )
     guard commitOutput.exitCode == 0 else {
       throw SystemError.processFailed(
-        executable: SystemEnvironment.gitURL.path,
+        executable: SystemBinary.git.path,
         arguments: ["commit", "-m", message],
         exitCode: commitOutput.exitCode,
         stderr: commitOutput.stderrString
@@ -165,7 +165,7 @@ public struct GitClient: Sendable {
   public func detectRemoteTrunk(repoRoot: URL) async -> String? {
     guard
       let out = try? await runner.run(
-        executableURL: SystemEnvironment.gitURL,
+        binary: .git,
         arguments: ["-C", repoRoot.path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
         workingDirectory: repoRoot
       ), out.exitCode == 0
@@ -182,7 +182,7 @@ public struct GitClient: Sendable {
   public func currentBranch(repoRoot: URL) async -> String? {
     guard
       let out = try? await runner.run(
-        executableURL: SystemEnvironment.gitURL,
+        binary: .git,
         arguments: ["-C", repoRoot.path, "branch", "--show-current"],
         workingDirectory: repoRoot
       ), out.exitCode == 0
@@ -198,7 +198,7 @@ public struct GitClient: Sendable {
     var branches: [String] = []
 
     if let out = try? await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoRoot.path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
       workingDirectory: repoRoot
     ), out.exitCode == 0 {

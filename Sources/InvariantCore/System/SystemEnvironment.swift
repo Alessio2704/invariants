@@ -4,14 +4,6 @@ public import Foundation
 public struct SystemEnvironment: Sendable {
   public static let standard = Self()
 
-  // Trusted Canonical System Binary Paths
-  public static let gitURL = URL(fileURLWithPath: "/usr/bin/git")
-  public static let sshKeygenURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
-  public static let xcrunURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-  public static let sudoURL = URL(fileURLWithPath: "/usr/bin/sudo")
-  public static let tarURL = URL(fileURLWithPath: "/usr/bin/tar")
-  public static let shURL = URL(fileURLWithPath: "/bin/sh")
-
   public let rootURL: URL
   public let binURL: URL
 

@@ -233,7 +233,7 @@ public struct SigningClient: Sendable {
     }
 
     let output = try await runner.run(
-      executableURL: SystemEnvironment.sshKeygenURL,
+      binary: .sshKeygen,
       arguments: [
         "-Y", "verify",
         "-f", allowedSignersURL.path,

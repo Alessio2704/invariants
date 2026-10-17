@@ -26,11 +26,11 @@ final class TestRepo: @unchecked Sendable {
 
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "main"])
+      binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Test User"])
+      binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Test User"])
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "test@invariants.local"])
 
     self.signingClient = SigningClient()

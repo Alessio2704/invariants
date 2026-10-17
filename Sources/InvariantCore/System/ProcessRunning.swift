@@ -66,6 +66,30 @@ extension ProcessRunning {
     )
   }
 
+  /// Runs a trusted canonical system binary using its `SystemBinary` identifier.
+  @discardableResult
+  public func run(
+    binary: SystemBinary,
+    arguments: [String] = [],
+    targetURL: URL? = nil,
+    workingDirectory: URL? = nil,
+    environment: [String: String]? = nil,
+    stdinData: Data? = nil,
+    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds,
+    checkExitCode: Bool = false
+  ) async throws(SystemError) -> ProcessOutput {
+    try await run(
+      executableURL: binary.url,
+      arguments: arguments,
+      targetURL: targetURL,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      stdinData: stdinData,
+      timeoutSeconds: timeoutSeconds,
+      checkExitCode: checkExitCode
+    )
+  }
+
   /// Runs a shell command via `/bin/sh -c`.
   @discardableResult
   public func runShell(
@@ -79,7 +103,7 @@ extension ProcessRunning {
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       ProcessRequest(
-        executableURL: SystemEnvironment.shURL,
+        executableURL: SystemBinary.sh.url,
         arguments: ["-c", command],
         targetURL: targetURL,
         workingDirectory: workingDirectory,

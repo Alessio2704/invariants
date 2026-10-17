@@ -14,7 +14,7 @@ struct FingerprintTests {
 
     // Initialize git repo
     let runner = SubprocessRunner()
-    _ = try await runner.run(executableURL: SystemEnvironment.gitURL, arguments: ["-C", tmpDir.path, "init"])
+    _ = try await runner.run(binary: .git, arguments: ["-C", tmpDir.path, "init"])
 
     let ruleDir = tmpDir.appendingPathComponent("invariants/rules/toy")
     try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)

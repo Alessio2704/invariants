@@ -53,7 +53,7 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
       needsElevation = false
     }
 
-    let executable = needsElevation ? SystemEnvironment.sudoURL : request.executableURL
+    let executable = needsElevation ? SystemBinary.sudo.url : request.executableURL
     let arguments = needsElevation ? [request.executableURL.path] + request.arguments : request.arguments
 
     guard FileManager.default.fileExists(atPath: executable.path) else {

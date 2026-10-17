@@ -21,7 +21,7 @@ struct BranchingScenarioTests {
 
     // 2. Branch out to feat/new-rule
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "-b", "feat/new-rule"]
     )
 
@@ -41,11 +41,11 @@ struct BranchingScenarioTests {
 
     // 4. Merge back into main
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "main"]
     )
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repo.repoURL.path, "merge", "--no-ff", "feat/new-rule", "-m", "Merge feat/new-rule into main"]
     )
 
@@ -74,7 +74,7 @@ struct BranchingScenarioTests {
 
     // 2. Checkout feature branch BEFORE initializing invariants
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "-b", "feat/setup-invariants"]
     )
 
@@ -90,11 +90,11 @@ struct BranchingScenarioTests {
 
     // 4. Merge feature branch into main
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "main"]
     )
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: [
         "-C", repo.repoURL.path, "merge", "--no-ff", "feat/setup-invariants", "-m", "Merge feat/setup-invariants",
       ]

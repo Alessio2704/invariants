@@ -193,11 +193,11 @@ struct AllowedSignersRevocationTests {
 
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "main"])
+      binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Senior"])
+      binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Senior"])
     _ = try await runner.run(
-      executableURL: SystemEnvironment.gitURL,
+      binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "senior@plans.local"])
 
     let signingClient = SigningClient()

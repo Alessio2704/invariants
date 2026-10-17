@@ -50,7 +50,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
     print("Extracting \(tag) archive...")
     let archiveCmd =
-      "\(SystemEnvironment.gitURL.path) archive '\(tag)' | \(SystemEnvironment.tarURL.path) -x -C '\(workDir.path)'"
+      "\(SystemBinary.git.path) archive '\(tag)' | \(SystemBinary.tar.path) -x -C '\(workDir.path)'"
     let extractOutput = try await runner.runShell(archiveCmd)
     guard extractOutput.exitCode == 0 else {
       fputs("Error: Failed to extract tag archive: \(extractOutput.stderrString)\n", stderr)
@@ -60,7 +60,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     // 2. Build release binary
     print("Building release binary for \(tag)...")
     let buildOutput = try await runner.run(
-      executableURL: SystemEnvironment.xcrunURL,
+      binary: .xcrun,
       arguments: ["swift", "build", "-c", "release", "--package-path", workDir.path]
     )
     guard buildOutput.exitCode == 0 else {
@@ -71,7 +71,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     // 3. Run test suite
     print("Running verification test suite...")
     let testOutput = try await runner.run(
-      executableURL: SystemEnvironment.xcrunURL,
+      binary: .xcrun,
       arguments: ["swift", "test", "--package-path", workDir.path]
     )
     guard testOutput.exitCode == 0 else {
