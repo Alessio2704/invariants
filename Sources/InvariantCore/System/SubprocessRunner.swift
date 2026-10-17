@@ -21,7 +21,7 @@ public struct ProcessOutput: Sendable, Equatable {
   }
 }
 
-/// Strict wrapper for running system binaries with absolute paths.
+/// Strict wrapper for running system binaries with absolute paths and automatic elevation support.
 public struct SubprocessRunner: ProcessRunning, Sendable {
   public static let gitURL = URL(fileURLWithPath: "/usr/bin/git")
   public static let sshKeygenURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
@@ -32,16 +32,42 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
 
   public init() {}
 
-  /// Executes a system binary described by `request`.
+  /// Determines whether writing to the target URL requires elevated privileges.
+  public static func requiresElevation(for targetURL: URL) -> Bool {
+    if FileManager.default.fileExists(atPath: targetURL.path) {
+      return !FileManager.default.isWritableFile(atPath: targetURL.path)
+    }
+
+    var current = targetURL.deletingLastPathComponent()
+    while !FileManager.default.fileExists(atPath: current.path) {
+      let parent = current.deletingLastPathComponent()
+      if parent.path == current.path { break }
+      current = parent
+    }
+
+    return !FileManager.default.isWritableFile(atPath: current.path)
+  }
+
+  /// Executes a system binary described by `request`, automatically elevating via `sudo` if the target location requires it.
   @discardableResult
   public func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
-    guard FileManager.default.fileExists(atPath: request.executableURL.path) else {
-      throw SystemError.executableNotFound(request.executableURL.path)
+    let needsElevation: Bool
+    if let targetURL = request.targetURL {
+      needsElevation = Self.requiresElevation(for: targetURL)
+    } else {
+      needsElevation = false
+    }
+
+    let executable = needsElevation ? Self.sudoURL : request.executableURL
+    let arguments = needsElevation ? [request.executableURL.path] + request.arguments : request.arguments
+
+    guard FileManager.default.fileExists(atPath: executable.path) else {
+      throw SystemError.executableNotFound(executable.path)
     }
 
     let process = Process()
-    process.executableURL = request.executableURL
-    process.arguments = request.arguments
+    process.executableURL = executable
+    process.arguments = arguments
     if let workingDirectory = request.workingDirectory {
       process.currentDirectoryURL = workingDirectory
     }
@@ -60,8 +86,7 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
     do {
       try process.run()
     } catch {
-      throw SystemError.fileIOError(
-        "Failed to launch process \(request.executableURL.path): \(error.localizedDescription)")
+      throw SystemError.fileIOError("Failed to launch process \(executable.path): \(error.localizedDescription)")
     }
 
     if let stdinData = request.stdinData {
@@ -105,16 +130,27 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
 
     if !process.isRunning && process.terminationReason == .uncaughtSignal {
       // Process was terminated due to timeout
-      throw SystemError.processTimedOut(executable: request.executableURL.path, timeoutSeconds: request.timeoutSeconds)
+      throw SystemError.processTimedOut(executable: executable.path, timeoutSeconds: request.timeoutSeconds)
     }
 
     let stdoutData = await stdoutTask.value
     let stderrData = await stderrTask.value
 
-    return ProcessOutput(
+    let output = ProcessOutput(
       exitCode: process.terminationStatus,
       stdoutData: stdoutData,
       stderrData: stderrData
     )
+
+    if needsElevation && output.exitCode != 0 {
+      throw SystemError.processFailed(
+        executable: executable.path,
+        arguments: arguments,
+        exitCode: output.exitCode,
+        stderr: output.stderrString
+      )
+    }
+
+    return output
   }
 }

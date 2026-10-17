@@ -43,44 +43,50 @@ struct ProcessRunningTests {
     #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "shell_test")
   }
 
-  @Test("SudoClient executes ProcessRequest directly in sandbox")
-  func sudoClientExecutesRequest() async throws {
+  @Test("SubprocessRunner executes ProcessRequest directly in sandbox with targetURL")
+  func subprocessRunnerDirectInSandbox() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
+    let runner = SubprocessRunner()
     let request = ProcessRequest(
       executableURL: URL(fileURLWithPath: "/bin/echo"),
-      arguments: ["sudo_direct_test"],
+      arguments: ["runner_direct_test"],
       targetURL: tmpDir
     )
-    let output = try await client.run(request)
+    let output = try await runner.run(request)
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "sudo_direct_test")
+    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "runner_direct_test")
   }
 
-  @Test("SudoClient executes runShell convenience method in sandbox")
-  func sudoClientRunShell() async throws {
+  @Test("SubprocessRunner executes runShell convenience method in sandbox with targetURL")
+  func subprocessRunnerRunShellInSandbox() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
-    let output = try await client.runShell("echo 'sudo_shell_test'", targetURL: tmpDir)
+    let runner = SubprocessRunner()
+    let output = try await runner.runShell("echo 'runner_shell_test'", targetURL: tmpDir)
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "sudo_shell_test")
+    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "runner_shell_test")
   }
 
   @Test("Polymorphic execution with any ProcessRunning")
   func polymorphicExecution() async throws {
+    final class MockRunner: ProcessRunning, @unchecked Sendable {
+      func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
+        ProcessOutput(exitCode: 0, stdoutData: Data("polymorphic\n".utf8), stderrData: Data())
+      }
+    }
+
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let runners: [any ProcessRunning] = [
       SubprocessRunner(),
-      SudoClient(),
+      MockRunner(),
     ]
 
     for runner in runners {

@@ -3,26 +3,24 @@ import Testing
 
 @testable import InvariantCore
 
-@Suite("SudoClient & Elevation Detection", .tags(.unit))
-struct SudoClientTests {
+@Suite("Elevation Detection & Installation Management", .tags(.unit))
+struct ElevationAndInstallationTests {
   @Test("requiresElevation detects writable user directories without sudo")
   func writableDirectoryRequiresNoElevation() throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
     let testFileURL = tmpDir.appendingPathComponent("floors/test-repo")
 
-    #expect(!client.requiresElevation(for: testFileURL))
+    #expect(!SubprocessRunner.requiresElevation(for: testFileURL))
   }
 
   @Test("requiresElevation detects root-owned directories requiring sudo")
   func rootDirectoryRequiresElevation() {
-    let client = SudoClient()
     let protectedFileURL = URL(fileURLWithPath: "/usr/local/invariants/floors/test-repo")
 
-    #expect(client.requiresElevation(for: protectedFileURL))
+    #expect(SubprocessRunner.requiresElevation(for: protectedFileURL))
   }
 
   @Test("requiresElevation detects non-writable directories dynamically")
@@ -37,10 +35,9 @@ struct SudoClientTests {
 
     try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnlySubdir.path)
 
-    let client = SudoClient()
     let targetFile = readOnlySubdir.appendingPathComponent("file.txt")
 
-    #expect(client.requiresElevation(for: targetFile))
+    #expect(SubprocessRunner.requiresElevation(for: targetFile))
   }
 
   @Test("createSymlink creates and flips links atomically")
@@ -49,7 +46,7 @@ struct SudoClientTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
+    let installer = InstallationManager()
     let target1 = tmpDir.appendingPathComponent("target1.txt")
     let target2 = tmpDir.appendingPathComponent("target2.txt")
     let link = tmpDir.appendingPathComponent("link.txt")
@@ -58,11 +55,11 @@ struct SudoClientTests {
     try "T2".write(to: target2, atomically: true, encoding: .utf8)
 
     // Link to target 1
-    try await client.createSymlink(from: target1, to: link)
+    try await installer.createSymlink(from: target1, to: link)
     #expect(try String(contentsOf: link, encoding: .utf8) == "T1")
 
     // Flip link to target 2
-    try await client.createSymlink(from: target2, to: link)
+    try await installer.createSymlink(from: target2, to: link)
     #expect(try String(contentsOf: link, encoding: .utf8) == "T2")
   }
 
@@ -126,8 +123,8 @@ struct SudoClientTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
-    let output = try await client.runShell(
+    let runner = SubprocessRunner()
+    let output = try await runner.runShell(
       "echo $MY_VAR && pwd",
       targetURL: tmpDir,
       workingDirectory: tmpDir,
@@ -143,7 +140,7 @@ struct SudoClientTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let client = SudoClient()
+    let installer = InstallationManager()
     let file = tmpDir.appendingPathComponent("sample.txt")
     let folder = tmpDir.appendingPathComponent("nested_folder")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -153,21 +150,21 @@ struct SudoClientTests {
     #expect(FileManager.default.fileExists(atPath: folder.path))
 
     // 1. Remove file + verify idempotency on repeat call
-    try await client.removeItem(at: file)
+    try await installer.removeItem(at: file)
     #expect(!FileManager.default.fileExists(atPath: file.path))
-    try await client.removeItem(at: file)
+    try await installer.removeItem(at: file)
     #expect(!FileManager.default.fileExists(atPath: file.path))
 
     // 2. Remove directory + verify idempotency on repeat call
-    try await client.removeItem(at: folder)
+    try await installer.removeItem(at: folder)
     #expect(!FileManager.default.fileExists(atPath: folder.path))
-    try await client.removeItem(at: folder)
+    try await installer.removeItem(at: folder)
     #expect(!FileManager.default.fileExists(atPath: folder.path))
 
     // 3. Remove non-existent path repeat calls
     let nonExistent = tmpDir.appendingPathComponent("ghost")
-    try await client.removeItem(at: nonExistent)
-    try await client.removeItem(at: nonExistent)
+    try await installer.removeItem(at: nonExistent)
+    try await installer.removeItem(at: nonExistent)
     #expect(!FileManager.default.fileExists(atPath: nonExistent.path))
   }
 }
