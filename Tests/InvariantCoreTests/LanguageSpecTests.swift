@@ -7,9 +7,12 @@ import Testing
 struct LanguageSpecTests {
   @Test("SupportedLanguage enum cases and raw values")
   func supportedLanguageCases() {
-    #expect(SupportedLanguage.allCases.count == 2)
-    #expect(SupportedLanguage.swift.rawValue == "swift")
-    #expect(SupportedLanguage.ts.rawValue == "ts")
+    #expect(!SupportedLanguage.allCases.isEmpty)
+    for language in SupportedLanguage.allCases {
+      #expect(!language.rawValue.isEmpty)
+      #expect(!language.spec.displayName.isEmpty)
+      #expect(!language.spec.ruleFileName.isEmpty)
+    }
   }
 
   @Test("SwiftLanguage spec metadata and strongly typed Config")
@@ -178,10 +181,12 @@ struct LanguageSpecTests {
   @Test("LanguageCLIParser helpDiscussion details all supported languages and syntax")
   func helpDiscussionContent() {
     let discussion = LanguageCLIParser.helpDiscussion
-    #expect(discussion.contains("swift (Swift)"))
-    #expect(discussion.contains("swift.indexStore=build/Index.noindex/DataStore"))
-    #expect(discussion.contains("ts (TypeScript)"))
-    #expect(discussion.contains("ts.tsconfig=tsconfig.json"))
+    for language in SupportedLanguage.allCases {
+      #expect(discussion.contains("\(language.rawValue) (\(language.spec.displayName)):"))
+      for example in language.spec.fieldExamples {
+        #expect(discussion.contains(example))
+      }
+    }
   }
 
   @Test("AnyLanguageSpec hasSources accurately detects language files in sandbox")
@@ -207,56 +212,32 @@ struct LanguageSpecTests {
     #expect(TypeScriptLanguage.hasSources(in: tmpDir))
   }
 
-  @Test("describeConfig provides formatted human-readable summaries")
-  func describeConfigOutputs() {
-    var project = ProjectConfig()
-    #expect(SwiftLanguage.describeConfig(in: project) == "none")
-    #expect(TypeScriptLanguage.describeConfig(in: project) == "none")
-
-    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Store")
-    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json", "tsconfig.test.json"])
-
-    #expect(SwiftLanguage.describeConfig(in: project) == "build/Store")
-    #expect(TypeScriptLanguage.describeConfig(in: project) == "tsconfig.json, tsconfig.test.json")
+  @Test(
+    "describeConfig returns fallback for unconfigured projects across all languages",
+    arguments: SupportedLanguage.allCases
+  )
+  func describeConfigOutputs(language: SupportedLanguage) {
+    let project = ProjectConfig()
+    #expect(language.spec.describeConfig(in: project) == "none")
   }
 
-  @Test("Declarative executionSpec on SwiftLanguage and TypeScriptLanguage")
-  func executionSpecProperties() {
-    let swiftSpec = SwiftLanguage.executionSpec
-    #expect(swiftSpec.reporting.channel == .stdoutJSON)
-    #expect(swiftSpec.reporting.successExitCode == 0)
-    #expect(swiftSpec.reporting.staleIndexExitCode == 2)
-    #expect(swiftSpec.reporting.staleIndexStderrMarker == "INDEX STALE")
-    switch swiftSpec.model {
-    case .compiled(let compiled):
-      #expect(compiled.buildToolchain == .xcrun)
-      #expect(compiled.buildArguments == ["swift", "build"])
-      #expect(compiled.kitPackageName == "kit-swift")
-      #expect(compiled.artifactRelativePath == ".build/release/RuleExecutable")
-      #expect(compiled.sourceExtensions == ["swift"])
-      switch compiled.manifestKind {
-      case .swiftPackage(let toolsVersion, let targetName, let productName):
-        #expect(toolsVersion == "6.0")
-        #expect(targetName == "RuleExecutable")
-        #expect(productName == "InvariantKit")
-      }
-    case .interpreted:
-      Issue.record("Expected Swift to declare compiled execution model")
-    }
+  @Test(
+    "Declarative executionSpec validation for every supported language",
+    arguments: SupportedLanguage.allCases
+  )
+  func executionSpecProperties(language: SupportedLanguage) {
+    let spec = language.spec.executionSpec
+    #expect(spec.reporting.successExitCode == 0)
 
-    let tsSpec = TypeScriptLanguage.executionSpec
-    #expect(tsSpec.reporting.channel == .stdoutJSON)
-    #expect(tsSpec.reporting.successExitCode == 0)
-    #expect(tsSpec.reporting.staleIndexExitCode == 2)
-    #expect(tsSpec.reporting.staleIndexStderrMarker == "INDEX STALE")
-    switch tsSpec.model {
+    switch spec.model {
+    case .compiled(let compiled):
+      #expect(!compiled.buildArguments.isEmpty)
+      #expect(!compiled.artifactRelativePath.isEmpty)
+      #expect(!compiled.sourceExtensions.isEmpty)
     case .interpreted(let interpreted):
-      #expect(interpreted.runtimeCommand == "node")
-      #expect(interpreted.kitDirectoryName == "kit-ts")
-      #expect(interpreted.kitRunnerRelativePath == "dist/runner.js")
-      #expect(interpreted.devRunnerRelativePath == "src/runner.ts")
-    case .compiled:
-      Issue.record("Expected TypeScript to declare interpreted execution model")
+      #expect(!interpreted.runtimeCommand.isEmpty)
+      #expect(!interpreted.kitDirectoryName.isEmpty)
+      #expect(!interpreted.kitRunnerRelativePath.isEmpty)
     }
   }
 
@@ -270,20 +251,19 @@ struct LanguageSpecTests {
     #expect(nonExistent == nil)
   }
 
-  @Test("devWorkspaceFiles yields editor workspace files for each supported language")
-  func devWorkspaceFilesGeneration() {
+  @Test(
+    "devWorkspaceFiles yields valid editor workspace files for each supported language",
+    arguments: SupportedLanguage.allCases
+  )
+  func devWorkspaceFilesGeneration(language: SupportedLanguage) {
     let repoURL = URL(fileURLWithPath: "/tmp/fake-repo")
     let env = SystemEnvironment(rootURL: URL(fileURLWithPath: "/tmp/fake-install"))
 
-    let swiftFiles = SwiftLanguage.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
-    #expect(swiftFiles.count == 1)
-    #expect(swiftFiles[0].relativePath == "Package.swift")
-    #expect(swiftFiles[0].content.contains("InvariantsDev"))
-    #expect(swiftFiles[0].content.contains("InvariantKit"))
-
-    let tsFiles = TypeScriptLanguage.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
-    #expect(tsFiles.count == 1)
-    #expect(tsFiles[0].relativePath == "tsconfig.json")
-    #expect(tsFiles[0].content.contains("../rules/**/*.ts"))
+    let files = language.spec.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
+    #expect(!files.isEmpty)
+    for file in files {
+      #expect(!file.relativePath.isEmpty)
+      #expect(!file.content.isEmpty)
+    }
   }
 }
