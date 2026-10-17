@@ -22,7 +22,7 @@ public struct ProcessOutput: Sendable, Equatable {
 }
 
 /// Strict wrapper for running system binaries with absolute paths.
-public struct SubprocessRunner: Sendable {
+public struct SubprocessRunner: ProcessRunning, Sendable {
   public static let gitURL = URL(fileURLWithPath: "/usr/bin/git")
   public static let sshKeygenURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
   public static let xcrunURL = URL(fileURLWithPath: "/usr/bin/xcrun")
@@ -32,26 +32,20 @@ public struct SubprocessRunner: Sendable {
 
   public init() {}
 
-  /// Runs an executable using its exact absolute URL.
-  public func run(
-    executableURL: URL,
-    arguments: [String],
-    workingDirectory: URL? = nil,
-    environment: [String: String]? = nil,
-    stdinData: Data? = nil,
-    timeoutSeconds: Double = defaultTimeoutSeconds
-  ) async throws(SystemError) -> ProcessOutput {
-    guard FileManager.default.fileExists(atPath: executableURL.path) else {
-      throw SystemError.executableNotFound(executableURL.path)
+  /// Executes a system binary described by `request`.
+  @discardableResult
+  public func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
+    guard FileManager.default.fileExists(atPath: request.executableURL.path) else {
+      throw SystemError.executableNotFound(request.executableURL.path)
     }
 
     let process = Process()
-    process.executableURL = executableURL
-    process.arguments = arguments
-    if let workingDirectory {
+    process.executableURL = request.executableURL
+    process.arguments = request.arguments
+    if let workingDirectory = request.workingDirectory {
       process.currentDirectoryURL = workingDirectory
     }
-    if let environment {
+    if let environment = request.environment {
       process.environment = environment
     }
 
@@ -66,10 +60,11 @@ public struct SubprocessRunner: Sendable {
     do {
       try process.run()
     } catch {
-      throw SystemError.fileIOError("Failed to launch process \(executableURL.path): \(error.localizedDescription)")
+      throw SystemError.fileIOError(
+        "Failed to launch process \(request.executableURL.path): \(error.localizedDescription)")
     }
 
-    if let stdinData {
+    if let stdinData = request.stdinData {
       do {
         try stdinPipe.fileHandleForWriting.write(contentsOf: stdinData)
         try stdinPipe.fileHandleForWriting.close()
@@ -84,7 +79,7 @@ public struct SubprocessRunner: Sendable {
       }
     }
 
-    let timeoutNano = UInt64(timeoutSeconds * 1_000_000_000)
+    let timeoutNano = UInt64(request.timeoutSeconds * 1_000_000_000)
 
     // Read pipe data concurrently
     let stdoutTask = Task.detached {
@@ -110,7 +105,7 @@ public struct SubprocessRunner: Sendable {
 
     if !process.isRunning && process.terminationReason == .uncaughtSignal {
       // Process was terminated due to timeout
-      throw SystemError.processTimedOut(executable: executableURL.path, timeoutSeconds: timeoutSeconds)
+      throw SystemError.processTimedOut(executable: request.executableURL.path, timeoutSeconds: request.timeoutSeconds)
     }
 
     let stdoutData = await stdoutTask.value

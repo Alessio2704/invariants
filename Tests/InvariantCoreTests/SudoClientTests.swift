@@ -77,7 +77,7 @@ struct SudoClientTests {
     try "dummy binary".write(to: stageDir.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
 
     let env = SystemEnvironment(rootURL: tmpRoot, binURL: tmpBinDir.appendingPathComponent("invariants"))
-    let client = SudoClient()
+    let installer = InstallationManager()
 
     defer {
       try? FileManager.default.removeItem(at: tmpRoot)
@@ -86,7 +86,7 @@ struct SudoClientTests {
     }
 
     // 1. Install version 1.0.0
-    try await client.installVersion(version: "1.0.0", stageDir: stageDir, environment: env)
+    try await installer.installVersion(version: "1.0.0", stageDir: stageDir, environment: env)
 
     let installedBin1 = env.versionsDirectoryURL.appendingPathComponent("1.0.0/invariants")
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
@@ -101,7 +101,7 @@ struct SudoClientTests {
     defer { try? FileManager.default.removeItem(at: stageDir2) }
     try "v1.1.0 binary".write(to: stageDir2.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
 
-    try await client.installVersion(version: "1.1.0", stageDir: stageDir2, environment: env)
+    try await installer.installVersion(version: "1.1.0", stageDir: stageDir2, environment: env)
 
     let installedBin2 = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
@@ -109,15 +109,32 @@ struct SudoClientTests {
     #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "v1.1.0 binary")
 
     // 3. Uninstall (first call)
-    try await client.uninstall(environment: env)
+    try await installer.uninstall(environment: env)
 
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
 
     // 4. Uninstall idempotency: calling uninstall again must be a safe, non-throwing no-op
-    try await client.uninstall(environment: env)
+    try await installer.uninstall(environment: env)
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
+  }
+
+  @Test("runPrivileged executes command with custom environment and working directory")
+  func runPrivilegedWithParams() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let client = SudoClient()
+    let output = try await client.runPrivileged(
+      command: "echo $MY_VAR && pwd",
+      targetURL: tmpDir,
+      workingDirectory: tmpDir,
+      environment: ["MY_VAR": "HELLO_PRIVILEGED"]
+    )
+    #expect(output.exitCode == 0)
+    #expect(output.stdoutString.contains("HELLO_PRIVILEGED"))
   }
 
   @Test("removeItem is strictly idempotent across files, directories, and non-existent paths")

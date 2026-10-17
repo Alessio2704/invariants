@@ -16,7 +16,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
   func run() async throws {
     let env = SystemEnvironment.standard
-    let sudoClient = SudoClient()
+    let installer = InstallationManager()
     let runner = SubprocessRunner()
     let fm = FileManager.default
 
@@ -34,7 +34,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
       print("Installing from stage directory \(stageURL.path)...")
       do {
-        try await sudoClient.installVersion(version: version, stageDir: stageURL, environment: env)
+        try await installer.installVersion(version: version, stageDir: stageURL, environment: env)
         print("✓ Successfully installed invariants \(version) to \(env.rootURL.path)")
         return
       } catch {
@@ -122,10 +122,10 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       }
     }
 
-    // 5. Privileged installation via SudoClient
+    // 5. Installation via InstallationManager
     print("Installing version \(version) to \(env.rootURL.path)...")
     do {
-      try await sudoClient.installVersion(version: version, stageDir: stageDir, environment: env)
+      try await installer.installVersion(version: version, stageDir: stageDir, environment: env)
       print("✓ Successfully self-updated invariants to \(tag)!")
     } catch {
       fputs("Error: Installation failed: \(error)\n", stderr)
