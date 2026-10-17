@@ -11,7 +11,7 @@ final class TestRepo: @unchecked Sendable {
   let environment: SystemEnvironment
   private let gitClient: GitClient
   private let signingClient: SigningClient
-  private let registryManager: RegistryManager
+  let registryManager: RegistryManager
 
   init() async throws {
     let fm = FileManager.default
@@ -130,7 +130,8 @@ final class TestRepo: @unchecked Sendable {
   @discardableResult
   func signed(
     version: Int = 1,
-    defaultBranch: String = "main"
+    defaultBranch: String = "main",
+    project: ProjectConfig? = nil
   ) async throws -> TestRepo {
     let fingerprintEngine = FingerprintEngine(gitClient: gitClient)
     var ruleMap: [String: String] = [:]
@@ -147,6 +148,7 @@ final class TestRepo: @unchecked Sendable {
       version: version,
       engine: "^1.0.0",
       defaultBranch: defaultBranch,
+      project: project,
       rules: ruleMap
     )
 

@@ -38,8 +38,10 @@ struct InitManagerTests {
 
     let options = InitOptions(
       engineVersion: "1.0.0",
-      swiftIndexStore: "build/Index.noindex/DataStore",
-      tsconfigs: ["tsconfig.json"],
+      projectConfig: ProjectConfig(
+        swift: SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore"),
+        ts: TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+      ),
       keyURL: keyURL
     )
 
@@ -64,8 +66,8 @@ struct InitManagerTests {
     let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
     #expect(loaded.defaultBranch == "main")
-    #expect(loaded.project?.swift?.indexStore == "build/Index.noindex/DataStore")
-    #expect(loaded.project?.ts?.tsconfig == ["tsconfig.json"])
+    #expect(loaded.project?[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
+    #expect(loaded.project?[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
 
     // 4. Verify .gitignore updated with invariants/.dev/
     let gitignoreURL = repoURL.appendingPathComponent(".gitignore")

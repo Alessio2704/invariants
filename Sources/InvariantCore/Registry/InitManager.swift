@@ -4,21 +4,18 @@ public import Foundation
 public struct InitOptions: Sendable {
   public var engineVersion: String
   public var defaultBranch: String
-  public var swiftIndexStore: String?
-  public var tsconfigs: [String]
+  public var projectConfig: ProjectConfig
   public var keyURL: URL
 
   public init(
     engineVersion: String = EngineVersion.current,
     defaultBranch: String = "main",
-    swiftIndexStore: String? = nil,
-    tsconfigs: [String] = [],
+    projectConfig: ProjectConfig = ProjectConfig(),
     keyURL: URL
   ) {
     self.engineVersion = engineVersion
     self.defaultBranch = defaultBranch
-    self.swiftIndexStore = swiftIndexStore
-    self.tsconfigs = tsconfigs
+    self.projectConfig = projectConfig
     self.keyURL = keyURL
   }
 }
@@ -51,21 +48,12 @@ public struct InitManager: Sendable {
       try gitignoreContent.data(using: .utf8)?.write(to: gitignoreURL, options: .atomic)
     }
 
-    // 2. Configure project
-    var projectConfig = ProjectConfig()
-    if let idx = options.swiftIndexStore {
-      projectConfig.swift = SwiftProjectConfig(indexStore: idx)
-    }
-    if !options.tsconfigs.isEmpty {
-      projectConfig.ts = TSProjectConfig(tsconfig: options.tsconfigs)
-    }
-
-    // 3. Create Registry v1
+    // 2. Create Registry v1
     let registry = Registry(
       version: 1,
       engine: "^\(options.engineVersion)",
       defaultBranch: options.defaultBranch,
-      project: projectConfig.isEmpty ? nil : projectConfig,
+      project: options.projectConfig.isEmpty ? nil : options.projectConfig,
       rules: [:]
     )
 

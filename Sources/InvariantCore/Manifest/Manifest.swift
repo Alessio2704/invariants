@@ -1,11 +1,5 @@
 public import Foundation
 
-/// Target language supported by Invariants.
-public enum TargetLanguage: String, Sendable, Codable, CaseIterable {
-  case swift
-  case ts
-}
-
 /// Scope definition for a specific target.
 public struct TargetScope: Sendable, Equatable, Codable {
   public var include: [String]

@@ -11,8 +11,8 @@ struct RegistryTests {
       version: 8,
       engine: "^1.2.0",
       project: ProjectConfig(
-        swift: SwiftProjectConfig(indexStore: "Index/DataStore"),
-        ts: TSProjectConfig(tsconfig: ["tsconfig.json"])
+        swift: SwiftLanguage.Config(indexStore: "Index/DataStore"),
+        ts: TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
       ),
       rules: [
         "tooling": "77de4e10",

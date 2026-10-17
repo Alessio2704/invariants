@@ -46,15 +46,8 @@ public struct ManifestValidator: Sendable {
 
         // In repo mode: verify target is configured in registry.project
         if !isFixtureMode, let registry {
-          switch target {
-          case .swift:
-            guard registry.project?.swift != nil else {
-              throw ManifestError.missingTargetInRegistryProject(.swift)
-            }
-          case .ts:
-            guard registry.project?.ts != nil else {
-              throw ManifestError.missingTargetInRegistryProject(.ts)
-            }
+          guard registry.project?.isConfigured(target) == true else {
+            throw ManifestError.missingTargetInRegistryProject(target)
           }
         }
       } else {

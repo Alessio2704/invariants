@@ -1,33 +1,48 @@
 public import Foundation
 
 /// Project-wide analysis inputs declared in registry.lock.
-public struct SwiftProjectConfig: Sendable, Equatable, Codable {
-  public var indexStore: String
-
-  public init(indexStore: String) {
-    self.indexStore = indexStore
-  }
-}
-
-public struct TSProjectConfig: Sendable, Equatable, Codable {
-  public var tsconfig: [String]
-
-  public init(tsconfig: [String]) {
-    self.tsconfig = tsconfig
-  }
-}
-
 public struct ProjectConfig: Sendable, Equatable, Codable {
-  public var swift: SwiftProjectConfig?
-  public var ts: TSProjectConfig?
+  public var swift: SwiftLanguage.Config?
+  public var ts: TypeScriptLanguage.Config?
 
-  public init(swift: SwiftProjectConfig? = nil, ts: TSProjectConfig? = nil) {
+  public init(
+    swift: SwiftLanguage.Config? = nil,
+    ts: TypeScriptLanguage.Config? = nil
+  ) {
     self.swift = swift
     self.ts = ts
   }
 
   public var isEmpty: Bool {
     swift == nil && ts == nil
+  }
+
+  public subscript<L: LanguageSpec>(_ spec: L.Type) -> L.Config? {
+    get {
+      switch L.language {
+      case .swift:
+        return swift as? L.Config
+      case .ts:
+        return ts as? L.Config
+      }
+    }
+    set {
+      switch L.language {
+      case .swift:
+        swift = newValue as? SwiftLanguage.Config
+      case .ts:
+        ts = newValue as? TypeScriptLanguage.Config
+      }
+    }
+  }
+
+  public func isConfigured(_ language: SupportedLanguage) -> Bool {
+    switch language {
+    case .swift:
+      return swift != nil
+    case .ts:
+      return ts != nil
+    }
   }
 }
 

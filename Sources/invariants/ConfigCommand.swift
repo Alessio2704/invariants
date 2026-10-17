@@ -44,10 +44,10 @@ struct ConfigCommand: AsyncParsableCommand {
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
     if let swiftIndex {
-      newProject.swift = SwiftProjectConfig(indexStore: swiftIndex)
+      newProject[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: swiftIndex)
     }
     if !tsconfig.isEmpty {
-      newProject.ts = TSProjectConfig(tsconfig: tsconfig)
+      newProject[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: tsconfig)
     }
     let oldDefaultBranch = registry.defaultBranch
     if let defaultBranch {
@@ -56,12 +56,12 @@ struct ConfigCommand: AsyncParsableCommand {
 
     print("Project Configuration Diff:")
     print("───────────────────────────")
-    let oldSwift = oldProject.swift?.indexStore ?? "none"
-    let newSwift = newProject.swift?.indexStore ?? "none"
+    let oldSwift = oldProject[SwiftLanguage.self]?.indexStore ?? "none"
+    let newSwift = newProject[SwiftLanguage.self]?.indexStore ?? "none"
     print("Swift indexStore: \(oldSwift) → \(newSwift)")
 
-    let oldTS = (oldProject.ts?.tsconfig ?? []).joined(separator: ", ")
-    let newTS = (newProject.ts?.tsconfig ?? []).joined(separator: ", ")
+    let oldTS = (oldProject[TypeScriptLanguage.self]?.tsconfig ?? []).joined(separator: ", ")
+    let newTS = (newProject[TypeScriptLanguage.self]?.tsconfig ?? []).joined(separator: ", ")
     print("TS tsconfig:     \(oldTS.isEmpty ? "none" : oldTS) → \(newTS.isEmpty ? "none" : newTS)")
     if let defaultBranch {
       print("Default branch:   \(oldDefaultBranch) → \(defaultBranch)")

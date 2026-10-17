@@ -43,12 +43,19 @@ struct InitCommand: AsyncParsableCommand {
     let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL, gitClient: gitClient)
 
     // 4. Initialize repository
+    var projectConfig = ProjectConfig()
+    if let configuredSwiftIndex {
+      projectConfig.swift = SwiftLanguage.Config(indexStore: configuredSwiftIndex)
+    }
+    if !configuredTsconfigs.isEmpty {
+      projectConfig.ts = TypeScriptLanguage.Config(tsconfig: configuredTsconfigs)
+    }
+
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
       engineVersion: CLIHelpers.engineVersion,
       defaultBranch: defaultBranch,
-      swiftIndexStore: configuredSwiftIndex,
-      tsconfigs: configuredTsconfigs,
+      projectConfig: projectConfig,
       keyURL: keyURL
     )
 
