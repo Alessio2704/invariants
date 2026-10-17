@@ -14,11 +14,11 @@ struct FloorTests {
 
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", tmpDir.path, "config", "user.name", "Tester"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", tmpDir.path, "config", "user.name", "Tester"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
+      executableURL: SystemEnvironment.gitURL,
       arguments: ["-C", tmpDir.path, "config", "user.email", "test@invariants.local"]
     )
 
@@ -57,7 +57,7 @@ struct FloorTests {
 
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
 
     let dummyFile = tmpDir.appendingPathComponent("file.txt")
     try Data("hello".utf8).write(to: dummyFile)

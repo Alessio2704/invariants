@@ -79,7 +79,7 @@ extension ProcessRunning {
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       ProcessRequest(
-        executableURL: URL(fileURLWithPath: "/bin/sh"),
+        executableURL: SystemEnvironment.shURL,
         arguments: ["-c", command],
         targetURL: targetURL,
         workingDirectory: workingDirectory,

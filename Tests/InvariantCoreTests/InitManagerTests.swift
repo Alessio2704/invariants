@@ -19,11 +19,11 @@ struct InitManagerTests {
     // Setup git repo
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "main"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "main"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Init Tester"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Init Tester"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
+      executableURL: SystemEnvironment.gitURL,
       arguments: ["-C", repoURL.path, "config", "user.email", "tester@invariants.local"])
 
     // Generate throwaway key
@@ -77,14 +77,14 @@ struct InitManagerTests {
     let githooksDir = repoURL.appendingPathComponent(".githooks")
     #expect(!fm.fileExists(atPath: githooksDir.path))
     let hooksCheck = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
+      executableURL: SystemEnvironment.gitURL,
       arguments: ["-C", repoURL.path, "config", "--get", "core.hooksPath"]
     )
     #expect(hooksCheck.exitCode != 0 || hooksCheck.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
     // 6. Verify git commit exists with initial commit
     let logOutput = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
+      executableURL: SystemEnvironment.gitURL,
       arguments: ["-C", repoURL.path, "log", "--oneline"]
     )
     #expect(logOutput.exitCode == 0)
@@ -103,11 +103,11 @@ struct InitManagerTests {
 
     let runner = SubprocessRunner()
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "develop"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "init", "-b", "develop"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Branch Tester"])
+      executableURL: SystemEnvironment.gitURL, arguments: ["-C", repoURL.path, "config", "user.name", "Branch Tester"])
     _ = try await runner.run(
-      executableURL: SubprocessRunner.gitURL,
+      executableURL: SystemEnvironment.gitURL,
       arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
 
     let signingClient = SigningClient()

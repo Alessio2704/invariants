@@ -23,11 +23,6 @@ public struct ProcessOutput: Sendable, Equatable {
 
 /// Strict wrapper for running system binaries with absolute paths and automatic elevation support.
 public struct SubprocessRunner: ProcessRunning, Sendable {
-  public static let gitURL = URL(fileURLWithPath: "/usr/bin/git")
-  public static let sshKeygenURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
-  public static let xcrunURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-  public static let sudoURL = URL(fileURLWithPath: "/usr/bin/sudo")
-
   public static let defaultTimeoutSeconds: Double = 600.0  // 10 minutes
 
   public init() {}
@@ -58,7 +53,7 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
       needsElevation = false
     }
 
-    let executable = needsElevation ? Self.sudoURL : request.executableURL
+    let executable = needsElevation ? SystemEnvironment.sudoURL : request.executableURL
     let arguments = needsElevation ? [request.executableURL.path] + request.arguments : request.arguments
 
     guard FileManager.default.fileExists(atPath: executable.path) else {

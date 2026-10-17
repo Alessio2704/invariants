@@ -197,7 +197,7 @@ public struct RuleRunner: Sendable {
     let buildOutput: ProcessOutput
     do {
       buildOutput = try await runner.run(
-        executableURL: SubprocessRunner.xcrunURL,
+        executableURL: SystemEnvironment.xcrunURL,
         arguments: ["swift", "build", "--package-path", cacheDirectory.path],
         workingDirectory: cacheDirectory,
         timeoutSeconds: timeoutSeconds
