@@ -20,7 +20,7 @@ public struct InstallationManager: Sendable {
       mkdir -p '\(targetVersionDir.path)'
       cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
       """
-    _ = try await sudoClient.runPrivileged(command: copyCommand, targetURL: environment.rootURL)
+    _ = try await sudoClient.runShell(copyCommand, targetURL: environment.rootURL)
 
     try await sudoClient.createSymlink(from: targetVersionDir, to: environment.currentVersionURL)
 
@@ -31,7 +31,7 @@ public struct InstallationManager: Sendable {
       chown -R root:wheel '\(environment.rootURL.path)' 2>/dev/null || true
       chmod -R go-w '\(environment.rootURL.path)' 2>/dev/null || true
       """
-    _ = try await sudoClient.runPrivileged(command: permsCommand, targetURL: environment.rootURL)
+    _ = try await sudoClient.runShell(permsCommand, targetURL: environment.rootURL)
   }
 
   /// Completely uninstalls the invariants engine from the system environment.

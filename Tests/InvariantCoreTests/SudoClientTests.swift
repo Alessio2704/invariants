@@ -120,15 +120,15 @@ struct SudoClientTests {
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
   }
 
-  @Test("runPrivileged executes command with custom environment and working directory")
-  func runPrivilegedWithParams() async throws {
+  @Test("runShell executes command with custom environment and working directory")
+  func runShellWithParams() async throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let client = SudoClient()
-    let output = try await client.runPrivileged(
-      command: "echo $MY_VAR && pwd",
+    let output = try await client.runShell(
+      "echo $MY_VAR && pwd",
       targetURL: tmpDir,
       workingDirectory: tmpDir,
       environment: ["MY_VAR": "HELLO_PRIVILEGED"]

@@ -60,31 +60,11 @@ public struct SudoClient: ProcessRunning, Sendable {
     return output
   }
 
-  /// Convenience wrapper to execute a shell command with root elevation if target requires it.
-  @discardableResult
-  public func runPrivileged(
-    command: String,
-    targetURL: URL,
-    workingDirectory: URL? = nil,
-    environment: [String: String]? = nil,
-    stdinData: Data? = nil,
-    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds
-  ) async throws(SystemError) -> ProcessOutput {
-    try await runShell(
-      command,
-      targetURL: targetURL,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      stdinData: stdinData,
-      timeoutSeconds: timeoutSeconds
-    )
-  }
-
   /// Creates a symbolic link, elevating via `sudo` only if the destination requires root privileges.
   public func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()
     let command = "mkdir -p '\(parent.path)' && ln -sfn '\(sourceURL.path)' '\(destinationURL.path)'"
-    _ = try await runPrivileged(command: command, targetURL: destinationURL)
+    _ = try await runShell(command, targetURL: destinationURL)
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
@@ -95,6 +75,6 @@ public struct SudoClient: ProcessRunning, Sendable {
     guard exists else { return }
 
     let command = "rm -rf '\(targetURL.path)'"
-    _ = try await runPrivileged(command: command, targetURL: targetURL)
+    _ = try await runShell(command, targetURL: targetURL)
   }
 }

@@ -50,10 +50,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
     print("Extracting \(tag) archive...")
     let archiveCmd = "\(SubprocessRunner.gitURL.path) archive '\(tag)' | /usr/bin/tar -x -C '\(workDir.path)'"
-    let extractOutput = try await runner.run(
-      executableURL: URL(fileURLWithPath: "/bin/sh"),
-      arguments: ["-c", archiveCmd]
-    )
+    let extractOutput = try await runner.runShell(archiveCmd)
     guard extractOutput.exitCode == 0 else {
       fputs("Error: Failed to extract tag archive: \(extractOutput.stderrString)\n", stderr)
       throw ExitCode(1)
