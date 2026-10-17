@@ -11,11 +11,12 @@ struct InitCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Default branch name (default: auto-detected or main).")
   var branch: String?
 
-  @Option(name: .long, help: "Relative path to Swift index store (e.g. build/Index.noindex/DataStore).")
-  var swiftIndex: String?
-
-  @Option(name: .long, parsing: .upToNextOption, help: "Relative path(s) to tsconfig.json.")
-  var tsconfig: [String] = []
+  @Option(
+    name: .long,
+    parsing: .upToNextOption,
+    help: "Language input in <lang>.<field>=<value> format (e.g. swift.indexStore=build/DataStore)."
+  )
+  var project: [String] = []
 
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
@@ -30,8 +31,18 @@ struct InitCommand: AsyncParsableCommand {
     print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Detect project inputs interactively or via flags
-    let configuredSwiftIndex = selectSwiftIndex(repoRootURL: repoRootURL)
-    let configuredTsconfigs = selectTsconfigs(repoRootURL: repoRootURL)
+    var projectConfig = ProjectConfig()
+    if !project.isEmpty {
+      for entry in project {
+        do {
+          try ProjectCLIParser.apply(entry: entry, into: &projectConfig)
+        } catch {
+          throw ValidationError(error.description)
+        }
+      }
+    } else {
+      selectLanguageConfigurations(repoRootURL: repoRootURL, into: &projectConfig)
+    }
 
     // 2. Resolve signing key
     guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
@@ -43,14 +54,6 @@ struct InitCommand: AsyncParsableCommand {
     let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL, gitClient: gitClient)
 
     // 4. Initialize repository
-    var projectConfig = ProjectConfig()
-    if let configuredSwiftIndex {
-      projectConfig.swift = SwiftLanguage.Config(indexStore: configuredSwiftIndex)
-    }
-    if !configuredTsconfigs.isEmpty {
-      projectConfig.ts = TypeScriptLanguage.Config(tsconfig: configuredTsconfigs)
-    }
-
     let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
       engineVersion: CLIHelpers.engineVersion,
@@ -112,49 +115,47 @@ struct InitCommand: AsyncParsableCommand {
     return branches[0]
   }
 
-  private func selectSwiftIndex(repoRootURL: URL) -> String? {
-    if let swiftIndex {
-      return swiftIndex
-    }
-    let candidates = InitManager.discoverSwiftIndexCandidates(repoRootURL: repoRootURL)
-    guard !candidates.isEmpty else { return nil }
-
-    if CLIHelpers.isInteractive {
-      print("\nDiscovered Swift Index candidates:")
-      for (idx, cand) in candidates.enumerated() {
-        print("  [\(idx + 1)] \(cand)")
+  private func selectLanguageConfigurations(repoRootURL: URL, into projectConfig: inout ProjectConfig) {
+    for lang in SupportedLanguage.allCases {
+      guard lang.spec.hasSources(in: repoRootURL) else { continue }
+      switch lang {
+      case .swift:
+        let candidates = SwiftLanguage.discoverCandidates(repoRootURL: repoRootURL)
+        guard !candidates.isEmpty else { continue }
+        if CLIHelpers.isInteractive {
+          print("\nDiscovered Swift Index candidates:")
+          for (idx, cand) in candidates.enumerated() {
+            print("  [\(idx + 1)] \(cand)")
+          }
+          let choice = CLIHelpers.prompt(
+            question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)")
+          if let num = Int(choice), num >= 1, num <= candidates.count {
+            projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: candidates[num - 1])
+          } else if !choice.isEmpty {
+            projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: choice)
+          }
+        } else {
+          projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: candidates[0])
+        }
+      case .ts:
+        let candidates = TypeScriptLanguage.discoverCandidates(repoRootURL: repoRootURL)
+        guard !candidates.isEmpty else { continue }
+        if CLIHelpers.isInteractive {
+          let joined = candidates.joined(separator: ", ")
+          let confirm = CLIHelpers.promptConfirmation(
+            question: "Use discovered tsconfig paths (\(joined))?", default: true)
+          if confirm {
+            projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: candidates)
+          } else {
+            let custom = CLIHelpers.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
+            if !custom.isEmpty {
+              projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: [custom])
+            }
+          }
+        } else {
+          projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: candidates)
+        }
       }
-      let choice = CLIHelpers.prompt(
-        question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)")
-      if let num = Int(choice), num >= 1, num <= candidates.count {
-        return candidates[num - 1]
-      }
-      if !choice.isEmpty {
-        return choice
-      }
-      return nil
     }
-
-    return candidates.first
-  }
-
-  private func selectTsconfigs(repoRootURL: URL) -> [String] {
-    if !tsconfig.isEmpty {
-      return tsconfig
-    }
-    let candidates = InitManager.discoverTsconfigCandidates(repoRootURL: repoRootURL)
-    guard !candidates.isEmpty else { return [] }
-
-    if CLIHelpers.isInteractive {
-      let joined = candidates.joined(separator: ", ")
-      let confirm = CLIHelpers.promptConfirmation(question: "Use discovered tsconfig paths (\(joined))?", default: true)
-      if confirm {
-        return candidates
-      }
-      let custom = CLIHelpers.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
-      return custom.isEmpty ? [] : [custom]
-    }
-
-    return candidates
   }
 }

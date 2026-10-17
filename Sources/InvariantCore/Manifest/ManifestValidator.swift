@@ -17,7 +17,7 @@ public struct ManifestValidator: Sendable {
     // 1. Check target files and fixture folders
     for target in TargetLanguage.allCases {
       let isDeclared = manifest.targets.contains(target)
-      let ruleFileName = target == .swift ? "rule.swift" : "rule.ts"
+      let ruleFileName = target.spec.ruleFileName
       let ruleFileURL = ruleDirectory.appendingPathComponent(ruleFileName)
 
       if isDeclared {

@@ -113,4 +113,95 @@ struct LanguageSpecTests {
     #expect(decoded[SwiftLanguage.self]?.indexStore == "build/DataStore")
     #expect(decoded[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "tsconfig.node.json"])
   }
+
+  @Test("ProjectCLIParser parses valid language configurations into ProjectConfig")
+  func projectCLIParserValid() throws {
+    var project = ProjectConfig()
+
+    try ProjectCLIParser.apply(entry: "swift.indexStore=build/MyDataStore", into: &project)
+    #expect(project[SwiftLanguage.self]?.indexStore == "build/MyDataStore")
+
+    try ProjectCLIParser.apply(
+      entry: "ts.tsconfig=tsconfig.json,packages/core/tsconfig.json",
+      into: &project
+    )
+    #expect(project[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "packages/core/tsconfig.json"])
+
+    // Overwrite existing configuration
+    try ProjectCLIParser.apply(entry: "swift.indexStore=build_sim/NewStore", into: &project)
+    #expect(project[SwiftLanguage.self]?.indexStore == "build_sim/NewStore")
+  }
+
+  @Test("ProjectCLIParser rejects malformed entries with LanguageError")
+  func projectCLIParserErrors() {
+    var project = ProjectConfig()
+
+    #expect(throws: LanguageError.invalidCLIFormat("no_equals_sign")) {
+      try ProjectCLIParser.apply(entry: "no_equals_sign", into: &project)
+    }
+
+    #expect(throws: LanguageError.invalidCLIFormat("no_dot_target=value")) {
+      try ProjectCLIParser.apply(entry: "no_dot_target=value", into: &project)
+    }
+
+    #expect(throws: LanguageError.unknownLanguage("rust")) {
+      try ProjectCLIParser.apply(entry: "rust.manifest=Cargo.toml", into: &project)
+    }
+
+    #expect(
+      throws: LanguageError.unsupportedField(
+        language: "swift",
+        field: "tsconfig",
+        expected: ["indexStore"]
+      )
+    ) {
+      try ProjectCLIParser.apply(entry: "swift.tsconfig=tsconfig.json", into: &project)
+    }
+
+    #expect(
+      throws: LanguageError.unsupportedField(
+        language: "ts",
+        field: "indexStore",
+        expected: ["tsconfig"]
+      )
+    ) {
+      try ProjectCLIParser.apply(entry: "ts.indexStore=build/DataStore", into: &project)
+    }
+  }
+
+  @Test("AnyLanguageSpec hasSources accurately detects language files in sandbox")
+  func languageHasSourcesDetection() throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    #expect(!SwiftLanguage.hasSources(in: tmpDir))
+    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+
+    // Add Swift file
+    let swiftFile = tmpDir.appendingPathComponent("main.swift")
+    try Data("print(1)".utf8).write(to: swiftFile)
+    #expect(SwiftLanguage.hasSources(in: tmpDir))
+    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+
+    // Add TS file
+    let tsFile = tmpDir.appendingPathComponent("index.ts")
+    try Data("console.log(1)".utf8).write(to: tsFile)
+    #expect(SwiftLanguage.hasSources(in: tmpDir))
+    #expect(TypeScriptLanguage.hasSources(in: tmpDir))
+  }
+
+  @Test("describeConfig provides formatted human-readable summaries")
+  func describeConfigOutputs() {
+    var project = ProjectConfig()
+    #expect(SwiftLanguage.describeConfig(in: project) == "none")
+    #expect(TypeScriptLanguage.describeConfig(in: project) == "none")
+
+    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Store")
+    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json", "tsconfig.test.json"])
+
+    #expect(SwiftLanguage.describeConfig(in: project) == "build/Store")
+    #expect(TypeScriptLanguage.describeConfig(in: project) == "tsconfig.json, tsconfig.test.json")
+  }
 }

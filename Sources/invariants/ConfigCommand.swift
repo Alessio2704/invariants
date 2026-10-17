@@ -8,11 +8,12 @@ struct ConfigCommand: AsyncParsableCommand {
     abstract: "Modify project analysis inputs in registry.project with impact verification."
   )
 
-  @Option(name: .long, help: "Relative path to Swift index store.")
-  var swiftIndex: String?
-
-  @Option(name: .long, parsing: .upToNextOption, help: "Relative path(s) to tsconfig.json.")
-  var tsconfig: [String] = []
+  @Option(
+    name: .long,
+    parsing: .upToNextOption,
+    help: "Language input in <lang>.<field>=<value> format (e.g. swift.indexStore=build/DataStore)."
+  )
+  var project: [String] = []
 
   @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
   var defaultBranch: String?
@@ -36,18 +37,19 @@ struct ConfigCommand: AsyncParsableCommand {
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
-    if swiftIndex == nil && tsconfig.isEmpty && defaultBranch == nil {
-      print("No configuration changes specified. Use --swift-index, --tsconfig, or --default-branch.")
+    if project.isEmpty && defaultBranch == nil {
+      print("No configuration changes specified. Use --project <language>.<field>=<value> or --default-branch.")
       return
     }
 
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
-    if let swiftIndex {
-      newProject[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: swiftIndex)
-    }
-    if !tsconfig.isEmpty {
-      newProject[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: tsconfig)
+    for entry in project {
+      do {
+        try ProjectCLIParser.apply(entry: entry, into: &newProject)
+      } catch {
+        throw ValidationError(error.description)
+      }
     }
     let oldDefaultBranch = registry.defaultBranch
     if let defaultBranch {
@@ -56,13 +58,12 @@ struct ConfigCommand: AsyncParsableCommand {
 
     print("Project Configuration Diff:")
     print("───────────────────────────")
-    let oldSwift = oldProject[SwiftLanguage.self]?.indexStore ?? "none"
-    let newSwift = newProject[SwiftLanguage.self]?.indexStore ?? "none"
-    print("Swift indexStore: \(oldSwift) → \(newSwift)")
-
-    let oldTS = (oldProject[TypeScriptLanguage.self]?.tsconfig ?? []).joined(separator: ", ")
-    let newTS = (newProject[TypeScriptLanguage.self]?.tsconfig ?? []).joined(separator: ", ")
-    print("TS tsconfig:     \(oldTS.isEmpty ? "none" : oldTS) → \(newTS.isEmpty ? "none" : newTS)")
+    for lang in SupportedLanguage.allCases {
+      let oldDesc = lang.spec.describeConfig(in: oldProject)
+      let newDesc = lang.spec.describeConfig(in: newProject)
+      let label = "\(lang.spec.displayName):".padding(toLength: 17, withPad: " ", startingAt: 0)
+      print("\(label)\(oldDesc) → \(newDesc)")
+    }
     if let defaultBranch {
       print("Default branch:   \(oldDefaultBranch) → \(defaultBranch)")
     }
