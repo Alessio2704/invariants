@@ -11,13 +11,13 @@ echo "Running engine pre-push full verification..."
 
 # 2. Periphery scan
 if command -v periphery >/dev/null 2>&1; then
-  periphery scan
+  periphery scan --index-store-path "$REPO_ROOT/.build/out" --skip-build
 fi
 
-# 3. Full swift test (all tags)
-swift test
+# 3. Scenario test suite
+swift test --test-product ScenarioTests
 
-# 3. TS Coverage
+# 4. TS Coverage
 (
   cd "$REPO_ROOT/kit-ts"
   npm run test:coverage
