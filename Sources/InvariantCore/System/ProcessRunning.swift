@@ -9,6 +9,7 @@ public struct ProcessRequest: Sendable, Equatable {
   public var environment: [String: String]?
   public var stdinData: Data?
   public var timeoutSeconds: Double
+  public var checkExitCode: Bool
 
   public init(
     executableURL: URL,
@@ -17,7 +18,8 @@ public struct ProcessRequest: Sendable, Equatable {
     workingDirectory: URL? = nil,
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
-    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds
+    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds,
+    checkExitCode: Bool = false
   ) {
     self.executableURL = executableURL
     self.arguments = arguments
@@ -26,6 +28,7 @@ public struct ProcessRequest: Sendable, Equatable {
     self.environment = environment
     self.stdinData = stdinData
     self.timeoutSeconds = timeoutSeconds
+    self.checkExitCode = checkExitCode
   }
 }
 
@@ -46,7 +49,8 @@ extension ProcessRunning {
     workingDirectory: URL? = nil,
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
-    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds
+    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds,
+    checkExitCode: Bool = false
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       ProcessRequest(
@@ -56,7 +60,8 @@ extension ProcessRunning {
         workingDirectory: workingDirectory,
         environment: environment,
         stdinData: stdinData,
-        timeoutSeconds: timeoutSeconds
+        timeoutSeconds: timeoutSeconds,
+        checkExitCode: checkExitCode
       )
     )
   }
@@ -69,7 +74,8 @@ extension ProcessRunning {
     workingDirectory: URL? = nil,
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
-    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds
+    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds,
+    checkExitCode: Bool = false
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       ProcessRequest(
@@ -79,7 +85,8 @@ extension ProcessRunning {
         workingDirectory: workingDirectory,
         environment: environment,
         stdinData: stdinData,
-        timeoutSeconds: timeoutSeconds
+        timeoutSeconds: timeoutSeconds,
+        checkExitCode: checkExitCode
       )
     )
   }

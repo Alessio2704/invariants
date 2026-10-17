@@ -142,7 +142,7 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
       stderrData: stderrData
     )
 
-    if needsElevation && output.exitCode != 0 {
+    if request.checkExitCode && output.exitCode != 0 {
       throw SystemError.processFailed(
         executable: executable.path,
         arguments: arguments,

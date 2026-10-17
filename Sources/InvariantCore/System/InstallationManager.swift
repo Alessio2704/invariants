@@ -12,7 +12,7 @@ public struct InstallationManager: Sendable {
   public func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()
     let command = "mkdir -p '\(parent.path)' && ln -sfn '\(sourceURL.path)' '\(destinationURL.path)'"
-    _ = try await runner.runShell(command, targetURL: destinationURL)
+    _ = try await runner.runShell(command, targetURL: destinationURL, checkExitCode: true)
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
@@ -23,7 +23,7 @@ public struct InstallationManager: Sendable {
     guard exists else { return }
 
     let command = "rm -rf '\(targetURL.path)'"
-    _ = try await runner.runShell(command, targetURL: targetURL)
+    _ = try await runner.runShell(command, targetURL: targetURL, checkExitCode: true)
   }
 
   /// Installs an engine version payload from a staging directory into the system environment.
@@ -38,7 +38,7 @@ public struct InstallationManager: Sendable {
       mkdir -p '\(targetVersionDir.path)'
       cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
       """
-    _ = try await runner.runShell(copyCommand, targetURL: environment.rootURL)
+    _ = try await runner.runShell(copyCommand, targetURL: environment.rootURL, checkExitCode: true)
 
     try await createSymlink(from: targetVersionDir, to: environment.currentVersionURL)
 
@@ -49,7 +49,7 @@ public struct InstallationManager: Sendable {
       chown -R root:wheel '\(environment.rootURL.path)' 2>/dev/null || true
       chmod -R go-w '\(environment.rootURL.path)' 2>/dev/null || true
       """
-    _ = try await runner.runShell(permsCommand, targetURL: environment.rootURL)
+    _ = try await runner.runShell(permsCommand, targetURL: environment.rootURL, checkExitCode: true)
   }
 
   /// Completely uninstalls the invariants engine from the system environment.

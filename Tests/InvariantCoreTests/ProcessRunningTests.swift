@@ -116,4 +116,19 @@ struct ProcessRunningTests {
     #expect(mock.recordedRequests.first?.executableURL == expectedURL)
     #expect(mock.recordedRequests.first?.arguments == ["arg1", "arg2"])
   }
+
+  @Test("checkExitCode false returns ProcessOutput on non-zero exit without throwing")
+  func checkExitCodeFalseReturnsOutput() async throws {
+    let runner = SubprocessRunner()
+    let output = try await runner.runShell("exit 42", checkExitCode: false)
+    #expect(output.exitCode == 42)
+  }
+
+  @Test("checkExitCode true throws processFailed on non-zero exit")
+  func checkExitCodeTrueThrows() async throws {
+    let runner = SubprocessRunner()
+    await #expect(throws: SystemError.self) {
+      try await runner.runShell("exit 42", checkExitCode: true)
+    }
+  }
 }
