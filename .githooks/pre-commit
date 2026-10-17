@@ -4,7 +4,7 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-echo "Running engine pre-commit checks..."
+echo "Running full verification checks..."
 
 # 1. Swift format lint
 swift format lint --strict --recursive Sources Tests
@@ -35,4 +35,4 @@ swift test
   npm run test:coverage
 )
 
-echo "✓ Pre-commit checks passed."
+echo "✓ Verification checks passed."
