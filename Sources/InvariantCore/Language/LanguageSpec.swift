@@ -49,6 +49,7 @@ public protocol AnyLanguageSpec: Sendable {
   static var displayName: String { get }
   static var ruleFileName: String { get }
   static var fieldExamples: [String] { get }
+  static var executionSpec: RuleExecutionSpec { get }
 
   /// Detects if this language has source files in the repository.
   static func hasSources(in repoRoot: URL) -> Bool
@@ -76,6 +77,29 @@ public struct SwiftLanguage: LanguageSpec {
   public static let fieldExamples = [
     "indexStore=<path>  (e.g. swift.indexStore=build/Index.noindex/DataStore)"
   ]
+  public static let executionSpec = RuleExecutionSpec(
+    model: .compiled(
+      CompiledSpec(
+        buildToolchain: .xcrun,
+        buildArguments: ["swift", "build"],
+        kitPackageName: "kit-swift",
+        artifactRelativePath: ".build/release/RuleExecutable",
+        debugArtifactRelativePath: ".build/debug/RuleExecutable",
+        sourceExtensions: ["swift"],
+        manifestKind: .swiftPackage(
+          toolsVersion: "6.0",
+          targetName: "RuleExecutable",
+          productName: "InvariantKit"
+        )
+      )
+    ),
+    reporting: RuleReportingProtocol(
+      channel: .stdoutJSON,
+      successExitCode: 0,
+      staleIndexExitCode: 2,
+      staleIndexStderrMarker: "INDEX STALE"
+    )
+  )
 
   /// Swift requires a single index store path for IndexStoreDB / symbol graph analysis.
   public struct Config: Sendable, Equatable, Codable {
@@ -156,6 +180,22 @@ public struct TypeScriptLanguage: LanguageSpec {
   public static let fieldExamples = [
     "tsconfig=<paths>  (comma-separated, e.g. ts.tsconfig=tsconfig.json)"
   ]
+  public static let executionSpec = RuleExecutionSpec(
+    model: .interpreted(
+      InterpretedSpec(
+        runtimeCommand: "node",
+        kitDirectoryName: "kit-ts",
+        kitRunnerRelativePath: "dist/runner.js",
+        devRunnerRelativePath: "src/runner.ts"
+      )
+    ),
+    reporting: RuleReportingProtocol(
+      channel: .stdoutJSON,
+      successExitCode: 0,
+      staleIndexExitCode: 2,
+      staleIndexStderrMarker: "INDEX STALE"
+    )
+  )
 
   /// TypeScript requires an array of relative tsconfig.json paths for compiler API / ts-morph.
   public struct Config: Sendable, Equatable, Codable {

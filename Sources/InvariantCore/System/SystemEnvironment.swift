@@ -25,10 +25,6 @@ public struct SystemEnvironment: Sendable {
     currentVersionURL.appendingPathComponent("kit-swift")
   }
 
-  public var kitTsURL: URL {
-    currentVersionURL.appendingPathComponent("kit-ts")
-  }
-
   /// System environment root and binary locations, with optional overrides for testing and sandboxing.
   public init(rootURL: URL? = nil, binURL: URL? = nil) {
     if let rootURL {

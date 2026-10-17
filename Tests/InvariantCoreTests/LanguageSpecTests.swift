@@ -219,4 +219,54 @@ struct LanguageSpecTests {
     #expect(SwiftLanguage.describeConfig(in: project) == "build/Store")
     #expect(TypeScriptLanguage.describeConfig(in: project) == "tsconfig.json, tsconfig.test.json")
   }
+
+  @Test("Declarative executionSpec on SwiftLanguage and TypeScriptLanguage")
+  func executionSpecProperties() {
+    let swiftSpec = SwiftLanguage.executionSpec
+    #expect(swiftSpec.reporting.channel == .stdoutJSON)
+    #expect(swiftSpec.reporting.successExitCode == 0)
+    #expect(swiftSpec.reporting.staleIndexExitCode == 2)
+    #expect(swiftSpec.reporting.staleIndexStderrMarker == "INDEX STALE")
+    switch swiftSpec.model {
+    case .compiled(let compiled):
+      #expect(compiled.buildToolchain == .xcrun)
+      #expect(compiled.buildArguments == ["swift", "build"])
+      #expect(compiled.kitPackageName == "kit-swift")
+      #expect(compiled.artifactRelativePath == ".build/release/RuleExecutable")
+      #expect(compiled.sourceExtensions == ["swift"])
+      switch compiled.manifestKind {
+      case .swiftPackage(let toolsVersion, let targetName, let productName):
+        #expect(toolsVersion == "6.0")
+        #expect(targetName == "RuleExecutable")
+        #expect(productName == "InvariantKit")
+      }
+    case .interpreted:
+      Issue.record("Expected Swift to declare compiled execution model")
+    }
+
+    let tsSpec = TypeScriptLanguage.executionSpec
+    #expect(tsSpec.reporting.channel == .stdoutJSON)
+    #expect(tsSpec.reporting.successExitCode == 0)
+    #expect(tsSpec.reporting.staleIndexExitCode == 2)
+    #expect(tsSpec.reporting.staleIndexStderrMarker == "INDEX STALE")
+    switch tsSpec.model {
+    case .interpreted(let interpreted):
+      #expect(interpreted.runtimeCommand == "node")
+      #expect(interpreted.kitDirectoryName == "kit-ts")
+      #expect(interpreted.kitRunnerRelativePath == "dist/runner.js")
+      #expect(interpreted.devRunnerRelativePath == "src/runner.ts")
+    case .compiled:
+      Issue.record("Expected TypeScript to declare interpreted execution model")
+    }
+  }
+
+  @Test("RuleRunner.resolveRuntimeURL finds common system commands")
+  func resolveRuntimeURL() {
+    let shURL = RuleRunner.resolveRuntimeURL(command: "sh")
+    #expect(shURL != nil)
+    #expect(FileManager.default.fileExists(atPath: shURL?.path ?? ""))
+
+    let nonExistent = RuleRunner.resolveRuntimeURL(command: "non_existent_binary_xyz_123")
+    #expect(nonExistent == nil)
+  }
 }
