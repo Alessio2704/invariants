@@ -12,11 +12,14 @@ struct InitCommand: AsyncParsableCommand {
   var branch: String?
 
   @Option(
-    name: .long,
+    name: [.short, .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
-    help: "Language input in <lang>.<field>=<value> format (e.g. swift.indexStore=build/DataStore)."
+    help: ArgumentHelp(
+      "Language input in <lang>.<field>=<value> format.",
+      discussion: LanguageCLIParser.helpDiscussion
+    )
   )
-  var project: [String] = []
+  var language: [String] = []
 
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
@@ -32,10 +35,10 @@ struct InitCommand: AsyncParsableCommand {
 
     // 1. Detect project inputs interactively or via flags
     var projectConfig = ProjectConfig()
-    if !project.isEmpty {
-      for entry in project {
+    if !language.isEmpty {
+      for entry in language {
         do {
-          try ProjectCLIParser.apply(entry: entry, into: &projectConfig)
+          try LanguageCLIParser.apply(entry: entry, into: &projectConfig)
         } catch {
           throw ValidationError(error.description)
         }

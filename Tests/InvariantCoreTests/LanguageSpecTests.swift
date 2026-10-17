@@ -114,59 +114,74 @@ struct LanguageSpecTests {
     #expect(decoded[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "tsconfig.node.json"])
   }
 
-  @Test("ProjectCLIParser parses valid language configurations into ProjectConfig")
-  func projectCLIParserValid() throws {
+  @Test("LanguageCLIParser parses valid language configurations into ProjectConfig")
+  func languageCLIParserValid() throws {
     var project = ProjectConfig()
 
-    try ProjectCLIParser.apply(entry: "swift.indexStore=build/MyDataStore", into: &project)
+    try LanguageCLIParser.apply(entry: "swift.indexStore=build/MyDataStore", into: &project)
     #expect(project[SwiftLanguage.self]?.indexStore == "build/MyDataStore")
 
-    try ProjectCLIParser.apply(
+    try LanguageCLIParser.apply(
       entry: "ts.tsconfig=tsconfig.json,packages/core/tsconfig.json",
       into: &project
     )
     #expect(project[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "packages/core/tsconfig.json"])
 
     // Overwrite existing configuration
-    try ProjectCLIParser.apply(entry: "swift.indexStore=build_sim/NewStore", into: &project)
+    try LanguageCLIParser.apply(entry: "swift.indexStore=build_sim/NewStore", into: &project)
     #expect(project[SwiftLanguage.self]?.indexStore == "build_sim/NewStore")
   }
 
-  @Test("ProjectCLIParser rejects malformed entries with LanguageError")
-  func projectCLIParserErrors() {
+  @Test("LanguageCLIParser rejects malformed entries with LanguageError and suggestions")
+  func languageCLIParserErrors() {
     var project = ProjectConfig()
 
     #expect(throws: LanguageError.invalidCLIFormat("no_equals_sign")) {
-      try ProjectCLIParser.apply(entry: "no_equals_sign", into: &project)
+      try LanguageCLIParser.apply(entry: "no_equals_sign", into: &project)
     }
 
     #expect(throws: LanguageError.invalidCLIFormat("no_dot_target=value")) {
-      try ProjectCLIParser.apply(entry: "no_dot_target=value", into: &project)
+      try LanguageCLIParser.apply(entry: "no_dot_target=value", into: &project)
     }
 
-    #expect(throws: LanguageError.unknownLanguage("rust")) {
-      try ProjectCLIParser.apply(entry: "rust.manifest=Cargo.toml", into: &project)
+    #expect(throws: LanguageError.unknownLanguage("rust", suggestion: nil)) {
+      try LanguageCLIParser.apply(entry: "rust.manifest=Cargo.toml", into: &project)
+    }
+
+    #expect(throws: LanguageError.unknownLanguage("typescript", suggestion: "ts")) {
+      try LanguageCLIParser.apply(entry: "typescript.tsconfig=tsconfig.json", into: &project)
     }
 
     #expect(
       throws: LanguageError.unsupportedField(
         language: "swift",
         field: "tsconfig",
-        expected: ["indexStore"]
+        expected: ["indexStore"],
+        suggestion: nil
       )
     ) {
-      try ProjectCLIParser.apply(entry: "swift.tsconfig=tsconfig.json", into: &project)
+      try LanguageCLIParser.apply(entry: "swift.tsconfig=tsconfig.json", into: &project)
     }
 
     #expect(
       throws: LanguageError.unsupportedField(
         language: "ts",
-        field: "indexStore",
-        expected: ["tsconfig"]
+        field: "config",
+        expected: ["tsconfig"],
+        suggestion: "tsconfig"
       )
     ) {
-      try ProjectCLIParser.apply(entry: "ts.indexStore=build/DataStore", into: &project)
+      try LanguageCLIParser.apply(entry: "ts.config=tsconfig.json", into: &project)
     }
+  }
+
+  @Test("LanguageCLIParser helpDiscussion details all supported languages and syntax")
+  func helpDiscussionContent() {
+    let discussion = LanguageCLIParser.helpDiscussion
+    #expect(discussion.contains("swift (Swift)"))
+    #expect(discussion.contains("swift.indexStore=build/Index.noindex/DataStore"))
+    #expect(discussion.contains("ts (TypeScript)"))
+    #expect(discussion.contains("ts.tsconfig=tsconfig.json"))
   }
 
   @Test("AnyLanguageSpec hasSources accurately detects language files in sandbox")

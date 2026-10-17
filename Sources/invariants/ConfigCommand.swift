@@ -9,11 +9,14 @@ struct ConfigCommand: AsyncParsableCommand {
   )
 
   @Option(
-    name: .long,
+    name: [.short, .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
-    help: "Language input in <lang>.<field>=<value> format (e.g. swift.indexStore=build/DataStore)."
+    help: ArgumentHelp(
+      "Language input in <lang>.<field>=<value> format.",
+      discussion: LanguageCLIParser.helpDiscussion
+    )
   )
-  var project: [String] = []
+  var language: [String] = []
 
   @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
   var defaultBranch: String?
@@ -37,16 +40,16 @@ struct ConfigCommand: AsyncParsableCommand {
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
-    if project.isEmpty && defaultBranch == nil {
-      print("No configuration changes specified. Use --project <language>.<field>=<value> or --default-branch.")
+    if language.isEmpty && defaultBranch == nil {
+      print("No configuration changes specified. Use --lang <language>.<field>=<value> or --default-branch.")
       return
     }
 
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
-    for entry in project {
+    for entry in language {
       do {
-        try ProjectCLIParser.apply(entry: entry, into: &newProject)
+        try LanguageCLIParser.apply(entry: entry, into: &newProject)
       } catch {
         throw ValidationError(error.description)
       }

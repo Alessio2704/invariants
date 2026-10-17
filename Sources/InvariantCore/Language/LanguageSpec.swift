@@ -19,19 +19,26 @@ public typealias TargetLanguage = SupportedLanguage
 /// Errors raised during dynamic language configuration and CLI parsing.
 public enum LanguageError: Error, Equatable, Sendable, CustomStringConvertible {
   case invalidCLIFormat(String)
-  case unknownLanguage(String)
-  case unsupportedField(language: String, field: String, expected: [String])
+  case unknownLanguage(String, suggestion: String? = nil)
+  case unsupportedField(language: String, field: String, expected: [String], suggestion: String? = nil)
 
   public var description: String {
     switch self {
     case .invalidCLIFormat(let entry):
-      return
-        "Invalid --project format '\(entry)'. Expected <language>.<field>=<value> (e.g. swift.indexStore=build/DataStore)"
-    case .unknownLanguage(let lang):
+      return "Invalid format '\(entry)'. Expected <language>.<field>=<value> (e.g. swift.indexStore=build/DataStore)"
+    case .unknownLanguage(let lang, let suggestion):
       let supported = SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")
+      if let suggestion {
+        return "Unknown language '\(lang)'. Did you mean '\(suggestion)'? Supported languages: \(supported)"
+      }
       return "Unknown language '\(lang)'. Supported languages: \(supported)"
-    case .unsupportedField(let lang, let field, let expected):
-      return "Unknown field '\(field)' for language '\(lang)'. Expected: \(expected.joined(separator: ", "))"
+    case .unsupportedField(let lang, let field, let expected, let suggestion):
+      let expectedList = expected.joined(separator: ", ")
+      if let suggestion {
+        return
+          "Unknown field '\(field)' for language '\(lang)'. Did you mean '\(suggestion)'? Supported fields: \(expectedList)"
+      }
+      return "Unknown field '\(field)' for language '\(lang)'. Supported fields: \(expectedList)"
     }
   }
 }
@@ -41,6 +48,7 @@ public protocol AnyLanguageSpec: Sendable {
   static var language: SupportedLanguage { get }
   static var displayName: String { get }
   static var ruleFileName: String { get }
+  static var fieldExamples: [String] { get }
 
   /// Detects if this language has source files in the repository.
   static func hasSources(in repoRoot: URL) -> Bool
@@ -65,6 +73,9 @@ public struct SwiftLanguage: LanguageSpec {
   public static let sourceExtensions = ["swift"]
   public static let ruleFileName = "rule.swift"
   public static let supportedFields = ["indexStore"]
+  public static let fieldExamples = [
+    "indexStore=<path>  (e.g. swift.indexStore=build/Index.noindex/DataStore)"
+  ]
 
   /// Swift requires a single index store path for IndexStoreDB / symbol graph analysis.
   public struct Config: Sendable, Equatable, Codable {
@@ -85,7 +96,13 @@ public struct SwiftLanguage: LanguageSpec {
 
   public static func applyCLI(field: String, value: String, into project: inout ProjectConfig) throws(LanguageError) {
     guard field == "indexStore" else {
-      throw LanguageError.unsupportedField(language: language.rawValue, field: field, expected: supportedFields)
+      let suggestion = LanguageCLIParser.suggestField(for: field, language: .swift)
+      throw LanguageError.unsupportedField(
+        language: language.rawValue,
+        field: field,
+        expected: supportedFields,
+        suggestion: suggestion
+      )
     }
     project[Self.self] = Config(indexStore: value)
   }
@@ -133,9 +150,12 @@ public struct SwiftLanguage: LanguageSpec {
 public struct TypeScriptLanguage: LanguageSpec {
   public static let language = SupportedLanguage.ts
   public static let displayName = "TypeScript"
-  public static let sourceExtensions = ["ts", "tsx", "js", "jsx"]
   public static let ruleFileName = "rule.ts"
+  public static let sourceExtensions = ["ts", "tsx", "js", "jsx"]
   public static let supportedFields = ["tsconfig"]
+  public static let fieldExamples = [
+    "tsconfig=<paths>  (comma-separated, e.g. ts.tsconfig=tsconfig.json)"
+  ]
 
   /// TypeScript requires an array of relative tsconfig.json paths for compiler API / ts-morph.
   public struct Config: Sendable, Equatable, Codable {
@@ -157,7 +177,13 @@ public struct TypeScriptLanguage: LanguageSpec {
 
   public static func applyCLI(field: String, value: String, into project: inout ProjectConfig) throws(LanguageError) {
     guard field == "tsconfig" else {
-      throw LanguageError.unsupportedField(language: language.rawValue, field: field, expected: supportedFields)
+      let suggestion = LanguageCLIParser.suggestField(for: field, language: .ts)
+      throw LanguageError.unsupportedField(
+        language: language.rawValue,
+        field: field,
+        expected: supportedFields,
+        suggestion: suggestion
+      )
     }
     let paths = value.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
     project[Self.self] = Config(tsconfig: paths)
@@ -199,8 +225,52 @@ public struct TypeScriptLanguage: LanguageSpec {
   }
 }
 
-/// Dynamic CLI parser for `--project <language>.<field>=<value>` arguments.
-public enum ProjectCLIParser {
+/// Dynamic CLI parser and help generator for language configuration options.
+public enum LanguageCLIParser {
+  /// Formatted discussion detailing each supported language and its fields for CLI `--help`.
+  public static var helpDiscussion: String {
+    var lines: [String] = [
+      "Configure compiler analysis inputs for supported languages in <lang>.<field>=<value> format:\n"
+    ]
+    for lang in SupportedLanguage.allCases {
+      lines.append("  • \(lang.rawValue) (\(lang.spec.displayName)):")
+      for ex in lang.spec.fieldExamples {
+        lines.append("      \(ex)")
+      }
+    }
+    return lines.joined(separator: "\n")
+  }
+
+  /// Suggests a canonical language identifier for common typos or aliases.
+  public static func suggestLanguage(for input: String) -> String? {
+    let lower = input.lowercased()
+    switch lower {
+    case "typescript", "types", "tsc", "javascript", "js":
+      return "ts"
+    case "swfit", "apple":
+      return "swift"
+    default:
+      return nil
+    }
+  }
+
+  /// Suggests a valid field name for common typos within a language.
+  public static func suggestField(for field: String, language: SupportedLanguage) -> String? {
+    let lower = field.lowercased()
+    switch language {
+    case .swift:
+      if lower.contains("index") || lower.contains("store") || lower.contains("datastore") {
+        return "indexStore"
+      }
+    case .ts:
+      if lower.contains("config") || lower.contains("tsconfig") || lower.contains("project") {
+        return "tsconfig"
+      }
+    }
+    return nil
+  }
+
+  /// Parses and applies `<language>.<field>=<value>` into `ProjectConfig`.
   public static func apply(entry: String, into project: inout ProjectConfig) throws(LanguageError) {
     let parts = entry.split(separator: "=", maxSplits: 1)
     guard parts.count == 2 else {
@@ -215,7 +285,8 @@ public enum ProjectCLIParser {
     let value = String(parts[1]).trimmingCharacters(in: .whitespaces)
 
     guard let lang = SupportedLanguage(rawValue: langRaw) else {
-      throw LanguageError.unknownLanguage(langRaw)
+      let suggestion = suggestLanguage(for: langRaw)
+      throw LanguageError.unknownLanguage(langRaw, suggestion: suggestion)
     }
 
     try lang.spec.applyCLI(field: field, value: value, into: &project)
