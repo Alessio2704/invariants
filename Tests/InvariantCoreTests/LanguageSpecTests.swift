@@ -269,4 +269,21 @@ struct LanguageSpecTests {
     let nonExistent = RuleRunner.resolveRuntimeURL(command: "non_existent_binary_xyz_123")
     #expect(nonExistent == nil)
   }
+
+  @Test("devWorkspaceFiles yields editor workspace files for each supported language")
+  func devWorkspaceFilesGeneration() {
+    let repoURL = URL(fileURLWithPath: "/tmp/fake-repo")
+    let env = SystemEnvironment(rootURL: URL(fileURLWithPath: "/tmp/fake-install"))
+
+    let swiftFiles = SwiftLanguage.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
+    #expect(swiftFiles.count == 1)
+    #expect(swiftFiles[0].relativePath == "Package.swift")
+    #expect(swiftFiles[0].content.contains("InvariantsDev"))
+    #expect(swiftFiles[0].content.contains("InvariantKit"))
+
+    let tsFiles = TypeScriptLanguage.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
+    #expect(tsFiles.count == 1)
+    #expect(tsFiles[0].relativePath == "tsconfig.json")
+    #expect(tsFiles[0].content.contains("../rules/**/*.ts"))
+  }
 }

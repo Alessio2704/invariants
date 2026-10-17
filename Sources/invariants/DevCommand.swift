@@ -16,46 +16,17 @@ struct DevCommand: AsyncParsableCommand {
     try fm.createDirectory(at: devDir, withIntermediateDirectories: true)
 
     let env = SystemEnvironment.standard
-    let kitSwiftURL = env.kitURL(named: "kit-swift")
-    let kitSwiftPath = fm.fileExists(atPath: kitSwiftURL.path) ? kitSwiftURL.path : repoRootURL.path
-    let kitPackageName =
-      URL(fileURLWithPath: kitSwiftPath).lastPathComponent == "kit-swift" ? "kit-swift" : "invariants"
-
-    let devPackage = """
-      // swift-tools-version: 6.0
-      import PackageDescription
-
-      let package = Package(
-          name: "InvariantsDev",
-          platforms: [.macOS(.v14)],
-          dependencies: [
-              .package(path: "\(kitSwiftPath)")
-          ],
-          targets: [
-              .target(
-                  name: "InvariantsDev",
-                  dependencies: [
-                      .product(name: "InvariantKit", package: "\(kitPackageName)")
-                  ],
-                  path: "."
-              )
-          ]
-      )
-      """
-    try devPackage.data(using: .utf8)?.write(to: devDir.appendingPathComponent("Package.swift"), options: .atomic)
-
-    let devTsconfig = """
-      {
-        "compilerOptions": {
-          "target": "ES2022",
-          "module": "NodeNext",
-          "moduleResolution": "NodeNext",
-          "strict": true
-        },
-        "include": ["../rules/**/*.ts"]
+    for language in SupportedLanguage.allCases {
+      let files = language.spec.devWorkspaceFiles(repoRootURL: repoRootURL, environment: env)
+      for file in files {
+        let fileURL = devDir.appendingPathComponent(file.relativePath)
+        let parentDir = fileURL.deletingLastPathComponent()
+        if !fm.fileExists(atPath: parentDir.path) {
+          try fm.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        }
+        try file.content.data(using: .utf8)?.write(to: fileURL, options: .atomic)
       }
-      """
-    try devTsconfig.data(using: .utf8)?.write(to: devDir.appendingPathComponent("tsconfig.json"), options: .atomic)
+    }
 
     print("✓ Created autocompletion workspace in invariants/.dev/")
     print("Open this folder in Xcode or VSCode for rule authoring autocomplete.")

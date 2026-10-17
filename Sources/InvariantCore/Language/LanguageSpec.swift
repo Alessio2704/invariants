@@ -43,6 +43,17 @@ public enum LanguageError: Error, Equatable, Sendable, CustomStringConvertible {
   }
 }
 
+/// Represents an editor/IDE development file to scaffold in `invariants/.dev/`.
+public struct DevWorkspaceFile: Sendable, Equatable {
+  public var relativePath: String
+  public var content: String
+
+  public init(relativePath: String, content: String) {
+    self.relativePath = relativePath
+    self.content = content
+  }
+}
+
 /// Dynamic contract for language specifications supporting discovery, interactive configuration, and CLI parsing.
 public protocol AnyLanguageSpec: Sendable {
   static var language: SupportedLanguage { get }
@@ -59,6 +70,9 @@ public protocol AnyLanguageSpec: Sendable {
 
   /// Applies a CLI key-value setting (e.g. key: "indexStore", value: "build/DataStore") to `project`.
   static func applyCLI(field: String, value: String, into project: inout ProjectConfig) throws(LanguageError)
+
+  /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
+  static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile]
 }
 
 /// Contract for a supported language specification, binding language identity to its compile-time configuration schema.
@@ -168,6 +182,37 @@ public struct SwiftLanguage: LanguageSpec {
     guard let first = candidates.first else { return nil }
     return Config(indexStore: first)
   }
+
+  public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {
+    let fm = FileManager.default
+    let kitSwiftURL = environment.kitURL(named: "kit-swift")
+    let kitSwiftPath = fm.fileExists(atPath: kitSwiftURL.path) ? kitSwiftURL.path : repoRootURL.path
+    let kitPackageName =
+      URL(fileURLWithPath: kitSwiftPath).lastPathComponent == "kit-swift" ? "kit-swift" : "invariants"
+
+    let devPackage = """
+      // swift-tools-version: 6.0
+      import PackageDescription
+
+      let package = Package(
+          name: "InvariantsDev",
+          platforms: [.macOS(.v14)],
+          dependencies: [
+              .package(path: "\(kitSwiftPath)")
+          ],
+          targets: [
+              .target(
+                  name: "InvariantsDev",
+                  dependencies: [
+                      .product(name: "InvariantKit", package: "\(kitPackageName)")
+                  ],
+                  path: "."
+              )
+          ]
+      )
+      """
+    return [DevWorkspaceFile(relativePath: "Package.swift", content: devPackage)]
+  }
 }
 
 /// TypeScript language specification requiring one or more tsconfig.json configurations.
@@ -262,6 +307,21 @@ public struct TypeScriptLanguage: LanguageSpec {
     let candidates = discoverCandidates(repoRootURL: repoRoot)
     guard !candidates.isEmpty else { return nil }
     return Config(tsconfig: candidates)
+  }
+
+  public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {
+    let devTsconfig = """
+      {
+        "compilerOptions": {
+          "target": "ES2022",
+          "module": "NodeNext",
+          "moduleResolution": "NodeNext",
+          "strict": true
+        },
+        "include": ["../rules/**/*.ts"]
+      }
+      """
+    return [DevWorkspaceFile(relativePath: "tsconfig.json", content: devTsconfig)]
   }
 }
 
