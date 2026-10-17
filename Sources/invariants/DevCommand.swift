@@ -16,7 +16,8 @@ struct DevCommand: AsyncParsableCommand {
     try fm.createDirectory(at: devDir, withIntermediateDirectories: true)
 
     let env = SystemEnvironment.standard
-    let kitSwiftPath = fm.fileExists(atPath: env.kitSwiftURL.path) ? env.kitSwiftURL.path : repoRootURL.path
+    let kitSwiftURL = env.kitURL(named: "kit-swift")
+    let kitSwiftPath = fm.fileExists(atPath: kitSwiftURL.path) ? kitSwiftURL.path : repoRootURL.path
     let kitPackageName =
       URL(fileURLWithPath: kitSwiftPath).lastPathComponent == "kit-swift" ? "kit-swift" : "invariants"
 

@@ -75,7 +75,7 @@ extension RuleRunner {
   }
 
   func resolveKitURL(named name: String) -> URL {
-    let installed = environment.currentVersionURL.appendingPathComponent(name)
+    let installed = environment.kitURL(named: name)
     if FileManager.default.fileExists(atPath: installed.path) {
       return installed
     }

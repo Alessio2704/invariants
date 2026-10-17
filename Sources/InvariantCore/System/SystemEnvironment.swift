@@ -21,8 +21,9 @@ public struct SystemEnvironment: Sendable {
     rootURL.appendingPathComponent("current")
   }
 
-  public var kitSwiftURL: URL {
-    currentVersionURL.appendingPathComponent("kit-swift")
+  /// Returns the installation URL for a kit by its directory name.
+  public func kitURL(named name: String) -> URL {
+    currentVersionURL.appendingPathComponent(name)
   }
 
   /// System environment root and binary locations, with optional overrides for testing and sandboxing.
