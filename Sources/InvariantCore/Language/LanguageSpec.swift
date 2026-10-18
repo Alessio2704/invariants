@@ -74,13 +74,6 @@ public protocol AnyLanguageSpec: Sendable {
 
   /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
   static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile]
-
-  /// Interactively configures project inputs for this language if sources are detected.
-  static func configureInteractively(
-    repoRootURL: URL,
-    prompter: (any InteractivePrompter)?,
-    into projectConfig: inout ProjectConfig
-  )
 }
 
 extension AnyLanguageSpec {
@@ -225,40 +218,6 @@ public enum SwiftLanguage: LanguageSpec {
       """
     return [DevWorkspaceFile(relativePath: "Package.swift", content: devPackage)]
   }
-
-  public static func configureInteractively(
-    repoRootURL: URL,
-    prompter: (any InteractivePrompter)?,
-    into projectConfig: inout ProjectConfig
-  ) {
-    let candidates = discoverCandidates(repoRootURL: repoRootURL)
-    if let prompter {
-      if candidates.isEmpty {
-        prompter.printLine(
-          "\nSwift sources detected, but no index store candidate was found "
-            + "(e.g. build/Index.noindex/DataStore, .build/out, or .build/debug/index/store)."
-        )
-        let choice = prompter.prompt(question: "Enter index store path (press Enter to skip / configure later)")
-        if !choice.isEmpty {
-          projectConfig[Self.self] = Config(indexStore: choice)
-        }
-      } else {
-        let options = candidates.map { PromptOption(value: $0, label: $0) }
-        if let choice = prompter.promptSelection(
-          title: "Discovered Swift Index candidates:",
-          options: options,
-          default: nil,
-          customHandler: { $0 }
-        ) {
-          projectConfig[Self.self] = Config(indexStore: choice)
-        }
-      }
-    } else {
-      if let first = candidates.first {
-        projectConfig[Self.self] = Config(indexStore: first)
-      }
-    }
-  }
 }
 
 /// TypeScript language specification requiring one or more tsconfig.json configurations.
@@ -351,41 +310,6 @@ public enum TypeScriptLanguage: LanguageSpec {
       }
       """
     return [DevWorkspaceFile(relativePath: "tsconfig.json", content: devTsconfig)]
-  }
-
-  public static func configureInteractively(
-    repoRootURL: URL,
-    prompter: (any InteractivePrompter)?,
-    into projectConfig: inout ProjectConfig
-  ) {
-    let candidates = discoverCandidates(repoRootURL: repoRootURL)
-    if let prompter {
-      if candidates.isEmpty {
-        prompter.printLine("\nTypeScript sources detected, but no tsconfig.json candidate was found.")
-        let custom = prompter.prompt(question: "Enter tsconfig relative path (press Enter to skip / configure later)")
-        if !custom.isEmpty {
-          projectConfig[Self.self] = Config(tsconfig: [custom])
-        }
-      } else {
-        let joined = candidates.joined(separator: ", ")
-        let confirm = prompter.promptConfirmation(
-          question: "Use discovered tsconfig paths (\(joined))?",
-          default: true
-        )
-        if confirm {
-          projectConfig[Self.self] = Config(tsconfig: candidates)
-        } else {
-          let custom = prompter.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
-          if !custom.isEmpty {
-            projectConfig[Self.self] = Config(tsconfig: [custom])
-          }
-        }
-      }
-    } else {
-      if !candidates.isEmpty {
-        projectConfig[Self.self] = Config(tsconfig: candidates)
-      }
-    }
   }
 }
 

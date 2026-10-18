@@ -207,116 +207,34 @@ struct LanguageSpecTests {
     }
   }
 
-  @Test("SwiftLanguage configureInteractively with discovered candidates")
-  func swiftConfigureInteractivelyWithCandidates() throws {
+  @Test("SwiftLanguage discoverCandidates finds index stores and build output directories")
+  func swiftDiscoverCandidates() throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let candidateDir = tmpDir.appendingPathComponent("build/Index.noindex/DataStore")
     try fm.createDirectory(at: candidateDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    var config = ProjectConfig()
-    let prompter = TestPrompter(promptResponses: ["1"])
-    SwiftLanguage.configureInteractively(repoRootURL: tmpDir, prompter: prompter, into: &config)
-
-    #expect(config[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
+    let candidates = SwiftLanguage.discoverCandidates(repoRootURL: tmpDir)
+    #expect(candidates.contains("build/Index.noindex/DataStore"))
   }
 
-  @Test("SwiftLanguage configureInteractively without candidates prompts for manual input")
-  func swiftConfigureInteractivelyWithoutCandidates() throws {
+  @Test("TypeScriptLanguage discoverCandidates finds tsconfig.json files")
+  func tsDiscoverCandidates() throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    var config = ProjectConfig()
-    let prompter = TestPrompter(promptResponses: ["custom/DataStore"])
-    SwiftLanguage.configureInteractively(repoRootURL: tmpDir, prompter: prompter, into: &config)
+    let rootTsconfig = tmpDir.appendingPathComponent("tsconfig.json")
+    try Data("{}".utf8).write(to: rootTsconfig)
 
-    #expect(config[SwiftLanguage.self]?.indexStore == "custom/DataStore")
-    #expect(
-      prompter.printedLines.contains(where: {
-        $0.contains("Swift sources detected, but no index store candidate was found")
-      })
-    )
-  }
+    let pkgTsconfigDir = tmpDir.appendingPathComponent("packages/api")
+    try fm.createDirectory(at: pkgTsconfigDir, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: pkgTsconfigDir.appendingPathComponent("tsconfig.json"))
 
-  @Test("TypeScriptLanguage configureInteractively with discovered candidates")
-  func tsConfigureInteractivelyWithCandidates() throws {
-    let fm = FileManager.default
-    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: tmpDir) }
-
-    let tsconfig = tmpDir.appendingPathComponent("tsconfig.json")
-    try Data("{}".utf8).write(to: tsconfig)
-
-    var config = ProjectConfig()
-    let prompter = TestPrompter(confirmResponses: [true])
-    TypeScriptLanguage.configureInteractively(repoRootURL: tmpDir, prompter: prompter, into: &config)
-
-    #expect(config[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
-  }
-
-  @Test("TypeScriptLanguage configureInteractively without candidates prompts for manual input")
-  func tsConfigureInteractivelyWithoutCandidates() throws {
-    let fm = FileManager.default
-    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: tmpDir) }
-
-    var config = ProjectConfig()
-    let prompter = TestPrompter(promptResponses: ["custom/tsconfig.json"])
-    TypeScriptLanguage.configureInteractively(repoRootURL: tmpDir, prompter: prompter, into: &config)
-
-    #expect(config[TypeScriptLanguage.self]?.tsconfig == ["custom/tsconfig.json"])
-    #expect(
-      prompter.printedLines.contains(where: {
-        $0.contains("TypeScript sources detected, but no tsconfig.json candidate was found.")
-      })
-    )
-  }
-
-  @Test("Non-interactive configureInteractively auto-selects discovered candidate")
-  func nonInteractiveConfigureInteractively() throws {
-    let fm = FileManager.default
-    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    let candidateDir = tmpDir.appendingPathComponent("build/Index.noindex/DataStore")
-    try fm.createDirectory(at: candidateDir, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: tmpDir) }
-
-    var config = ProjectConfig()
-    SwiftLanguage.configureInteractively(repoRootURL: tmpDir, prompter: nil, into: &config)
-    #expect(config[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
-  }
-}
-
-private final class TestPrompter: InteractivePrompter, @unchecked Sendable {
-  var promptResponses: [String]
-  var confirmResponses: [Bool]
-  var printedLines: [String] = []
-
-  init(promptResponses: [String] = [], confirmResponses: [Bool] = []) {
-    self.promptResponses = promptResponses
-    self.confirmResponses = confirmResponses
-  }
-
-  func prompt(question: String) -> String {
-    printedLines.append(question)
-    return promptResponses.isEmpty ? "" : promptResponses.removeFirst()
-  }
-
-  func prompt(question: String, default defaultValue: String?) -> String {
-    printedLines.append(question)
-    return promptResponses.isEmpty ? (defaultValue ?? "") : promptResponses.removeFirst()
-  }
-
-  func promptConfirmation(question: String, default defaultYes: Bool) -> Bool {
-    printedLines.append(question)
-    return confirmResponses.isEmpty ? defaultYes : confirmResponses.removeFirst()
-  }
-
-  func printLine(_ message: String) {
-    printedLines.append(message)
+    let candidates = TypeScriptLanguage.discoverCandidates(repoRootURL: tmpDir)
+    #expect(candidates.contains("tsconfig.json"))
+    #expect(candidates.contains("packages/api/tsconfig.json"))
   }
 }

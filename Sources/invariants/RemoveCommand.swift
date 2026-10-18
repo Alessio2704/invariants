@@ -51,8 +51,8 @@ struct RemoveCommand: AsyncParsableCommand {
       }
     }
 
-    if CLIUtil.isInteractive {
-      let confirm = TerminalPrompter.shared.promptConfirmation(
+    if TerminalPrompt.isInteractive {
+      let confirm = TerminalPrompt.promptConfirmation(
         question: "Deactivate and remove invariant '\(id)' from registry v\(registry.version + 1)?",
         default: true
       )
@@ -63,7 +63,7 @@ struct RemoveCommand: AsyncParsableCommand {
     }
 
     // 3. Resolve key and sign
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

@@ -20,8 +20,8 @@ struct UninstallCommand: AsyncParsableCommand {
     print("Target bin:  \(env.binURL.path)")
     print("")
 
-    if !yes && CLIUtil.isInteractive {
-      let confirmed = TerminalPrompter.shared.promptConfirmation(
+    if !yes && TerminalPrompt.isInteractive {
+      let confirmed = TerminalPrompt.promptConfirmation(
         question: "Are you sure you want to completely uninstall invariants from your machine?",
         default: false
       )

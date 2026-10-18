@@ -218,8 +218,8 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      if !yes && CLIUtil.isInteractive {
-        let confirmed = TerminalPrompter.shared.prompt(
+      if !yes && TerminalPrompt.isInteractive {
+        let confirmed = TerminalPrompt.prompt(
           question: "Are you sure you want to delete \(defaultKey.path)? [y/N]", default: "n")
         guard confirmed.lowercased() == "y" || confirmed.lowercased() == "yes" else {
           print("Aborted.")
@@ -261,8 +261,8 @@ struct KeyCommand: AsyncParsableCommand {
       let defaultPub = defaultKey.appendingPathExtension("pub")
 
       if FileManager.default.fileExists(atPath: defaultKey.path) {
-        if !yes && CLIUtil.isInteractive {
-          let confirmed = TerminalPrompter.shared.prompt(
+        if !yes && TerminalPrompt.isInteractive {
+          let confirmed = TerminalPrompt.prompt(
             question: "This will archive your current key and generate a brand-new one. Continue? [y/N]",
             default: "n"
           )
@@ -334,8 +334,8 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      if !yes && CLIUtil.isInteractive {
-        let confirmed = TerminalPrompter.shared.prompt(
+      if !yes && TerminalPrompt.isInteractive {
+        let confirmed = TerminalPrompt.prompt(
           question: "Found \(backups.count) backup file(s) in \(sshDir.path). Delete them? [y/N]",
           default: "n"
         )
@@ -380,10 +380,7 @@ extension KeyCommand {
 
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     do {
-      let token = try await Authorizer.authorizeBiometrics(
-        reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
-      )
-      try SigningClient.generateSigningKey(at: defaultKey, token: token)
+      _ = try await SigningKeyResolver.generateHardwareKey(at: defaultKey, force: force)
     } catch {
       fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
       throw ExitCode(1)

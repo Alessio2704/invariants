@@ -89,8 +89,8 @@ struct UpgradeCommand: AsyncParsableCommand {
 
     print("✓ All active rule fixtures and repo checks passed under \(EngineVersion.current).")
 
-    if CLIUtil.isInteractive {
-      let confirm = TerminalPrompter.shared.promptConfirmation(
+    if TerminalPrompt.isInteractive {
+      let confirm = TerminalPrompt.promptConfirmation(
         question: "Upgrade engine range from '\(registry.engine)' to '\(newRange)'?",
         default: true
       )
@@ -103,7 +103,7 @@ struct UpgradeCommand: AsyncParsableCommand {
     registry.engine = newRange
     registry.version += 1
 
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

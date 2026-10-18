@@ -29,19 +29,17 @@ struct InitCommand: AsyncParsableCommand {
     print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key selected. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }
 
-    let prompter: (any InteractivePrompter)? = CLIUtil.isInteractive ? TerminalPrompter.shared : nil
-
     // 2. Detect project inputs interactively or via flags
     var projectConfig = ProjectConfig()
-    resolveLanguageConfigurations(repoRootURL: repoRootURL, prompter: prompter, into: &projectConfig)
+    resolveLanguageConfigurations(repoRootURL: repoRootURL, into: &projectConfig)
 
     // 3. Select default trunk branch
-    let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL, prompter: prompter)
+    let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL)
 
     // 4. Initialize repository
     let options = InitOptions(
@@ -64,7 +62,6 @@ struct InitCommand: AsyncParsableCommand {
 
   private func resolveLanguageConfigurations(
     repoRootURL: URL,
-    prompter: (any InteractivePrompter)?,
     into projectConfig: inout ProjectConfig
   ) {
     let targetLanguages: [SupportedLanguage]
@@ -74,28 +71,28 @@ struct InitCommand: AsyncParsableCommand {
     } else {
       let detected = SupportedLanguage.allCases.filter { $0.spec.hasSources(in: repoRootURL) }
       if !detected.isEmpty {
-        if let prompter {
-          prompter.printLine("\nDiscovered languages in this repository:")
+        if TerminalPrompt.isInteractive {
+          print("\nDiscovered languages in this repository:")
           for lang in detected {
             let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
-            prompter.printLine("  • \(lang.spec.displayName) (\(exts))")
+            print("  • \(lang.spec.displayName) (\(exts))")
           }
-          let confirmed = prompter.promptConfirmation(
+          let confirmed = TerminalPrompt.promptConfirmation(
             question: "Configure invariants for discovered languages?",
             default: true
           )
           if confirmed {
             targetLanguages = detected
           } else {
-            targetLanguages = promptForLanguages(prompter: prompter)
+            targetLanguages = promptForLanguages()
           }
         } else {
           targetLanguages = detected
         }
       } else {
-        if let prompter {
-          prompter.printLine("\nNo known source files detected in repository.")
-          targetLanguages = promptForLanguages(prompter: prompter)
+        if TerminalPrompt.isInteractive {
+          print("\nNo known source files detected in repository.")
+          targetLanguages = promptForLanguages()
         } else {
           targetLanguages = []
         }
@@ -103,19 +100,19 @@ struct InitCommand: AsyncParsableCommand {
     }
 
     for lang in targetLanguages {
-      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &projectConfig)
+      LanguageConfigPrompt.configureLanguage(lang, repoRootURL: repoRootURL, into: &projectConfig)
     }
   }
 
-  private func promptForLanguages(prompter: any InteractivePrompter) -> [SupportedLanguage] {
+  private func promptForLanguages() -> [SupportedLanguage] {
     let options = SupportedLanguage.allCases.map { lang in
       let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
-      return PromptOption(value: lang, label: lang.spec.displayName, annotation: "extensions: \(exts)")
+      return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "extensions: \(exts)")
     }
-    return prompter.promptMultiSelection(title: "Available languages:", options: options)
+    return TerminalPrompt.promptMultiSelection(title: "Available languages:", options: options)
   }
 
-  private func selectDefaultBranch(repoRootURL: URL, prompter: (any InteractivePrompter)?) async -> String {
+  private func selectDefaultBranch(repoRootURL: URL) async -> String {
     if let branch {
       return branch
     }
@@ -125,7 +122,6 @@ struct InitCommand: AsyncParsableCommand {
     let remoteTrunk = await GitClient.detectRemoteTrunk(repoRoot: repoRootURL)
 
     guard !branches.isEmpty else { return "main" }
-    guard let prompter else { return branches[0] }
 
     let options = branches.map { b in
       var annotations: [String] = []
@@ -138,10 +134,10 @@ struct InitCommand: AsyncParsableCommand {
         annotations.append("current")
       }
       let ann = annotations.isEmpty ? nil : annotations.joined(separator: ", ")
-      return PromptOption(value: b, label: b, annotation: ann)
+      return TerminalPrompt.Option(value: b, label: b, annotation: ann)
     }
 
-    return prompter.promptSelection(
+    return TerminalPrompt.promptSelection(
       title: "Discovered branches in this repository:",
       options: options,
       default: 0,

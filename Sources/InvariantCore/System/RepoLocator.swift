@@ -1,10 +1,10 @@
-import Foundation
+public import Foundation
 
 /// Errors that occur during repository discovery.
-enum RepoLocatorError: LocalizedError, Equatable {
+public enum RepoLocatorError: LocalizedError, Equatable, Sendable {
   case notInsideGitRepository
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .notInsideGitRepository:
       return "Not inside a git repository."
@@ -13,9 +13,9 @@ enum RepoLocatorError: LocalizedError, Equatable {
 }
 
 /// Discovers the enclosing git repository from the current working directory.
-enum RepoLocator {
+public enum RepoLocator: Sendable {
   /// Locates the enclosing git repository root directory from startURL (defaults to current working directory).
-  static func findRepoRoot(
+  public static func findRepoRoot(
     from startURL: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
   ) -> URL? {
     var current = startURL.standardizedFileURL
@@ -33,7 +33,7 @@ enum RepoLocator {
   }
 
   /// Locates the enclosing git repository root directory or throws an error.
-  static func requireRepoRoot(
+  public static func requireRepoRoot(
     from startURL: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
   ) throws(RepoLocatorError) -> URL {
     guard let root = findRepoRoot(from: startURL) else {

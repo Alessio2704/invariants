@@ -38,13 +38,12 @@ struct ConfigCommand: AsyncParsableCommand {
     let targetLanguages: [SupportedLanguage]
     if !languages.isEmpty {
       targetLanguages = languages
-    } else if defaultBranch == nil && CLIUtil.isInteractive {
-      let prompter = TerminalPrompter.shared
+    } else if defaultBranch == nil && TerminalPrompt.isInteractive {
       let options = SupportedLanguage.allCases.map { lang in
         let currentDesc = lang.spec.describeConfig(in: registry.project ?? ProjectConfig())
-        return PromptOption(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
+        return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
       }
-      targetLanguages = prompter.promptMultiSelection(title: "Select language to reconfigure:", options: options)
+      targetLanguages = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)
       guard !targetLanguages.isEmpty else {
         print("No configuration changes specified.")
         return
@@ -56,11 +55,10 @@ struct ConfigCommand: AsyncParsableCommand {
       targetLanguages = []
     }
 
-    let prompter: (any InteractivePrompter)? = CLIUtil.isInteractive ? TerminalPrompter.shared : nil
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
     for lang in targetLanguages {
-      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &newProject)
+      LanguageConfigPrompt.configureLanguage(lang, repoRootURL: repoRootURL, into: &newProject)
     }
 
     if newProject == oldProject && defaultBranch == nil {
@@ -180,8 +178,8 @@ struct ConfigCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    if CLIUtil.isInteractive {
-      let confirm = TerminalPrompter.shared.promptConfirmation(
+    if TerminalPrompt.isInteractive {
+      let confirm = TerminalPrompt.promptConfirmation(
         question: "Sign and commit new configuration?", default: true)
       if !confirm {
         print("Aborted.")
@@ -192,7 +190,7 @@ struct ConfigCommand: AsyncParsableCommand {
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

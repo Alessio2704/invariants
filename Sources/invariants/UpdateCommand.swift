@@ -236,8 +236,8 @@ extension UpdateCommand {
       }
 
       var isConfirmed = confirm || (confirmId == id)
-      if !isConfirmed && CLIUtil.isInteractive {
-        let typed = TerminalPrompter.shared.prompt(
+      if !isConfirmed && TerminalPrompt.isInteractive {
+        let typed = TerminalPrompt.prompt(
           question: "\nTo confirm this weakening, please type the rule id '\(id)'")
         if typed == id {
           isConfirmed = true
@@ -312,7 +312,7 @@ extension UpdateCommand {
       return
     }
 
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

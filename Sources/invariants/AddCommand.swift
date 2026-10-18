@@ -115,8 +115,8 @@ struct AddCommand: AsyncParsableCommand {
     }
     print("Repo impact preview: \(repoViolationsCount) violations on current codebase.")
 
-    if CLIUtil.isInteractive {
-      let confirm = TerminalPrompter.shared.promptConfirmation(
+    if TerminalPrompt.isInteractive {
+      let confirm = TerminalPrompt.promptConfirmation(
         question: "Add and lock invariant '\(id)' into registry v\(registry.version + 1)?",
         default: true
       )
@@ -131,7 +131,7 @@ struct AddCommand: AsyncParsableCommand {
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
-    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }
