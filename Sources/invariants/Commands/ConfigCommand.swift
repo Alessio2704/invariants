@@ -6,7 +6,7 @@ import Workflows
 struct ConfigCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "config",
-    abstract: "Modify project analysis inputs in registry.project with impact verification."
+    abstract: "Modify language analysis inputs in registry.languages with impact verification."
   )
 
   @Option(

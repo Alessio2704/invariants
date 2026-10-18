@@ -49,6 +49,7 @@ describe("TS Rule Runner process contract", () => {
         repoRoot: tmpDir,
         ruleDir: tmpDir,
         files: ["sample.ts"],
+        languages: { ts: { tsconfig: ["tsconfig.json"] } },
       }),
     );
 
@@ -101,6 +102,7 @@ export default defineRule({
         repoRoot: tmpDir,
         ruleDir: tmpDir,
         files: ["target.ts"],
+        languages: { ts: { tsconfig: ["tsconfig.json"] } },
       }),
     );
 

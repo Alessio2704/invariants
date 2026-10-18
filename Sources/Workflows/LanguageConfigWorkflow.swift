@@ -9,8 +9,8 @@ package enum LanguageConfigWorkflow {
   package static func resolveConfigurations(
     explicitLanguages: [SupportedLanguage],
     repoRootURL: URL,
-    baseConfig: ProjectConfig = ProjectConfig()
-  ) -> ProjectConfig {
+    baseConfig: LanguagesConfig = LanguagesConfig()
+  ) -> LanguagesConfig {
     guard explicitLanguages.isEmpty else {
       return configure(languages: explicitLanguages, in: repoRootURL, baseConfig: baseConfig)
     }
@@ -53,13 +53,13 @@ package enum LanguageConfigWorkflow {
   package static func configure(
     languages: [SupportedLanguage],
     in repoRootURL: URL,
-    baseConfig: ProjectConfig = ProjectConfig()
-  ) -> ProjectConfig {
-    var projectConfig = baseConfig
+    baseConfig: LanguagesConfig = LanguagesConfig()
+  ) -> LanguagesConfig {
+    var languagesConfig = baseConfig
     for lang in languages {
-      configureLanguage(lang, repoRootURL: repoRootURL, into: &projectConfig)
+      configureLanguage(lang, repoRootURL: repoRootURL, into: &languagesConfig)
     }
-    return projectConfig
+    return languagesConfig
   }
 
   /// Prompts the user to select from available languages.
@@ -74,10 +74,10 @@ package enum LanguageConfigWorkflow {
   private static func configureLanguage(
     _ language: SupportedLanguage,
     repoRootURL: URL,
-    into projectConfig: inout ProjectConfig
+    into languagesConfig: inout LanguagesConfig
   ) {
     if let config = promptForConfig(for: language, repoRootURL: repoRootURL) {
-      LanguageConfigManager.applyConfig(config, for: language, into: &projectConfig)
+      LanguageConfigManager.applyConfig(config, for: language, into: &languagesConfig)
     }
   }
 

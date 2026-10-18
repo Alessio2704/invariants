@@ -69,48 +69,48 @@ struct LanguageSpecTests {
     #expect(paths.contains("packages/api/tsconfig.json"))
   }
 
-  @Test("ProjectConfig type-safe subscripting and configuration state")
-  func projectConfigSubscripting() {
-    var project = ProjectConfig()
-    #expect(project.isEmpty)
-    #expect(!project.isConfigured(.swift))
-    #expect(!project.isConfigured(.ts))
-    #expect(project[SwiftLanguage.self] == nil)
-    #expect(project[TypeScriptLanguage.self] == nil)
+  @Test("LanguagesConfig type-safe subscripting and configuration state")
+  func languagesConfigSubscripting() {
+    var languages = LanguagesConfig()
+    #expect(languages.isEmpty)
+    #expect(!languages.isConfigured(.swift))
+    #expect(!languages.isConfigured(.ts))
+    #expect(languages[SwiftLanguage.self] == nil)
+    #expect(languages[TypeScriptLanguage.self] == nil)
 
     // Set Swift config
-    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "DataStore")
-    #expect(!project.isEmpty)
-    #expect(project.isConfigured(.swift))
-    #expect(!project.isConfigured(.ts))
-    #expect(project[SwiftLanguage.self]?.indexStore == "DataStore")
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "DataStore")
+    #expect(!languages.isEmpty)
+    #expect(languages.isConfigured(.swift))
+    #expect(!languages.isConfigured(.ts))
+    #expect(languages[SwiftLanguage.self]?.indexStore == "DataStore")
 
     // Set TypeScript config
-    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
-    #expect(project.isConfigured(.swift))
-    #expect(project.isConfigured(.ts))
-    #expect(project[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    #expect(languages.isConfigured(.swift))
+    #expect(languages.isConfigured(.ts))
+    #expect(languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
 
     // Remove Swift config via subscript
-    project[SwiftLanguage.self] = nil
-    #expect(!project.isConfigured(.swift))
-    #expect(project.isConfigured(.ts))
-    #expect(project[SwiftLanguage.self] == nil)
+    languages[SwiftLanguage.self] = nil
+    #expect(!languages.isConfigured(.swift))
+    #expect(languages.isConfigured(.ts))
+    #expect(languages[SwiftLanguage.self] == nil)
 
     // Polymorphic subscripting by SupportedLanguage
-    project[.swift] = SwiftLanguage.Config(indexStore: "DataStore")
-    #expect(project.isConfigured(.swift))
-    let swiftCfg = project[.swift] as? SwiftLanguage.Config
+    languages[.swift] = SwiftLanguage.Config(indexStore: "DataStore")
+    #expect(languages.isConfigured(.swift))
+    let swiftCfg = languages[.swift] as? SwiftLanguage.Config
     #expect(swiftCfg?.indexStore == "DataStore")
 
-    project[.swift] = nil
-    #expect(!project.isConfigured(.swift))
-    #expect(project[.swift] == nil)
+    languages[.swift] = nil
+    #expect(!languages.isConfigured(.swift))
+    #expect(languages[.swift] == nil)
   }
 
-  @Test("ProjectConfig JSON serialization round-trip")
-  func projectConfigCodable() throws {
-    var original = ProjectConfig()
+  @Test("LanguagesConfig JSON serialization round-trip")
+  func languagesConfigCodable() throws {
+    var original = LanguagesConfig()
     original[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/DataStore")
     original[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: [
       "tsconfig.json", "tsconfig.node.json",
@@ -121,7 +121,7 @@ struct LanguageSpecTests {
     let data = try encoder.encode(original)
 
     let decoder = JSONDecoder()
-    let decoded = try decoder.decode(ProjectConfig.self, from: data)
+    let decoded = try decoder.decode(LanguagesConfig.self, from: data)
 
     #expect(decoded == original)
     #expect(decoded[SwiftLanguage.self]?.indexStore == "build/DataStore")
@@ -167,8 +167,8 @@ struct LanguageSpecTests {
     arguments: SupportedLanguage.allCases
   )
   func describeConfigOutputs(language: SupportedLanguage) {
-    let project = ProjectConfig()
-    #expect(language.spec.describeConfig(in: project) == "none")
+    let languages = LanguagesConfig()
+    #expect(language.spec.describeConfig(in: languages) == "none")
   }
 
   @Test(

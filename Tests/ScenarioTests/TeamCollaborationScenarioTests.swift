@@ -49,7 +49,7 @@ struct TeamCollaborationScenarioTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Senior bumps registry to v2 and signs with Senior's key
-    let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-2": "hash"])
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0", rules: ["team-rule-2": "hash"])
     try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     try await GitClient.commit(
@@ -108,7 +108,7 @@ struct TeamCollaborationScenarioTests {
     try rotatedSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Rotation transaction (v2) is signed with the old key to establish authority transition
-    let reg2 = Registry(version: 2, engine: "^1.0.0", rules: ["team-rule-3": "hash"])
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0", rules: ["team-rule-3": "hash"])
     try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     try await GitClient.commit(repoRoot: repo.repoURL, paths: ["."], message: "Rotated Senior signing key")
@@ -155,7 +155,7 @@ struct TeamCollaborationScenarioTests {
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let reg1 = Registry(version: 1, engine: "^1.0.0", rules: ["team-rule-4": "hash"])
+    let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0", rules: ["team-rule-4": "hash"])
     try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: seniorAKey)
 
     try await GitClient.commit(repoRoot: repo.repoURL, paths: ["."], message: "Initial v1 with Senior A and Senior B")

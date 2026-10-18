@@ -22,6 +22,17 @@ struct TestCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
+    let registry: Registry
+    do {
+      registry = try await RegistryManager.loadAndVerify(
+        repoRoot: repoRootURL,
+        installedEngineVersion: EngineVersion.current
+      )
+    } catch {
+      fputs("Error: Registry verification failed: \(error)\n", stderr)
+      throw ExitCode(1)
+    }
+
     let manifestURL = ruleDir.appendingPathComponent("manifest.json")
     let manifest: RuleManifest
     do {
@@ -30,7 +41,7 @@ struct TestCommand: AsyncParsableCommand {
         ruleDirectory: ruleDir,
         manifest: manifest,
         repoRoot: repoRootURL,
-        registry: nil,
+        registry: registry,
         isFixtureMode: true
       )
     } catch {
@@ -60,6 +71,7 @@ struct TestCommand: AsyncParsableCommand {
       }
 
       var coveredCodes: Set<String> = []
+
       for fixtureCase in cases {
         if !fixtureCase.isShouldPass {
           for exp in fixtureCase.expectedViolations {
@@ -74,7 +86,8 @@ struct TestCommand: AsyncParsableCommand {
           mode: "fixture",
           repoRoot: fixtureCase.rootURL.path,
           ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path }
+          files: fixtureCase.files.map { $0.path },
+          languages: registry.languages
         )
 
         let reportedViolations: [ReportedViolation]

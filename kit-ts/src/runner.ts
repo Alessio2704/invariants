@@ -9,15 +9,13 @@ interface RequestPayload {
   readonly repoRoot: string;
   readonly ruleDir: string;
   readonly files: readonly string[];
-  readonly project?:
-    | {
-        readonly ts?:
-          | {
-              readonly tsconfig?: readonly string[] | undefined;
-            }
-          | undefined;
-      }
-    | undefined;
+  readonly languages: {
+    readonly ts?:
+      | {
+          readonly tsconfig?: readonly string[] | undefined;
+        }
+      | undefined;
+  };
 }
 
 async function main(): Promise<void> {
@@ -38,8 +36,8 @@ async function main(): Promise<void> {
 
   try {
     let resolvedConfigPath = "";
-    if (request.project?.ts?.tsconfig && request.project.ts.tsconfig.length > 0) {
-      const firstConfig = request.project.ts.tsconfig[0];
+    if (request.languages.ts?.tsconfig && request.languages.ts.tsconfig.length > 0) {
+      const firstConfig = request.languages.ts.tsconfig[0];
       if (firstConfig) {
         const candidate = path.resolve(request.repoRoot, firstConfig);
         if (fs.existsSync(candidate)) {
@@ -73,7 +71,7 @@ async function main(): Promise<void> {
       repoRoot: request.repoRoot,
       ruleDir: request.ruleDir,
       files: request.files,
-      project: request.project,
+      languages: request.languages,
       sourceFile(filePath: string) {
         const full = path.isAbsolute(filePath)
           ? filePath

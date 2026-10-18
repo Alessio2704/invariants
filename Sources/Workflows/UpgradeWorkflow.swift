@@ -42,7 +42,7 @@ package enum UpgradeWorkflow {
             repoRoot: fixtureCase.rootURL.path,
             ruleDir: tempSnapshot.path,
             files: fixtureCase.files.map { $0.path },
-            project: registry.project
+            languages: registry.languages
           )
           let violations = try await runner.execute(
             target: target,
@@ -66,7 +66,7 @@ package enum UpgradeWorkflow {
           repoRoot: repoRootURL.path,
           ruleDir: tempSnapshot.path,
           files: scopedFiles.map { $0.path },
-          project: registry.project
+          languages: registry.languages
         )
         _ = try await runner.execute(
           target: target,

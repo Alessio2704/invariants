@@ -2,7 +2,7 @@ package import Core
 import Foundation
 import Terminal
 
-/// Interactive CLI workflow for modifying project analysis configuration in registry.project with impact verification.
+/// Interactive CLI workflow for modifying language analysis configuration in registry.languages with impact verification.
 package enum ConfigWorkflow {
   package static func execute(
     languages: [SupportedLanguage],
@@ -23,20 +23,25 @@ package enum ConfigWorkflow {
       let targetLanguages = resolveTargetLanguages(
         explicitLanguages: languages,
         defaultBranch: defaultBranch,
-        project: registry.project ?? ProjectConfig()
+        languages: registry.languages
       )
     else {
       return
     }
 
-    let oldProject = registry.project ?? ProjectConfig()
-    let newProject = LanguageConfigWorkflow.configure(
+    let oldLanguages = registry.languages
+    let newLanguages = LanguageConfigWorkflow.configure(
       languages: targetLanguages,
       in: repoRootURL,
-      baseConfig: oldProject
+      baseConfig: oldLanguages
     )
 
-    guard newProject != oldProject || defaultBranch != nil else {
+    guard !newLanguages.isEmpty else {
+      print("Configuration rejected: at least one language must remain configured.")
+      return
+    }
+
+    guard newLanguages != oldLanguages || defaultBranch != nil else {
       print("No configuration changes made.")
       return
     }
@@ -46,11 +51,11 @@ package enum ConfigWorkflow {
       registry.defaultBranch = defaultBranch
     }
 
-    print("Project Configuration Diff:")
-    print("───────────────────────────")
+    print("Language Configuration Diff:")
+    print("────────────────────────────")
     for lang in SupportedLanguage.allCases {
-      let oldDesc = lang.spec.describeConfig(in: oldProject)
-      let newDesc = lang.spec.describeConfig(in: newProject)
+      let oldDesc = lang.spec.describeConfig(in: oldLanguages)
+      let newDesc = lang.spec.describeConfig(in: newLanguages)
       let label = "\(lang.spec.displayName):".padding(toLength: 17, withPad: " ", startingAt: 0)
       print("\(label)\(oldDesc) → \(newDesc)")
     }
@@ -75,7 +80,7 @@ package enum ConfigWorkflow {
       let manifest = try ManifestParser.load(
         from: tempSnapshot.appendingPathComponent("manifest.json"), expectedId: ruleId)
 
-      // 1. Fixtures must still pass with newProject
+      // 1. Fixtures must still pass with newLanguages
       for target in manifest.targets {
         let cases = try FixtureDiscoverer.discover(
           ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
@@ -85,7 +90,7 @@ package enum ConfigWorkflow {
             repoRoot: fixtureCase.rootURL.path,
             ruleDir: tempSnapshot.path,
             files: fixtureCase.files.map { $0.path },
-            project: newProject
+            languages: newLanguages
           )
           let violations = try await runner.execute(
             target: target,
@@ -110,14 +115,14 @@ package enum ConfigWorkflow {
           repoRoot: repoRootURL.path,
           ruleDir: tempSnapshot.path,
           files: scopedFiles.map { $0.path },
-          project: oldProject
+          languages: oldLanguages
         )
         let reqNew = RuleRequest(
           mode: "repo",
           repoRoot: repoRootURL.path,
           ruleDir: tempSnapshot.path,
           files: scopedFiles.map { $0.path },
-          project: newProject
+          languages: newLanguages
         )
 
         let violationsOld =
@@ -160,14 +165,14 @@ package enum ConfigWorkflow {
       }
     }
 
-    registry.project = newProject
+    registry.languages = newLanguages
     registry.version += 1
 
     guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
       throw ConfigWorkflowError.noSigningKey
     }
 
-    print("Updating project analysis configuration in registry v\(registry.version)...")
+    print("Updating language analysis configuration in registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
@@ -189,7 +194,7 @@ package enum ConfigWorkflow {
   private static func resolveTargetLanguages(
     explicitLanguages: [SupportedLanguage],
     defaultBranch: String?,
-    project: ProjectConfig
+    languages: LanguagesConfig
   ) -> [SupportedLanguage]? {
     guard explicitLanguages.isEmpty else {
       return explicitLanguages
@@ -205,7 +210,7 @@ package enum ConfigWorkflow {
     }
 
     let options = SupportedLanguage.allCases.map { lang in
-      let currentDesc = lang.spec.describeConfig(in: project)
+      let currentDesc = lang.spec.describeConfig(in: languages)
       return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
     }
     let selected = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)

@@ -114,7 +114,7 @@ public protocol AnyLanguageSpec: Sendable {
   static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)?
 
   /// Returns a human-readable description of this language's configured inputs.
-  static func describeConfig(in project: ProjectConfig) -> String
+  static func describeConfig(in languages: LanguagesConfig) -> String
 
   /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
   static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile]
@@ -213,8 +213,8 @@ public enum SwiftLanguage: LanguageSpec {
     }
   }
 
-  public static func describeConfig(in project: ProjectConfig) -> String {
-    project[Self.self]?.indexStore ?? "none"
+  public static func describeConfig(in languages: LanguagesConfig) -> String {
+    languages[Self.self]?.indexStore ?? "none"
   }
 
   public static func discoverCandidates(repoRootURL: URL) -> [String] {
@@ -334,8 +334,8 @@ public enum TypeScriptLanguage: LanguageSpec {
     }
   }
 
-  public static func describeConfig(in project: ProjectConfig) -> String {
-    let list = project[Self.self]?.tsconfig ?? []
+  public static func describeConfig(in languages: LanguagesConfig) -> String {
+    let list = languages[Self.self]?.tsconfig ?? []
     return list.isEmpty ? "none" : list.joined(separator: ", ")
   }
 

@@ -28,3 +28,27 @@ extension ElevationToken {
     )
   }
 }
+
+extension Registry {
+  static func forTesting(
+    version: Int = 1,
+    engine: String = "^1.0.0",
+    defaultBranch: String = "main",
+    languages: LanguagesConfig = {
+      var config = LanguagesConfig()
+      config[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+      return config
+    }(),
+    rules: [String: String] = [:],
+    signersHash: String? = nil
+  ) -> Registry {
+    Registry(
+      version: version,
+      engine: engine,
+      defaultBranch: defaultBranch,
+      languages: languages,
+      rules: rules,
+      signersHash: signersHash
+    )
+  }
+}

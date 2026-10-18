@@ -246,7 +246,7 @@ extension CheckCommand {
             repoRoot: fixtureCase.rootURL.path,
             ruleDir: tempSnapshotDir.path,
             files: fixtureCase.files.map { $0.path },
-            project: context.registry.project
+            languages: context.registry.languages
           )
           let violations: [ReportedViolation]
           do {
@@ -308,7 +308,7 @@ extension CheckCommand {
         repoRoot: context.repoRootURL.path,
         ruleDir: ruleCtx.tempSnapshotDir.path,
         files: scopedFiles.map { $0.path },
-        project: context.registry.project
+        languages: context.registry.languages
       )
 
       do {
@@ -406,7 +406,7 @@ extension CheckCommand {
           repoRoot: fixtureCase.rootURL.path,
           ruleDir: draftDir.path,
           files: fixtureCase.files.map { $0.path },
-          project: context.registry.project
+          languages: context.registry.languages
         )
         if let res = try? await context.ruleRunner.execute(
           target: target,

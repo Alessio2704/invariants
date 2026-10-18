@@ -26,12 +26,12 @@ struct FloorTests {
     let lockFile = invDir.appendingPathComponent("registry.lock")
 
     // Commit v1
-    let reg1 = Registry(version: 1, engine: "^1.0.0")
+    let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0")
     try CanonicalJSON.serialize(reg1).data(using: .utf8)?.write(to: lockFile)
     try await GitClient.commit(repoRoot: tmpDir, paths: ["invariants/registry.lock"], message: "v1")
 
     // Commit v2
-    let reg2 = Registry(version: 2, engine: "^1.0.0")
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0")
     try CanonicalJSON.serialize(reg2).data(using: .utf8)?.write(to: lockFile)
     try await GitClient.commit(repoRoot: tmpDir, paths: ["invariants/registry.lock"], message: "v2")
 

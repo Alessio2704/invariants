@@ -22,15 +22,13 @@ export interface RuleContext {
   readonly repoRoot: string;
   readonly ruleDir: string;
   readonly files: readonly string[];
-  readonly project?:
-    | {
-        readonly ts?:
-          | {
-              readonly tsconfig?: readonly string[] | undefined;
-            }
-          | undefined;
-      }
-    | undefined;
+  readonly languages: {
+    readonly ts?:
+      | {
+          readonly tsconfig?: readonly string[] | undefined;
+        }
+      | undefined;
+  };
 
   /**
    * Returns the TypeScript AST SourceFile for the given path.

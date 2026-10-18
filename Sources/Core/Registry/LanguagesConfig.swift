@@ -1,7 +1,7 @@
 import Foundation
 
-/// Dynamic project-wide analysis inputs declared in registry.lock.
-public struct ProjectConfig: Sendable {
+/// Repository language analysis inputs declared in registry.lock under "languages".
+public struct LanguagesConfig: Sendable {
   private var storage: [SupportedLanguage: any LanguageConfiguration]
 
   public init() {
@@ -54,8 +54,8 @@ public struct ProjectConfig: Sendable {
   }
 }
 
-extension ProjectConfig: Equatable {
-  public static func == (lhs: ProjectConfig, rhs: ProjectConfig) -> Bool {
+extension LanguagesConfig: Equatable {
+  public static func == (lhs: LanguagesConfig, rhs: LanguagesConfig) -> Bool {
     guard lhs.storage.count == rhs.storage.count else { return false }
     for (lang, config) in lhs.storage {
       guard let rhsConfig = rhs.storage[lang] else { return false }
@@ -65,7 +65,7 @@ extension ProjectConfig: Equatable {
   }
 }
 
-extension ProjectConfig: Codable {
+extension LanguagesConfig: Codable {
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: SupportedLanguage.self)
     var newStorage: [SupportedLanguage: any LanguageConfiguration] = [:]

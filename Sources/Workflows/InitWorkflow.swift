@@ -30,11 +30,19 @@ package enum InitWorkflow {
       throw InitWorkflowError.noSigningKey
     }
 
-    // 2. Detect project inputs interactively or via flags
-    let projectConfig = LanguageConfigWorkflow.resolveConfigurations(
+    // 2. Detect language inputs interactively or via flags
+    let languagesConfig = LanguageConfigWorkflow.resolveConfigurations(
       explicitLanguages: input.languages,
       repoRootURL: repoRootURL
     )
+
+    guard !languagesConfig.isEmpty else {
+      let msg =
+        "Error: At least one supported language must be configured. "
+        + "Specify --languages or run interactively in a repository with source files.\n"
+      fputs(msg, stderr)
+      throw InitWorkflowError.noLanguagesConfigured
+    }
 
     // 3. Select default trunk branch
     let defaultBranch = await BranchSelectionWorkflow.selectDefaultBranch(
@@ -46,7 +54,7 @@ package enum InitWorkflow {
     let options = InitOptions(
       engineVersion: EngineVersion.current,
       defaultBranch: defaultBranch,
-      projectConfig: projectConfig,
+      languages: languagesConfig,
       keyURL: keyURL
     )
 
@@ -62,11 +70,14 @@ package enum InitWorkflow {
 
 package enum InitWorkflowError: LocalizedError, Sendable {
   case noSigningKey
+  case noLanguagesConfigured
 
   package var errorDescription: String? {
     switch self {
     case .noSigningKey:
       return "No signing key selected."
+    case .noLanguagesConfigured:
+      return "Repository initialization failed: at least one supported language must be configured."
     }
   }
 }

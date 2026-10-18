@@ -80,7 +80,13 @@ package enum UpdateRuleWorkflow {
     try await checkWeakening(context: context)
 
     // Verify fixtures
-    try await verifyFixtures(ruleId: input.id, ruleDir: ruleDir, manifest: newManifest, env: env)
+    try await verifyFixtures(
+      ruleId: input.id,
+      ruleDir: ruleDir,
+      manifest: newManifest,
+      languages: registry.languages,
+      env: env
+    )
 
     // Save and commit
     try await saveAndCommitUpdate(
@@ -178,14 +184,14 @@ package enum UpdateRuleWorkflow {
         repoRoot: context.repoRootURL.path,
         ruleDir: context.tempOldSnapshot.path,
         files: scopedFiles.map { $0.path },
-        project: context.registry.project
+        languages: context.registry.languages
       )
       let newReq = RuleRequest(
         mode: "repo",
         repoRoot: context.repoRootURL.path,
         ruleDir: context.ruleDir.path,
         files: scopedFiles.map { $0.path },
-        project: context.registry.project
+        languages: context.registry.languages
       )
 
       let oldRes =
@@ -216,6 +222,7 @@ package enum UpdateRuleWorkflow {
     ruleId: String,
     ruleDir: URL,
     manifest: RuleManifest,
+    languages: LanguagesConfig,
     env: SystemEnvironment
   ) async throws {
     let runner = RuleRunner(environment: env)
@@ -228,7 +235,8 @@ package enum UpdateRuleWorkflow {
           mode: "fixture",
           repoRoot: fixtureCase.rootURL.path,
           ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path }
+          files: fixtureCase.files.map { $0.path },
+          languages: languages
         )
         let violations = try await runner.execute(
           target: target,

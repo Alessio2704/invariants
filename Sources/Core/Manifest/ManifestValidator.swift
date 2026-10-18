@@ -42,10 +42,10 @@ public enum ManifestValidator: Sendable {
           throw ManifestError.emptyFixtureFolder("should_fail/\(target.rawValue)")
         }
 
-        // In repo mode: verify target is configured in registry.project
+        // In repo mode: verify target is configured in registry.languages
         if !isFixtureMode, let registry {
-          guard registry.project?.isConfigured(target) == true else {
-            throw ManifestError.missingTargetInRegistryProject(target)
+          guard registry.languages.isConfigured(target) else {
+            throw ManifestError.missingTargetInRegistryLanguages(target)
           }
         }
       } else {

@@ -119,12 +119,18 @@ final class TestRepo: @unchecked Sendable {
     return self
   }
 
+  static var defaultLanguages: LanguagesConfig {
+    var config = LanguagesConfig()
+    config[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    return config
+  }
+
   /// Signs the registry and commits it.
   @discardableResult
   func signed(
     version: Int = 1,
     defaultBranch: String = "main",
-    project: ProjectConfig? = nil
+    languages: LanguagesConfig = TestRepo.defaultLanguages
   ) async throws -> TestRepo {
     var ruleMap: [String: String] = [:]
 
@@ -140,7 +146,7 @@ final class TestRepo: @unchecked Sendable {
       version: version,
       engine: "^1.0.0",
       defaultBranch: defaultBranch,
-      project: project,
+      languages: languages,
       rules: ruleMap
     )
 
@@ -157,5 +163,25 @@ final class TestRepo: @unchecked Sendable {
     )
 
     return self
+  }
+}
+
+extension Registry {
+  static func forTesting(
+    version: Int = 1,
+    engine: String = "^1.0.0",
+    defaultBranch: String = "main",
+    languages: LanguagesConfig = TestRepo.defaultLanguages,
+    rules: [String: String] = [:],
+    signersHash: String? = nil
+  ) -> Registry {
+    Registry(
+      version: version,
+      engine: engine,
+      defaultBranch: defaultBranch,
+      languages: languages,
+      rules: rules,
+      signersHash: signersHash
+    )
   }
 }

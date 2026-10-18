@@ -28,13 +28,13 @@ struct InitManagerTests {
     // Generate throwaway key
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    var project = ProjectConfig()
-    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
-    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
 
     let options = InitOptions(
       engineVersion: "1.0.0",
-      projectConfig: project,
+      languages: languages,
       keyURL: keyURL
     )
 
@@ -59,8 +59,8 @@ struct InitManagerTests {
     let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
     #expect(loaded.defaultBranch == "main")
-    #expect(loaded.project?[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
-    #expect(loaded.project?[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+    #expect(loaded.languages[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
+    #expect(loaded.languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
 
     // 4. Verify .gitignore updated with invariants/.dev/
     let gitignoreURL = repoURL.appendingPathComponent(".gitignore")
@@ -109,9 +109,13 @@ struct InitManagerTests {
     let detected = (await GitClient.discoverBranches(repoRoot: repoURL)).first
     #expect(detected == "develop")
 
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+
     let options = InitOptions(
       engineVersion: "1.0.0",
       defaultBranch: "develop",
+      languages: languages,
       keyURL: keyURL
     )
 

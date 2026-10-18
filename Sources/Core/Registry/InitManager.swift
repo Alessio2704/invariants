@@ -4,18 +4,18 @@ public import Foundation
 public struct InitOptions: Sendable {
   public var engineVersion: String
   public var defaultBranch: String
-  public var projectConfig: ProjectConfig
+  public var languages: LanguagesConfig
   public var keyURL: URL
 
   public init(
     engineVersion: String = EngineVersion.current,
     defaultBranch: String = "main",
-    projectConfig: ProjectConfig = ProjectConfig(),
+    languages: LanguagesConfig,
     keyURL: URL
   ) {
     self.engineVersion = engineVersion
     self.defaultBranch = defaultBranch
-    self.projectConfig = projectConfig
+    self.languages = languages
     self.keyURL = keyURL
   }
 }
@@ -42,7 +42,7 @@ public enum InitManager: Sendable {
       version: 1,
       engine: "^\(options.engineVersion)",
       defaultBranch: options.defaultBranch,
-      project: options.projectConfig.isEmpty ? nil : options.projectConfig,
+      languages: options.languages,
       rules: [:]
     )
 

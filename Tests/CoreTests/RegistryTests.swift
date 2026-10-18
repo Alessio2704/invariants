@@ -7,14 +7,14 @@ import Testing
 struct RegistryTests {
   @Test("Canonical JSON serialization produces deterministic sorted keys")
   func canonicalJSONOrdering() {
-    var project = ProjectConfig()
-    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
-    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
+    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
 
     let reg = Registry(
       version: 8,
       engine: "^1.2.0",
-      project: project,
+      languages: languages,
       rules: [
         "tooling": "77de4e10",
         "no-raw-text": "a81b02d4",
@@ -27,7 +27,7 @@ struct RegistryTests {
       {
         "default_branch": "main",
         "engine": "^1.2.0",
-        "project": {
+        "languages": {
           "swift": { "indexStore": "Index/DataStore" },
           "ts": { "tsconfig": ["tsconfig.json"] }
         },
@@ -44,9 +44,12 @@ struct RegistryTests {
 
   @Test("Canonical JSON round-trip serialization is identical")
   func canonicalJSONRoundTrip() throws {
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
     let original = Registry(
       version: 3,
       engine: "^1.0.0",
+      languages: languages,
       rules: ["toy": "abc12345"]
     )
     let jsonStr = CanonicalJSON.serialize(original)
@@ -121,7 +124,9 @@ struct RegistryTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
+    let reg = Registry(version: 1, engine: "^1.0.0", languages: languages)
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Verify valid

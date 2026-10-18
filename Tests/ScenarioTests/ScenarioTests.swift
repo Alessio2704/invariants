@@ -77,7 +77,7 @@ struct ScenarioTests {
     // 2. Engine range mismatch
     let repo2 = try await TestRepo()
     try repo2.withRule("toy2", targets: [.swift])
-    let reg2 = Registry(version: 1, engine: "^2.0.0", rules: [:])
+    let reg2 = Registry.forTesting(version: 1, engine: "^2.0.0", rules: [:])
     try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo2.repoURL, keyURL: repo2.keyURL)
 
     await #expect(throws: RegistryError.engineVersionMismatch(required: "^2.0.0", installed: "1.0.0")) {

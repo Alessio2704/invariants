@@ -49,7 +49,7 @@ public enum ManifestError: Error, Equatable, Sendable, CustomStringConvertible {
   case forbiddenRuleFile(TargetLanguage, String)
   case missingFixtureFolder(String)
   case emptyFixtureFolder(String)
-  case missingTargetInRegistryProject(TargetLanguage)
+  case missingTargetInRegistryLanguages(TargetLanguage)
   case emptyCodes
   case codeNotTestedByFixtures(String)
   case undeclaredCodeEmitted(code: String, ruleId: String)
@@ -84,8 +84,8 @@ public enum ManifestError: Error, Equatable, Sendable, CustomStringConvertible {
       return "Missing required fixture folder: '\(folder)'"
     case .emptyFixtureFolder(let folder):
       return "Fixture folder is empty: '\(folder)'"
-    case .missingTargetInRegistryProject(let target):
-      return "Target '\(target.rawValue)' declared in rule is not configured in registry.project"
+    case .missingTargetInRegistryLanguages(let target):
+      return "Target '\(target.rawValue)' declared in rule is not configured in registry.languages"
     case .emptyCodes:
       return "Manifest codes dictionary cannot be empty"
     case .codeNotTestedByFixtures(let code):

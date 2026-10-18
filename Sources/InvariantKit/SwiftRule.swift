@@ -11,12 +11,12 @@ public protocol SwiftRule: Sendable {
   func check(_ ctx: RuleContext) throws(RuleError) -> [Violation]
 }
 
-private struct InternalSwiftProj: Decodable {
+private struct InternalSwiftConfig: Decodable {
   let indexStore: String?
 }
 
-private struct InternalProject: Decodable {
-  let swift: InternalSwiftProj?
+private struct InternalLanguages: Decodable {
+  let swift: InternalSwiftConfig?
 }
 
 private struct InternalRuleRequest: Decodable {
@@ -24,7 +24,7 @@ private struct InternalRuleRequest: Decodable {
   let repoRoot: String
   let ruleDir: String
   let files: [String]
-  let project: InternalProject?
+  let languages: InternalLanguages
 }
 
 extension SwiftRule {
@@ -71,7 +71,7 @@ extension SwiftRule {
     let repoRoot = URL(fileURLWithPath: request.repoRoot)
     let ruleDir = URL(fileURLWithPath: request.ruleDir)
     let fileURLs = request.files.map { URL(fileURLWithPath: $0) }
-    let indexStorePath = request.project?.swift?.indexStore
+    let indexStorePath = request.languages.swift?.indexStore
 
     let ctx = RuleContext(
       repoRoot: repoRoot,

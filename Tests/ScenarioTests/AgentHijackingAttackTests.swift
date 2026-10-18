@@ -48,7 +48,7 @@ struct AgentHijackingAttackTests {
     try signers.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Agent attempts to retarget default_branch to "unprotected" in version 2
-    let reg2 = Registry(
+    let reg2 = Registry.forTesting(
       version: 2,
       engine: "^1.0.0",
       defaultBranch: "unprotected"

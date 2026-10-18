@@ -12,17 +12,15 @@ public enum CanonicalJSON {
     // 2. "engine"
     lines.append("  \"engine\": \"\(escape(registry.engine))\",")
 
-    // 3. "project" (optional)
-    if let project = registry.project, !project.isEmpty {
-      lines.append("  \"project\": {")
-      let languages = project.configuredLanguages
-      for (idx, lang) in languages.enumerated() {
-        guard let jsonString = project.canonicalJSON(for: lang) else { continue }
-        let comma = (idx < languages.count - 1) ? "," : ""
-        lines.append("    \"\(escape(lang.rawValue))\": \(jsonString)\(comma)")
-      }
-      lines.append("  },")
+    // 3. "languages"
+    lines.append("  \"languages\": {")
+    let languages = registry.languages.configuredLanguages
+    for (idx, lang) in languages.enumerated() {
+      guard let jsonString = registry.languages.canonicalJSON(for: lang) else { continue }
+      let comma = (idx < languages.count - 1) ? "," : ""
+      lines.append("    \"\(escape(lang.rawValue))\": \(jsonString)\(comma)")
     }
+    lines.append("  },")
 
     // 4. "rules"
     if registry.rules.isEmpty {

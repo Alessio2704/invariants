@@ -9,13 +9,13 @@ package enum LanguageConfigManager {
     language.spec.discoverCandidates(repoRootURL: repoRootURL)
   }
 
-  /// Applies a language configuration dynamically into a project configuration.
+  /// Applies a language configuration dynamically into a repository languages configuration.
   package static func applyConfig(
     _ config: any LanguageConfiguration,
     for language: SupportedLanguage,
-    into projectConfig: inout ProjectConfig
+    into languagesConfig: inout LanguagesConfig
   ) {
-    projectConfig[language] = config
+    languagesConfig[language] = config
   }
 
   /// Detects languages with source files present in the repository root.

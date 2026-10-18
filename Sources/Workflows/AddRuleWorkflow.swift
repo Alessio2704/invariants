@@ -48,7 +48,8 @@ package enum AddRuleWorkflow {
           mode: "fixture",
           repoRoot: fixtureCase.rootURL.path,
           ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path }
+          files: fixtureCase.files.map { $0.path },
+          languages: registry.languages
         )
         let violations = try await runner.execute(
           target: target,
@@ -89,7 +90,7 @@ package enum AddRuleWorkflow {
         repoRoot: repoRootURL.path,
         ruleDir: ruleDir.path,
         files: files.map { $0.path },
-        project: registry.project
+        languages: registry.languages
       )
       let violations = try await runner.execute(
         target: target,

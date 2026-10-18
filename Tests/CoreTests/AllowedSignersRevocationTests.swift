@@ -27,7 +27,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject expired key
@@ -57,7 +57,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-after=\"20350101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject not-yet-valid key
@@ -86,7 +86,7 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Valid initially
@@ -132,7 +132,7 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyB)
 
     // Initially valid when signed by B
@@ -200,7 +200,7 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(seniorPub)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let reg1 = Registry(version: 1, engine: "^1.0.0")
+    let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repoURL, keyURL: seniorKey)
 
     try await GitClient.commit(repoRoot: repoURL, paths: ["."], message: "v1 by senior")

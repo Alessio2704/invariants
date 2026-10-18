@@ -11,7 +11,7 @@ struct BranchingScenarioTests {
     let repo = try await TestRepo()
 
     // 1. Initialized on main
-    let reg1 = Registry(version: 1, engine: "^1.0.0", defaultBranch: "main")
+    let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0", defaultBranch: "main")
     try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
     try await GitClient.commit(repoRoot: repo.repoURL, paths: ["."], message: "Init invariants on main")
 
@@ -74,6 +74,7 @@ struct BranchingScenarioTests {
     let options = InitOptions(
       engineVersion: "1.0.0",
       defaultBranch: detectedBranch,
+      languages: TestRepo.defaultLanguages,
       keyURL: repo.keyURL
     )
     try await InitManager.initialize(repoRootURL: repo.repoURL, options: options)

@@ -46,7 +46,7 @@ struct SecurityAttackTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Attacker creates version 2 registry and signs with rogueKey
-    let reg2 = Registry(version: 2, engine: "^1.0.0")
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
 
     // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers!
@@ -71,7 +71,7 @@ struct SecurityAttackTests {
     try await repo.signed(version: 2)
 
     // Attacker attempts to revert working tree registry.lock to version 1
-    let reg1 = Registry(version: 1, engine: "^1.0.0")
+    let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // FloorGuard history check must reject version 1 because history max is 2
@@ -112,7 +112,7 @@ struct SecurityAttackTests {
     try expiredSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Save and sign with the expired key
-    let reg = Registry(version: 1, engine: "^1.0.0")
+    let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
     try await RegistryManager.saveAndSign(registry: reg, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // loadAndVerify must reject with signatureInvalid (key expired)

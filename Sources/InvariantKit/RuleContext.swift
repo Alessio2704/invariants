@@ -171,7 +171,7 @@ public final class RuleContext: @unchecked Sendable {
       process.waitUntilExit()
     } else {
       guard let relIndex = projectIndexStorePath, !relIndex.isEmpty else {
-        throw RuleError.indexStale("INDEX STALE — no indexStore configured in registry.project.swift")
+        throw RuleError.indexStale("INDEX STALE — no indexStore configured in registry.languages.swift")
       }
       let fullPath = repoRoot.appendingPathComponent(relIndex).standardizedFileURL.path
       guard FileManager.default.fileExists(atPath: fullPath) else {
