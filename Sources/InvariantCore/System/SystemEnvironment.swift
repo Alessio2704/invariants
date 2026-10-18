@@ -10,15 +10,15 @@ public struct SystemEnvironment: Sendable {
   /// Default user signing key location at `~/.ssh/invariants_p256`.
   public static var defaultSigningKeyURL: URL {
     FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".ssh/invariants_p256")
+      .appendingPathComponent(SystemPaths.defaultKeySubpath)
   }
 
   public var versionsDirectoryURL: URL {
-    rootURL.appendingPathComponent("versions")
+    rootURL.appendingPathComponent(SystemPaths.versionsDirectoryName)
   }
 
   public var currentVersionURL: URL {
-    rootURL.appendingPathComponent("current")
+    rootURL.appendingPathComponent(SystemPaths.currentLinkName)
   }
 
   /// Returns the installation URL for a kit by its directory name.
@@ -30,14 +30,14 @@ public struct SystemEnvironment: Sendable {
   public init(rootURL: URL? = nil, binURL: URL? = nil) {
     if let rootURL {
       self.rootURL = rootURL
-      self.binURL = binURL ?? rootURL.appendingPathComponent("bin/invariants")
-    } else if let envPrefix = ProcessInfo.processInfo.environment["INVARIANTS_PREFIX"], !envPrefix.isEmpty {
+      self.binURL = binURL ?? rootURL.appendingPathComponent(SystemPaths.binaryRelativeSubpath)
+    } else if let envPrefix = ProcessInfo.processInfo.environment[SystemPaths.prefixEnvVariable], !envPrefix.isEmpty {
       let root = URL(fileURLWithPath: envPrefix)
       self.rootURL = root
-      self.binURL = binURL ?? root.appendingPathComponent("bin/invariants")
+      self.binURL = binURL ?? root.appendingPathComponent(SystemPaths.binaryRelativeSubpath)
     } else {
-      self.rootURL = URL(fileURLWithPath: "/usr/local/invariants")
-      self.binURL = binURL ?? URL(fileURLWithPath: "/usr/local/bin/invariants")
+      self.rootURL = SystemPaths.defaultPrefixURL
+      self.binURL = binURL ?? SystemPaths.defaultBinaryURL
     }
   }
 }

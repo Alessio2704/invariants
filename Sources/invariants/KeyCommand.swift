@@ -90,7 +90,7 @@ struct KeyCommand: AsyncParsableCommand {
       let sshDir = defaultKey.deletingLastPathComponent()
       if let items = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) {
         let backups = items.filter {
-          $0.hasPrefix("invariants_p256.bak-") && !$0.hasSuffix(".pub")
+          $0.hasPrefix(SystemPaths.keyBackupPrefix) && !$0.hasSuffix(".pub")
         }
         if !backups.isEmpty {
           print("  Backups:     \(backups.count) archived rotation backup(s) in \(sshDir.path)")
@@ -314,7 +314,7 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      let backups = items.filter { $0.hasPrefix("invariants_p256.bak-") }
+      let backups = items.filter { $0.hasPrefix(SystemPaths.keyBackupPrefix) }
       guard !backups.isEmpty else {
         print("No rotation backup keys found in \(sshDir.path).")
         return

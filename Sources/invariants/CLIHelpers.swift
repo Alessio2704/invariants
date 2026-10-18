@@ -98,7 +98,7 @@ enum CLIHelpers {
 
     if isInteractive {
       let shouldGenerate = promptConfirmation(
-        question: "Signing key not found at ~/.ssh/invariants_p256. Generate a Touch ID hardware key now?",
+        question: "Signing key not found at ~/\(SystemPaths.defaultKeySubpath). Generate a Touch ID hardware key now?",
         default: true
       )
       if shouldGenerate {

@@ -18,7 +18,7 @@ struct ElevationAndInstallationTests {
 
   @Test("requiresElevation detects root-owned directories requiring sudo")
   func rootDirectoryRequiresElevation() {
-    let protectedFileURL = URL(fileURLWithPath: "/usr/local/invariants/floors/test-repo")
+    let protectedFileURL = SystemPaths.defaultPrefixURL.appendingPathComponent("floors/test-repo")
 
     #expect(SubprocessRunner.requiresElevation(for: protectedFileURL))
   }

@@ -171,7 +171,8 @@ struct SignersCommand: AsyncParsableCommand {
       formatter.timeZone = TimeZone(secondsFromGMT: 0)
       let ts = formatter.string(from: Date())
 
-      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent("invariants_p256.bak-\(ts)")
+      let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent(
+        "\(SystemPaths.keyBackupPrefix)\(ts)")
       let backupPub = backupKey.appendingPathExtension("pub")
 
       try FileManager.default.moveItem(at: defaultKey, to: backupKey)
