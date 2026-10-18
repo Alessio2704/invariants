@@ -17,7 +17,8 @@ package enum HardwareKeyWorkflow {
       let pub = (try? String(contentsOf: defaultPub, encoding: .utf8))?.trimmingCharacters(
         in: .whitespacesAndNewlines)
       if let pub, !pub.isEmpty {
-        print("\nPublic Key:\n  \(pub)")
+        print("\nPublic Key:\n  \(pub)\n")
+        checkAndPrintEnrollment(pubKey: pub)
       }
       print("\nUse 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
       return defaultKey
@@ -38,6 +39,8 @@ package enum HardwareKeyWorkflow {
     print("\nPublic Key:")
     print("  \(pubKey)\n")
 
+    checkAndPrintEnrollment(pubKey: pubKey)
+
     return generatedKey
   }
 
@@ -53,8 +56,18 @@ package enum HardwareKeyWorkflow {
     print(pubKey)
   }
 
-  @discardableResult
-  package static func statusLocal() async -> String? {
+  package static func status() async {
+    let pubKey = await statusLocal()
+    if let root = try? RepoLocator.discover() {
+      RepoLocator.withRepoRoot(root) {
+        statusProject(for: pubKey)
+      }
+    } else {
+      statusProjectOutsideRepo()
+    }
+  }
+
+  private static func statusLocal() async -> String? {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
     let inspection = await HardwareKeyManager.inspectKey(at: defaultKey)
 
@@ -82,7 +95,7 @@ package enum HardwareKeyWorkflow {
     return inspection.pubKey
   }
 
-  package static func statusProject(for pubKey: String?) {
+  private static func statusProject(for pubKey: String?) {
     print("")
     let repoRoot = RepoLocator.current
     print("[Active Project: \(repoRoot.lastPathComponent)]")
@@ -119,13 +132,80 @@ package enum HardwareKeyWorkflow {
     }
   }
 
-  package static func statusProjectOutsideRepo() {
+  private static func statusProjectOutsideRepo() {
     print("")
     print("[Active Project]")
     print("  Not inside a Git repository.")
   }
 
   package static func rotate() async throws {
+    if let root = try? RepoLocator.discover() {
+      let signersURL = RepoLocator.withRepoRoot(root) {
+        RegistryManager.allowedSignersURL()
+      }
+      if FileManager.default.fileExists(atPath: signersURL.path) {
+        try await RepoLocator.withRepoRoot(root) {
+          try await rotateInRepo()
+        }
+        return
+      }
+    }
+
+    try await rotateLocal()
+    print(
+      "Notice: Not inside an Invariants repository. To enroll this key, have a lead run 'invariants signers add'."
+    )
+  }
+
+  package static func rotateInRepo() async throws {
+    let defaultKey = SystemEnvironment.defaultSigningKeyURL
+    guard FileManager.default.fileExists(atPath: defaultKey.path) else {
+      throw KeyLifecycleError.keyNotFound(defaultKey.path)
+    }
+
+    let oldPubURL = defaultKey.appendingPathExtension("pub")
+    guard
+      let oldPubContent = (try? String(contentsOf: oldPubURL, encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+      !oldPubContent.isEmpty
+    else {
+      throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
+    }
+
+    print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
+    let (backupKey, _) = try await HardwareKeyManager.rotateHardwareKey(at: defaultKey)
+
+    guard
+      let newPubContent = (try? String(contentsOf: oldPubURL, encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+      !newPubContent.isEmpty
+    else {
+      throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
+    }
+
+    let signersURL = RegistryManager.allowedSignersURL()
+    var signersFile = try AllowedSignersFile.read(from: signersURL)
+    try signersFile.rotate(
+      oldKeyDataOrSubstring: oldPubContent,
+      newPublicKeyString: newPubContent,
+      sunsetDuration: 86400
+    )
+    try signersFile.write(to: signersURL)
+
+    let lockURL = RegistryManager.registryURL()
+    guard FileManager.default.fileExists(atPath: lockURL.path),
+      let data = try? Data(contentsOf: lockURL),
+      var registry = try? CanonicalJSON.parse(data: data)
+    else {
+      throw RegistryError.fileNotFound(lockURL)
+    }
+
+    registry.version += 1
+    try await RegistryManager.saveAndSign(registry: registry, keyURL: backupKey)
+    print("✓ Key rotated successfully. Old key archived to \(backupKey.path).")
+  }
+
+  private static func rotateLocal() async throws {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
     guard FileManager.default.fileExists(atPath: defaultKey.path) else {
       throw KeyLifecycleError.keyNotFound(defaultKey.path)
@@ -227,7 +307,17 @@ package enum HardwareKeyWorkflow {
     print("✓ Cleaned up \(count) rotation backup file(s) from \(sshDir.path).")
   }
 
-  package static func printProjectEnrollment(pubKey: String) {
+  private static func checkAndPrintEnrollment(pubKey: String) {
+    if let root = try? RepoLocator.discover() {
+      RepoLocator.withRepoRoot(root) {
+        printProjectEnrollment(pubKey: pubKey)
+      }
+    } else {
+      print("Share your public key above with your repository lead to be added as an authorized signer.")
+    }
+  }
+
+  private static func printProjectEnrollment(pubKey: String) {
     let repoRoot = RepoLocator.current
     let signersURL = RegistryManager.allowedSignersURL()
     if FileManager.default.fileExists(atPath: signersURL.path) {

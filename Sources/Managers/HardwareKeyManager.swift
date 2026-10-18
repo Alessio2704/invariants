@@ -139,7 +139,7 @@ package enum HardwareKeyManager {
   }
 }
 
-package enum KeyLifecycleError: LocalizedError, Sendable {
+package enum KeyLifecycleError: LocalizedError, CustomStringConvertible, Sendable {
   case keyNotFound(String)
   case publicKeyNotFound(String)
 
@@ -148,7 +148,11 @@ package enum KeyLifecycleError: LocalizedError, Sendable {
     case .keyNotFound(let path):
       return "Signing key not found at \(path)."
     case .publicKeyNotFound(let path):
-      return "Public key not found at \(path)."
+      return "Public key not found at \(path).\nRun 'invariants key generate' to create one."
     }
+  }
+
+  package var description: String {
+    errorDescription ?? "Key lifecycle error."
   }
 }

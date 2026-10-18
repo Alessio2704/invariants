@@ -156,65 +156,7 @@ struct SignersCommand: AsyncParsableCommand {
     func run() async throws {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        let signersURL = RegistryManager.allowedSignersURL()
-        let defaultKey = SystemEnvironment.defaultSigningKeyURL
-
-        guard FileManager.default.fileExists(atPath: defaultKey.path) else {
-          fputs("Error: No existing signing key found at \(defaultKey.path) to rotate.\n", stderr)
-          throw ExitCode(1)
-        }
-
-        let oldPubURL = defaultKey.appendingPathExtension("pub")
-        guard
-          let oldPubContent = try? String(contentsOf: oldPubURL, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        else {
-          fputs("Error: Could not read existing public key at \(oldPubURL.path).\n", stderr)
-          throw ExitCode(1)
-        }
-
-        // 1. Archive current key to backup
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMddHHmmss"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        let ts = formatter.string(from: Date())
-
-        let backupKey = defaultKey.deletingLastPathComponent().appendingPathComponent(
-          "\(SystemPaths.keyBackupPrefix)\(ts)")
-        let backupPub = backupKey.appendingPathExtension("pub")
-
-        try FileManager.default.moveItem(at: defaultKey, to: backupKey)
-        if FileManager.default.fileExists(atPath: oldPubURL.path) {
-          try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
-        }
-
-        // 2. Generate new key at defaultKey
-        print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
-        let token = try await Authorizer.authorizeBiometrics(
-          reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
-        )
-        try SigningClient.generateSigningKey(at: defaultKey, token: token)
-
-        guard
-          let newPubContent = try? String(contentsOf: oldPubURL, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        else {
-          fputs("Error: Failed to read new public key at \(oldPubURL.path).\n", stderr)
-          throw ExitCode(1)
-        }
-
-        // 3. Update in-repo allowed_signers: mark old valid-before, add new valid-after
-        var signersFile = try AllowedSignersFile.read(from: signersURL)
-        try signersFile.rotate(
-          oldKeyDataOrSubstring: oldPubContent,
-          newPublicKeyString: newPubContent,
-          sunsetDuration: 86400
-        )
-        try signersFile.write(to: signersURL)
-
-        // 4. Bump registry & sign with old key to seal the authority transition
-        try await SignersCommand.bumpAndSignRegistry(customSigningKey: backupKey.path)
-        print("✓ Key rotated successfully. Old key archived to \(backupKey.path).")
+        try await HardwareKeyWorkflow.rotateInRepo()
       }
     }
   }
