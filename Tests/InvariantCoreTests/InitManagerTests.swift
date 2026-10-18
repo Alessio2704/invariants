@@ -28,12 +28,13 @@ struct InitManagerTests {
     // Generate throwaway key
     try SigningClient.generateThrowawayKey(at: keyURL)
 
+    var project = ProjectConfig()
+    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+
     let options = InitOptions(
       engineVersion: "1.0.0",
-      projectConfig: ProjectConfig(
-        swift: SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore"),
-        ts: TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
-      ),
+      projectConfig: project,
       keyURL: keyURL
     )
 

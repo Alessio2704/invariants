@@ -100,10 +100,11 @@ struct LanguageSpecTests {
 
   @Test("ProjectConfig JSON serialization round-trip")
   func projectConfigCodable() throws {
-    let original = ProjectConfig(
-      swift: SwiftLanguage.Config(indexStore: "build/DataStore"),
-      ts: TypeScriptLanguage.Config(tsconfig: ["tsconfig.json", "tsconfig.node.json"])
-    )
+    var original = ProjectConfig()
+    original[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/DataStore")
+    original[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: [
+      "tsconfig.json", "tsconfig.node.json",
+    ])
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .prettyPrinted]

@@ -1,9 +1,14 @@
 public import Foundation
 
 /// The set of target languages supported by Invariants for static analysis and rule enforcement.
-public enum SupportedLanguage: String, Sendable, Codable, CaseIterable {
+public enum SupportedLanguage: String, CodingKey, Sendable, Codable, CaseIterable {
   case swift
   case ts
+
+  public var stringValue: String { rawValue }
+  public init?(stringValue: String) { self.init(rawValue: stringValue) }
+  public var intValue: Int? { nil }
+  public init?(intValue: Int) { nil }
 
   public var spec: any AnyLanguageSpec.Type {
     switch self {
@@ -41,6 +46,26 @@ extension InteractivePrompter {
   }
 }
 
+/// Dynamic contract for a language's strongly-typed compile-time configuration.
+public protocol LanguageConfiguration: Sendable, Codable {
+  func isEqualTo(_ other: any LanguageConfiguration) -> Bool
+  func toCanonicalJSON() -> String?
+}
+
+extension LanguageConfiguration where Self: Equatable {
+  public func isEqualTo(_ other: any LanguageConfiguration) -> Bool {
+    guard let otherTyped = other as? Self else { return false }
+    return self == otherTyped
+  }
+
+  public func toCanonicalJSON() -> String? {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(self) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+}
+
 /// Dynamic contract for language specifications supporting discovery and interactive configuration.
 public protocol AnyLanguageSpec: Sendable {
   static var language: SupportedLanguage { get }
@@ -48,6 +73,12 @@ public protocol AnyLanguageSpec: Sendable {
   static var sourceExtensions: [String] { get }
   static var ruleFileName: String { get }
   static var executionSpec: RuleExecutionSpec { get }
+
+  /// Decodes this language's configuration polymorphically from a decoder.
+  static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)?
+
+  /// Encodes this language's configuration polymorphically to an encoder.
+  static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws
 
   /// Detects if this language has source files in the repository.
   static func hasSources(in repoRoot: URL) -> Bool
@@ -75,7 +106,18 @@ extension AnyLanguageSpec {
 /// Contract for a supported language specification, binding language identity to its compile-time configuration schema.
 public protocol LanguageSpec: AnyLanguageSpec {
   /// The strongly-typed project configuration schema required by this language.
-  associatedtype Config: Sendable, Equatable, Codable
+  associatedtype Config: LanguageConfiguration, Equatable
+}
+
+extension LanguageSpec {
+  public static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)? {
+    try Config(from: decoder)
+  }
+
+  public static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws {
+    guard let typed = config as? Config else { return }
+    try typed.encode(to: encoder)
+  }
 }
 
 /// Swift language specification requiring an Apple / Clang index store.
@@ -109,11 +151,15 @@ public enum SwiftLanguage: LanguageSpec {
   )
 
   /// Swift requires a single index store path for IndexStoreDB / symbol graph analysis.
-  public struct Config: Sendable, Equatable, Codable {
+  public struct Config: LanguageConfiguration, Equatable {
     public var indexStore: String
 
     public init(indexStore: String) {
       self.indexStore = indexStore
+    }
+
+    public func toCanonicalJSON() -> String? {
+      "{ \"indexStore\": \"\(CanonicalJSON.escape(indexStore))\" }"
     }
   }
 
@@ -256,11 +302,16 @@ public enum TypeScriptLanguage: LanguageSpec {
   )
 
   /// TypeScript requires an array of relative tsconfig.json paths for compiler API / ts-morph.
-  public struct Config: Sendable, Equatable, Codable {
+  public struct Config: LanguageConfiguration, Equatable {
     public var tsconfig: [String]
 
     public init(tsconfig: [String]) {
       self.tsconfig = tsconfig
+    }
+
+    public func toCanonicalJSON() -> String? {
+      let formatted = tsconfig.map { "\"\(CanonicalJSON.escape($0))\"" }.joined(separator: ", ")
+      return "{ \"tsconfig\": [\(formatted)] }"
     }
   }
 

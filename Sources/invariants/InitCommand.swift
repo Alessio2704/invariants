@@ -12,7 +12,7 @@ struct InitCommand: AsyncParsableCommand {
   var branch: String?
 
   @Option(
-    name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
+    name: [.short, .customLong("languages"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
       "Target languages to configure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")))."

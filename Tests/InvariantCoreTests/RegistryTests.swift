@@ -7,13 +7,14 @@ import Testing
 struct RegistryTests {
   @Test("Canonical JSON serialization produces deterministic sorted keys")
   func canonicalJSONOrdering() {
+    var project = ProjectConfig()
+    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
+    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+
     let reg = Registry(
       version: 8,
       engine: "^1.2.0",
-      project: ProjectConfig(
-        swift: SwiftLanguage.Config(indexStore: "Index/DataStore"),
-        ts: TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
-      ),
+      project: project,
       rules: [
         "tooling": "77de4e10",
         "no-raw-text": "a81b02d4",
