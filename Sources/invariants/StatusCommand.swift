@@ -9,7 +9,7 @@ struct StatusCommand: AsyncParsableCommand {
   )
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
     let fm = FileManager.default
 
     print("Invariants Status")
@@ -20,10 +20,10 @@ struct StatusCommand: AsyncParsableCommand {
     do {
       let loaded = try await RegistryManager.loadAndVerify(
         repoRoot: repoRootURL,
-        installedEngineVersion: CLIHelpers.engineVersion
+        installedEngineVersion: EngineVersion.current
       )
       registry = loaded
-      print("Engine:      \(CLIHelpers.engineVersion) (satisfies range '\(loaded.engine)')")
+      print("Engine:      \(EngineVersion.current) (satisfies range '\(loaded.engine)')")
       print("Signature:   ✓ valid (verified against allowed_signers)")
       print("Registry:    v\(loaded.version)")
     } catch let regErr {

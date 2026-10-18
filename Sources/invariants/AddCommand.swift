@@ -15,7 +15,7 @@ struct AddCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
@@ -23,7 +23,7 @@ struct AddCommand: AsyncParsableCommand {
     // 1. Load registry
     var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
-      installedEngineVersion: CLIHelpers.engineVersion
+      installedEngineVersion: EngineVersion.current
     )
 
     guard registry.rules[id] == nil else {
@@ -68,7 +68,7 @@ struct AddCommand: AsyncParsableCommand {
           ruleDirectory: ruleDir,
           ruleTreeHash: "add_preview",
           request: req,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )
 
         let expected = Set(fixtureCase.expectedViolations)
@@ -109,14 +109,14 @@ struct AddCommand: AsyncParsableCommand {
         ruleDirectory: ruleDir,
         ruleTreeHash: "add_preview",
         request: req,
-        engineVersion: CLIHelpers.engineVersion
+        engineVersion: EngineVersion.current
       )
       repoViolationsCount += violations.count
     }
     print("Repo impact preview: \(repoViolationsCount) violations on current codebase.")
 
-    if CLIHelpers.isInteractive {
-      let confirm = CLIHelpers.promptConfirmation(
+    if CLIUtil.isInteractive {
+      let confirm = TerminalPrompter.shared.promptConfirmation(
         question: "Add and lock invariant '\(id)' into registry v\(registry.version + 1)?",
         default: true
       )
@@ -131,7 +131,7 @@ struct AddCommand: AsyncParsableCommand {
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

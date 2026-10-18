@@ -32,20 +32,6 @@ public struct DevWorkspaceFile: Sendable, Equatable {
   }
 }
 
-/// Interactive prompter interface for user input during CLI commands.
-public protocol InteractivePrompter: Sendable {
-  func prompt(question: String) -> String
-  func prompt(question: String, default defaultValue: String?) -> String
-  func promptConfirmation(question: String, default defaultYes: Bool) -> Bool
-  func printLine(_ message: String)
-}
-
-extension InteractivePrompter {
-  public func prompt(question: String) -> String {
-    prompt(question: question, default: nil)
-  }
-}
-
 /// Dynamic contract for a language's strongly-typed compile-time configuration.
 public protocol LanguageConfiguration: Sendable, Codable {
   func isEqualTo(_ other: any LanguageConfiguration) -> Bool
@@ -257,16 +243,13 @@ public enum SwiftLanguage: LanguageSpec {
           projectConfig[Self.self] = Config(indexStore: choice)
         }
       } else {
-        prompter.printLine("\nDiscovered Swift Index candidates:")
-        for (idx, cand) in candidates.enumerated() {
-          prompter.printLine("  [\(idx + 1)] \(cand)")
-        }
-        let choice = prompter.prompt(
-          question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)"
-        )
-        if let num = Int(choice), num >= 1, num <= candidates.count {
-          projectConfig[Self.self] = Config(indexStore: candidates[num - 1])
-        } else if !choice.isEmpty {
+        let options = candidates.map { PromptOption(value: $0, label: $0) }
+        if let choice = prompter.promptSelection(
+          title: "Discovered Swift Index candidates:",
+          options: options,
+          default: nil,
+          customHandler: { $0 }
+        ) {
           projectConfig[Self.self] = Config(indexStore: choice)
         }
       }

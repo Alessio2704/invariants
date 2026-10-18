@@ -15,7 +15,7 @@ struct NewCommand: AsyncParsableCommand {
   var targets: String = "swift"
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(id)")
     let fm = FileManager.default

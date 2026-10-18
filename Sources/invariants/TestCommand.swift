@@ -12,7 +12,7 @@ struct TestCommand: AsyncParsableCommand {
   var id: String
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(id)")
     let fm = FileManager.default
@@ -84,7 +84,7 @@ struct TestCommand: AsyncParsableCommand {
             ruleDirectory: ruleDir,
             ruleTreeHash: "working_tree",
             request: req,
-            engineVersion: CLIHelpers.engineVersion
+            engineVersion: EngineVersion.current
           )
         } catch let runnerErr {
           let harnessErr: HarnessError

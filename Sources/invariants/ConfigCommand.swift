@@ -24,7 +24,7 @@ struct ConfigCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
@@ -32,30 +32,22 @@ struct ConfigCommand: AsyncParsableCommand {
 
     var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
-      installedEngineVersion: CLIHelpers.engineVersion
+      installedEngineVersion: EngineVersion.current
     )
 
     let targetLanguages: [SupportedLanguage]
     if !languages.isEmpty {
       targetLanguages = languages
-    } else if defaultBranch == nil && CLIHelpers.isInteractive {
-      let prompter = CLIInteractivePrompter()
-      prompter.printLine("Select language to reconfigure:")
-      for (idx, lang) in SupportedLanguage.allCases.enumerated() {
+    } else if defaultBranch == nil && CLIUtil.isInteractive {
+      let prompter = TerminalPrompter.shared
+      let options = SupportedLanguage.allCases.map { lang in
         let currentDesc = lang.spec.describeConfig(in: registry.project ?? ProjectConfig())
-        prompter.printLine("  [\(idx + 1)] \(lang.spec.displayName) (current: \(currentDesc))")
+        return PromptOption(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
       }
-      let choice = prompter.prompt(
-        question: "Select languages [1-\(SupportedLanguage.allCases.count)] (comma-separated, or Enter to cancel)"
-      )
-      guard !choice.isEmpty else {
+      targetLanguages = prompter.promptMultiSelection(title: "Select language to reconfigure:", options: options)
+      guard !targetLanguages.isEmpty else {
         print("No configuration changes specified.")
         return
-      }
-      let numbers = choice.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-      targetLanguages = numbers.compactMap { num in
-        guard num >= 1 && num <= SupportedLanguage.allCases.count else { return nil }
-        return SupportedLanguage.allCases[num - 1]
       }
     } else if defaultBranch == nil {
       print("No configuration changes specified. Use --languages or --default-branch.")
@@ -64,7 +56,7 @@ struct ConfigCommand: AsyncParsableCommand {
       targetLanguages = []
     }
 
-    let prompter: (any InteractivePrompter)? = CLIHelpers.isInteractive ? CLIInteractivePrompter() : nil
+    let prompter: (any InteractivePrompter)? = CLIUtil.isInteractive ? TerminalPrompter.shared : nil
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
     for lang in targetLanguages {
@@ -127,7 +119,7 @@ struct ConfigCommand: AsyncParsableCommand {
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: req,
-            engineVersion: CLIHelpers.engineVersion
+            engineVersion: EngineVersion.current
           )
           if fixtureCase.isShouldPass && !violations.isEmpty {
             fputs("Error: Rule '\(ruleId)' fixture failed under new config.\n", stderr)
@@ -162,7 +154,7 @@ struct ConfigCommand: AsyncParsableCommand {
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: reqOld,
-            engineVersion: CLIHelpers.engineVersion
+            engineVersion: EngineVersion.current
           )) ?? []
 
         let violationsNew =
@@ -171,7 +163,7 @@ struct ConfigCommand: AsyncParsableCommand {
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: reqNew,
-            engineVersion: CLIHelpers.engineVersion
+            engineVersion: EngineVersion.current
           )) ?? []
 
         if violationsNew.count < violationsOld.count {
@@ -188,8 +180,9 @@ struct ConfigCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    if CLIHelpers.isInteractive {
-      let confirm = CLIHelpers.promptConfirmation(question: "Sign and commit new configuration?", default: true)
+    if CLIUtil.isInteractive {
+      let confirm = TerminalPrompter.shared.promptConfirmation(
+        question: "Sign and commit new configuration?", default: true)
       if !confirm {
         print("Aborted.")
         return
@@ -199,7 +192,7 @@ struct ConfigCommand: AsyncParsableCommand {
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

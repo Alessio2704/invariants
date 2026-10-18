@@ -9,7 +9,7 @@ struct DevCommand: AsyncParsableCommand {
   )
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let devDir = repoRootURL.appendingPathComponent("invariants/.dev")
     let fm = FileManager.default

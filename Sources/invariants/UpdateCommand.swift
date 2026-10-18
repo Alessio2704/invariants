@@ -21,13 +21,13 @@ struct UpdateCommand: AsyncParsableCommand {
   var confirm: Bool = false
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
     let env = SystemEnvironment.standard
     let fm = FileManager.default
 
     var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
-      installedEngineVersion: CLIHelpers.engineVersion
+      installedEngineVersion: EngineVersion.current
     )
 
     guard let oldSignedTreeHash = registry.rules[id] else {
@@ -210,7 +210,7 @@ extension UpdateCommand {
           ruleDirectory: context.tempOldSnapshot,
           ruleTreeHash: context.oldSignedTreeHash,
           request: oldReq,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )) ?? []
 
       let newRes =
@@ -219,7 +219,7 @@ extension UpdateCommand {
           ruleDirectory: context.ruleDir,
           ruleTreeHash: "update_preview",
           request: newReq,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )) ?? []
 
       oldRepoViolationsCount += oldRes.count
@@ -236,8 +236,9 @@ extension UpdateCommand {
       }
 
       var isConfirmed = confirm || (confirmId == id)
-      if !isConfirmed && CLIHelpers.isInteractive {
-        let typed = CLIHelpers.prompt(question: "\nTo confirm this weakening, please type the rule id '\(id)'")
+      if !isConfirmed && CLIUtil.isInteractive {
+        let typed = TerminalPrompter.shared.prompt(
+          question: "\nTo confirm this weakening, please type the rule id '\(id)'")
         if typed == id {
           isConfirmed = true
         }
@@ -275,7 +276,7 @@ extension UpdateCommand {
           ruleDirectory: ruleDir,
           ruleTreeHash: "update_preview",
           request: req,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )
 
         let expected = Set(fixtureCase.expectedViolations)
@@ -311,7 +312,7 @@ extension UpdateCommand {
       return
     }
 
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

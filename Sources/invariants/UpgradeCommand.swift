@@ -12,7 +12,7 @@ struct UpgradeCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
@@ -20,11 +20,11 @@ struct UpgradeCommand: AsyncParsableCommand {
 
     var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
-      installedEngineVersion: CLIHelpers.engineVersion
+      installedEngineVersion: EngineVersion.current
     )
 
-    let newRange = "^\(CLIHelpers.engineVersion)"
-    print("Re-verifying all active rules under engine \(CLIHelpers.engineVersion)...")
+    let newRange = "^\(EngineVersion.current)"
+    print("Re-verifying all active rules under engine \(EngineVersion.current)...")
 
     for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
       let tempSnapshot = fm.temporaryDirectory.appendingPathComponent("upgrade_\(ruleId)_\(UUID().uuidString)")
@@ -57,10 +57,10 @@ struct UpgradeCommand: AsyncParsableCommand {
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: req,
-            engineVersion: CLIHelpers.engineVersion
+            engineVersion: EngineVersion.current
           )
           if fixtureCase.isShouldPass && !violations.isEmpty {
-            fputs("Error: Rule '\(ruleId)' fixture failed under engine \(CLIHelpers.engineVersion).\n", stderr)
+            fputs("Error: Rule '\(ruleId)' fixture failed under engine \(EngineVersion.current).\n", stderr)
             throw ExitCode(1)
           }
         }
@@ -82,15 +82,15 @@ struct UpgradeCommand: AsyncParsableCommand {
           ruleDirectory: tempSnapshot,
           ruleTreeHash: signedTreeHash,
           request: req,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )
       }
     }
 
-    print("✓ All active rule fixtures and repo checks passed under \(CLIHelpers.engineVersion).")
+    print("✓ All active rule fixtures and repo checks passed under \(EngineVersion.current).")
 
-    if CLIHelpers.isInteractive {
-      let confirm = CLIHelpers.promptConfirmation(
+    if CLIUtil.isInteractive {
+      let confirm = TerminalPrompter.shared.promptConfirmation(
         question: "Upgrade engine range from '\(registry.engine)' to '\(newRange)'?",
         default: true
       )
@@ -103,7 +103,7 @@ struct UpgradeCommand: AsyncParsableCommand {
     registry.engine = newRange
     registry.version += 1
 
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

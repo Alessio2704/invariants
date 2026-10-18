@@ -1,12 +1,13 @@
 import ArgumentParser
 import Foundation
+import InvariantCore
 
 @main
 struct InvariantsCLI: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "invariants",
     abstract: "Architecture constraints as code, proven by fixtures and locked by Touch ID.",
-    version: CLIHelpers.engineVersion,
+    version: EngineVersion.current,
     subcommands: [
       InitCommand.self,
       ConfigCommand.self,

@@ -98,7 +98,7 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("")
-      if let repoRoot = CLIHelpers.findRepoRoot() {
+      if let repoRoot = RepoLocator.findRepoRoot() {
         print("[Active Project: \(repoRoot.lastPathComponent)]")
         let lockURL = RegistryManager.registryURL(repoRoot: repoRoot)
         let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
@@ -154,7 +154,7 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       // If inside an Invariants repository with allowed_signers, delegate to SignersCommand.Rotate
-      if let repoRoot = CLIHelpers.findRepoRoot() {
+      if let repoRoot = RepoLocator.findRepoRoot() {
         let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
         if FileManager.default.fileExists(atPath: signersURL.path) {
           try await SignersCommand.Rotate().run()
@@ -218,8 +218,8 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      if !yes && CLIHelpers.isInteractive {
-        let confirmed = CLIHelpers.prompt(
+      if !yes && CLIUtil.isInteractive {
+        let confirmed = TerminalPrompter.shared.prompt(
           question: "Are you sure you want to delete \(defaultKey.path)? [y/N]", default: "n")
         guard confirmed.lowercased() == "y" || confirmed.lowercased() == "yes" else {
           print("Aborted.")
@@ -261,8 +261,8 @@ struct KeyCommand: AsyncParsableCommand {
       let defaultPub = defaultKey.appendingPathExtension("pub")
 
       if FileManager.default.fileExists(atPath: defaultKey.path) {
-        if !yes && CLIHelpers.isInteractive {
-          let confirmed = CLIHelpers.prompt(
+        if !yes && CLIUtil.isInteractive {
+          let confirmed = TerminalPrompter.shared.prompt(
             question: "This will archive your current key and generate a brand-new one. Continue? [y/N]",
             default: "n"
           )
@@ -334,8 +334,8 @@ struct KeyCommand: AsyncParsableCommand {
         return
       }
 
-      if !yes && CLIHelpers.isInteractive {
-        let confirmed = CLIHelpers.prompt(
+      if !yes && CLIUtil.isInteractive {
+        let confirmed = TerminalPrompter.shared.prompt(
           question: "Found \(backups.count) backup file(s) in \(sshDir.path). Delete them? [y/N]",
           default: "n"
         )
@@ -410,7 +410,7 @@ extension KeyCommand {
   }
 
   private static func printContextualStatus(pubKey: String) {
-    if let repoRoot = CLIHelpers.findRepoRoot() {
+    if let repoRoot = RepoLocator.findRepoRoot() {
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
       if FileManager.default.fileExists(atPath: signersURL.path) {
         let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()

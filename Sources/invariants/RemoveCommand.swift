@@ -18,14 +18,14 @@ struct RemoveCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
 
     let fm = FileManager.default
 
     // 1. Load registry
     var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
-      installedEngineVersion: CLIHelpers.engineVersion
+      installedEngineVersion: EngineVersion.current
     )
 
     guard registry.rules[id] != nil else {
@@ -51,8 +51,8 @@ struct RemoveCommand: AsyncParsableCommand {
       }
     }
 
-    if CLIHelpers.isInteractive {
-      let confirm = CLIHelpers.promptConfirmation(
+    if CLIUtil.isInteractive {
+      let confirm = TerminalPrompter.shared.promptConfirmation(
         question: "Deactivate and remove invariant '\(id)' from registry v\(registry.version + 1)?",
         default: true
       )
@@ -63,7 +63,7 @@ struct RemoveCommand: AsyncParsableCommand {
     }
 
     // 3. Resolve key and sign
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

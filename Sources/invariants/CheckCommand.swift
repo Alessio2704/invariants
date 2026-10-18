@@ -30,7 +30,7 @@ struct CheckCommand: AsyncParsableCommand {
   var json: Bool = false
 
   func run() async throws {
-    let repoRootURL = try CLIHelpers.requireRepoRoot()
+    let repoRootURL = try RepoLocator.requireRepoRoot()
     let env = SystemEnvironment.standard
 
     let registry = try await verifyRegistry(repoRootURL: repoRootURL)
@@ -47,7 +47,7 @@ struct CheckCommand: AsyncParsableCommand {
 
     let report = CheckReport(
       registryVersion: registry.version,
-      engineVersion: CLIHelpers.engineVersion,
+      engineVersion: EngineVersion.current,
       rules: activeItems + draftItems
     )
 
@@ -64,7 +64,7 @@ extension CheckCommand {
     do {
       return try await RegistryManager.loadAndVerify(
         repoRoot: repoRootURL,
-        installedEngineVersion: CLIHelpers.engineVersion
+        installedEngineVersion: EngineVersion.current
       )
     } catch let regErr {
       switch regErr {
@@ -226,7 +226,7 @@ extension CheckCommand {
     context: CheckContext
   ) async -> String? {
     let isCachedPass = await FixtureCache.shared.isCachedPass(
-      engineVersion: CLIHelpers.engineVersion,
+      engineVersion: EngineVersion.current,
       ruleTreeHash: signedTreeHash
     )
     if isCachedPass {
@@ -255,7 +255,7 @@ extension CheckCommand {
               ruleDirectory: tempSnapshotDir,
               ruleTreeHash: signedTreeHash,
               request: req,
-              engineVersion: CLIHelpers.engineVersion
+              engineVersion: EngineVersion.current
             )
           } catch let runnerErr {
             switch runnerErr {
@@ -284,7 +284,7 @@ extension CheckCommand {
     }
 
     await FixtureCache.shared.recordPass(
-      engineVersion: CLIHelpers.engineVersion,
+      engineVersion: EngineVersion.current,
       ruleTreeHash: signedTreeHash
     )
     return nil
@@ -317,7 +317,7 @@ extension CheckCommand {
           ruleDirectory: ruleCtx.tempSnapshotDir,
           ruleTreeHash: ruleCtx.signedTreeHash,
           request: req,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         )
         try ManifestValidator.validateReportedViolations(
           manifest: ruleCtx.manifest,
@@ -413,7 +413,7 @@ extension CheckCommand {
           ruleDirectory: draftDir,
           ruleTreeHash: "draft",
           request: req,
-          engineVersion: CLIHelpers.engineVersion
+          engineVersion: EngineVersion.current
         ) {
           if (fixtureCase.isShouldPass && res.isEmpty) || (!fixtureCase.isShouldPass && !res.isEmpty) {
             draftPassed += 1

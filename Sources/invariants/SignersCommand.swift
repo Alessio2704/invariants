@@ -22,7 +22,7 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      let repoRoot = try CLIHelpers.requireRepoRoot()
+      let repoRoot = try RepoLocator.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
@@ -61,7 +61,7 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = try CLIHelpers.requireRepoRoot()
+      let repoRoot = try RepoLocator.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       let keyContent: String
@@ -105,7 +105,7 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = try CLIHelpers.requireRepoRoot()
+      let repoRoot = try RepoLocator.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
 
       guard FileManager.default.fileExists(atPath: signersURL.path) else {
@@ -147,7 +147,7 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      let repoRoot = try CLIHelpers.requireRepoRoot()
+      let repoRoot = try RepoLocator.requireRepoRoot()
       let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
       let defaultKey = SystemEnvironment.defaultSigningKeyURL
 
@@ -222,7 +222,7 @@ struct SignersCommand: AsyncParsableCommand {
     }
 
     registry.version += 1
-    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: customSigningKey) else {
+    guard let keyURL = await SigningKeyResolver.promptForSigningKey(customPath: customSigningKey) else {
       fputs("Error: No Invariants signing key resolved to sign registry update.\n", stderr)
       throw ExitCode(1)
     }
