@@ -1,7 +1,6 @@
 import Foundation
-import InvariantCore
 
-/// Utilities for interactive terminal prompts in CLI commands.
+/// Generic interactive terminal I/O primitives for CLI applications.
 enum TerminalPrompt {
   /// Whether current process standard input is an interactive terminal.
   static var isInteractive: Bool {
@@ -48,7 +47,7 @@ enum TerminalPrompt {
     }
   }
 
-  /// Prompts user to select a single option from a list.
+  /// Prompts user to select a single option from a collection.
   static func promptSelection<T>(
     title: String,
     options: [Option<T>],
@@ -84,7 +83,7 @@ enum TerminalPrompt {
     return defaultIndex.flatMap { options.indices.contains($0) ? options[$0].value : nil }
   }
 
-  /// Prompts user to select multiple options from a list.
+  /// Prompts user to select multiple options from a collection.
   static func promptMultiSelection<T>(
     title: String,
     options: [Option<T>]
@@ -107,40 +106,5 @@ enum TerminalPrompt {
       guard num >= 1, num <= options.count else { return nil }
       return options[num - 1].value
     }
-  }
-
-  /// Prompts user to resolve or generate a signing key if needed.
-  static func promptForSigningKey(customPath: String? = nil) async -> URL? {
-    if let resolved = SigningKeyResolver.resolveSigningKey(customPath: customPath) {
-      return resolved
-    }
-
-    guard isInteractive else {
-      return nil
-    }
-
-    let shouldGenerate = promptConfirmation(
-      question: "Signing key not found at ~/\(SystemPaths.defaultKeySubpath). Generate a Touch ID hardware key now?",
-      default: true
-    )
-    if shouldGenerate {
-      do {
-        return try await KeyCommand.generateHardwareKey(force: false, showContextualStatus: false)
-      } catch {
-        fputs("Warning: Could not generate Secure Enclave key: \(error)\n", stderr)
-      }
-    }
-
-    let custom = prompt(
-      question: "Enter path to an existing SSH private key (or press Enter to cancel)"
-    )
-    if !custom.isEmpty {
-      let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
-      if FileManager.default.fileExists(atPath: expanded.path) {
-        return expanded
-      }
-    }
-
-    return nil
   }
 }

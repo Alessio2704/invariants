@@ -1,7 +1,64 @@
 import Foundation
 import InvariantCore
 
-enum LanguageConfigPrompt {
+/// CLI-aware orchestrator responsible for discovering and harvesting language analysis configurations.
+enum LanguageConfigManager {
+  /// Resolves language configurations for project initialization, querying the user interactively if needed.
+  static func resolveConfigurations(
+    explicitLanguages: [SupportedLanguage],
+    repoRootURL: URL,
+    into projectConfig: inout ProjectConfig
+  ) {
+    let targetLanguages: [SupportedLanguage]
+
+    if !explicitLanguages.isEmpty {
+      targetLanguages = explicitLanguages
+    } else {
+      let detected = SupportedLanguage.allCases.filter { $0.spec.hasSources(in: repoRootURL) }
+      if !detected.isEmpty {
+        if TerminalPrompt.isInteractive {
+          print("\nDiscovered languages in this repository:")
+          for lang in detected {
+            let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+            print("  • \(lang.spec.displayName) (\(exts))")
+          }
+          let confirmed = TerminalPrompt.promptConfirmation(
+            question: "Configure invariants for discovered languages?",
+            default: true
+          )
+          if confirmed {
+            targetLanguages = detected
+          } else {
+            targetLanguages = promptForLanguageSelection()
+          }
+        } else {
+          targetLanguages = detected
+        }
+      } else {
+        if TerminalPrompt.isInteractive {
+          print("\nNo known source files detected in repository.")
+          targetLanguages = promptForLanguageSelection()
+        } else {
+          targetLanguages = []
+        }
+      }
+    }
+
+    for lang in targetLanguages {
+      configureLanguage(lang, repoRootURL: repoRootURL, into: &projectConfig)
+    }
+  }
+
+  /// Prompts the user to select from available languages.
+  static func promptForLanguageSelection(title: String = "Available languages:") -> [SupportedLanguage] {
+    let options = SupportedLanguage.allCases.map { lang in
+      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+      return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "extensions: \(exts)")
+    }
+    return TerminalPrompt.promptMultiSelection(title: title, options: options)
+  }
+
+  /// Interactively configures a single language and stores it in the project configuration.
   static func configureLanguage(
     _ language: SupportedLanguage,
     repoRootURL: URL,

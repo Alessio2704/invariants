@@ -103,7 +103,7 @@ struct UpgradeCommand: AsyncParsableCommand {
     registry.engine = newRange
     registry.version += 1
 
-    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyManager.resolveOrPrompt(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

@@ -58,7 +58,7 @@ struct ConfigCommand: AsyncParsableCommand {
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
     for lang in targetLanguages {
-      LanguageConfigPrompt.configureLanguage(lang, repoRootURL: repoRootURL, into: &newProject)
+      LanguageConfigManager.configureLanguage(lang, repoRootURL: repoRootURL, into: &newProject)
     }
 
     if newProject == oldProject && defaultBranch == nil {
@@ -190,7 +190,7 @@ struct ConfigCommand: AsyncParsableCommand {
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyManager.resolveOrPrompt(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

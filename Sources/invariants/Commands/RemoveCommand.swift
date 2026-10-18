@@ -63,7 +63,7 @@ struct RemoveCommand: AsyncParsableCommand {
     }
 
     // 3. Resolve key and sign
-    guard let keyURL = await TerminalPrompt.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await SigningKeyManager.resolveOrPrompt(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }
