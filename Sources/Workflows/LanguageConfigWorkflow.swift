@@ -76,61 +76,52 @@ package enum LanguageConfigWorkflow {
     repoRootURL: URL,
     into projectConfig: inout ProjectConfig
   ) {
-    switch language {
-    case .swift:
-      if let cfg = promptForSwiftConfig(repoRootURL: repoRootURL) {
-        LanguageConfigManager.applySwiftConfig(indexStore: cfg.indexStore, into: &projectConfig)
-      }
-    case .ts:
-      if let cfg = promptForTypeScriptConfig(repoRootURL: repoRootURL) {
-        LanguageConfigManager.applyTypeScriptConfig(tsconfigs: cfg.tsconfig, into: &projectConfig)
-      }
+    if let config = promptForConfig(for: language, repoRootURL: repoRootURL) {
+      LanguageConfigManager.applyConfig(config, for: language, into: &projectConfig)
     }
   }
 
-  private static func promptForSwiftConfig(repoRootURL: URL) -> SwiftLanguage.Config? {
-    let candidates = LanguageConfigManager.discoverSwiftCandidates(repoRootURL: repoRootURL)
+  private static func promptForConfig(
+    for language: SupportedLanguage,
+    repoRootURL: URL
+  ) -> (any LanguageConfiguration)? {
+    let spec = language.spec
+    let candidates = LanguageConfigManager.discoverCandidates(for: language, repoRootURL: repoRootURL)
+    let descriptor = spec.configPromptDescriptor
+
     if candidates.isEmpty {
       guard TerminalPrompt.isInteractive else { return nil }
-      print(
-        "\nSwift sources detected, but no index store candidate was found "
-          + "(e.g. build/Index.noindex/DataStore, .build/out, or .build/debug/index/store)."
-      )
-      let choice = TerminalPrompt.prompt(question: "Enter index store path (press Enter to skip / configure later)")
-      return choice.isEmpty ? nil : SwiftLanguage.Config(indexStore: choice)
-    } else {
+      print("\n\(descriptor.noCandidatesMessage)")
+      let choice = TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
+      guard !choice.isEmpty else { return nil }
+      return spec.makeConfig(from: [choice])
+    }
+
+    switch descriptor.selectionStyle {
+    case .single(let selectionTitle):
       let options = candidates.map { TerminalPrompt.Option(value: $0, label: $0) }
       if let choice = TerminalPrompt.promptSelection(
-        title: "Discovered Swift Index candidates:",
+        title: selectionTitle,
         options: options,
         default: 0,
         customHandler: { $0 }
       ) {
-        return SwiftLanguage.Config(indexStore: choice)
+        return spec.makeConfig(from: [choice])
       }
       return nil
-    }
-  }
 
-  private static func promptForTypeScriptConfig(repoRootURL: URL) -> TypeScriptLanguage.Config? {
-    let candidates = LanguageConfigManager.discoverTypeScriptCandidates(repoRootURL: repoRootURL)
-    if candidates.isEmpty {
-      guard TerminalPrompt.isInteractive else { return nil }
-      print("\nTypeScript sources detected, but no tsconfig.json candidate was found.")
-      let custom = TerminalPrompt.prompt(
-        question: "Enter tsconfig relative path (press Enter to skip / configure later)")
-      return custom.isEmpty ? nil : TypeScriptLanguage.Config(tsconfig: [custom])
-    } else {
+    case .multiple(let confirmationQuestion):
       let joined = candidates.joined(separator: ", ")
       let confirm = TerminalPrompt.promptConfirmation(
-        question: "Use discovered tsconfig paths (\(joined))?",
+        question: "\(confirmationQuestion) (\(joined))?",
         default: true
       )
       if confirm {
-        return TypeScriptLanguage.Config(tsconfig: candidates)
+        return spec.makeConfig(from: candidates)
       } else {
-        let custom = TerminalPrompt.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
-        return custom.isEmpty ? nil : TypeScriptLanguage.Config(tsconfig: [custom])
+        let custom = TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
+        guard !custom.isEmpty else { return nil }
+        return spec.makeConfig(from: [custom])
       }
     }
   }

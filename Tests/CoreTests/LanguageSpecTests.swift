@@ -96,6 +96,16 @@ struct LanguageSpecTests {
     #expect(!project.isConfigured(.swift))
     #expect(project.isConfigured(.ts))
     #expect(project[SwiftLanguage.self] == nil)
+
+    // Polymorphic subscripting by SupportedLanguage
+    project[.swift] = SwiftLanguage.Config(indexStore: "DataStore")
+    #expect(project.isConfigured(.swift))
+    let swiftCfg = project[.swift] as? SwiftLanguage.Config
+    #expect(swiftCfg?.indexStore == "DataStore")
+
+    project[.swift] = nil
+    #expect(!project.isConfigured(.swift))
+    #expect(project[.swift] == nil)
   }
 
   @Test("ProjectConfig JSON serialization round-trip")
@@ -236,5 +246,49 @@ struct LanguageSpecTests {
     let candidates = TypeScriptLanguage.discoverCandidates(repoRootURL: tmpDir)
     #expect(candidates.contains("tsconfig.json"))
     #expect(candidates.contains("packages/api/tsconfig.json"))
+  }
+
+  @Test(
+    "All supported languages provide valid configPromptDescriptor and makeConfig factory",
+    arguments: SupportedLanguage.allCases
+  )
+  func languageConfigFactoryAndDescriptor(language: SupportedLanguage) {
+    let spec = language.spec
+    let descriptor = spec.configPromptDescriptor
+    #expect(!descriptor.noCandidatesMessage.isEmpty)
+    #expect(!descriptor.manualPromptQuestion.isEmpty)
+
+    switch descriptor.selectionStyle {
+    case .single(let title):
+      #expect(!title.isEmpty)
+    case .multiple(let question):
+      #expect(!question.isEmpty)
+    }
+
+    #expect(spec.makeConfig(from: []) == nil)
+    #expect(spec.makeConfig(from: [""]) == nil)
+
+    let sample = spec.makeConfig(from: ["sample/path"])
+    #expect(sample != nil)
+  }
+
+  @Test("Polymorphic autoDiscover on AnyLanguageSpec")
+  func polymorphicAutoDiscover() async throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(
+      at: tmpDir.appendingPathComponent("build/Index.noindex/DataStore"),
+      withIntermediateDirectories: true
+    )
+    try Data("{}".utf8).write(to: tmpDir.appendingPathComponent("tsconfig.json"))
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    let swiftConfig = await SupportedLanguage.swift.spec.autoDiscover(repoRoot: tmpDir)
+    #expect(swiftConfig != nil)
+    #expect((swiftConfig as? SwiftLanguage.Config)?.indexStore == "build/Index.noindex/DataStore")
+
+    let tsConfig = await SupportedLanguage.ts.spec.autoDiscover(repoRoot: tmpDir)
+    #expect(tsConfig != nil)
+    #expect((tsConfig as? TypeScriptLanguage.Config)?.tsconfig.contains("tsconfig.json") == true)
   }
 }

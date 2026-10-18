@@ -52,6 +52,38 @@ extension LanguageConfiguration where Self: Equatable {
   }
 }
 
+/// Declarative specification for interactive terminal configuration prompts and candidate presentation.
+public struct LanguageConfigPromptDescriptor: Sendable, Equatable {
+  /// Defines how discovered candidates are presented to the user during interactive configuration.
+  public enum SelectionStyle: Sendable, Equatable {
+    /// Select one candidate from discovered options with an optional custom fallback.
+    case single(selectionTitle: String)
+    /// Confirm all discovered candidates together, or prompt for a manual custom fallback.
+    case multiple(confirmationQuestion: String)
+  }
+
+  /// Message printed when no candidates are detected in the repository.
+  public var noCandidatesMessage: String
+  /// Prompt text when asking the user to manually enter a path when no candidates are found.
+  public var manualPromptQuestion: String
+  /// Prompt text when asking for a custom path after rejecting discovered candidates.
+  public var manualFallbackQuestion: String
+  /// How discovered candidates should be presented to the user.
+  public var selectionStyle: SelectionStyle
+
+  public init(
+    noCandidatesMessage: String,
+    manualPromptQuestion: String,
+    manualFallbackQuestion: String? = nil,
+    selectionStyle: SelectionStyle
+  ) {
+    self.noCandidatesMessage = noCandidatesMessage
+    self.manualPromptQuestion = manualPromptQuestion
+    self.manualFallbackQuestion = manualFallbackQuestion ?? manualPromptQuestion
+    self.selectionStyle = selectionStyle
+  }
+}
+
 /// Dynamic contract for language specifications supporting discovery and interactive configuration.
 public protocol AnyLanguageSpec: Sendable {
   static var language: SupportedLanguage { get }
@@ -69,6 +101,18 @@ public protocol AnyLanguageSpec: Sendable {
   /// Detects if this language has source files in the repository.
   static func hasSources(in repoRoot: URL) -> Bool
 
+  /// Discovers candidate paths for this language in the given repository root.
+  static func discoverCandidates(repoRootURL: URL) -> [String]
+
+  /// Specification descriptor for interactive terminal configuration prompts.
+  static var configPromptDescriptor: LanguageConfigPromptDescriptor { get }
+
+  /// Constructs a configuration instance polymorphically from selected path(s).
+  static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)?
+
+  /// Automatically discovers configuration without user intervention.
+  static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)?
+
   /// Returns a human-readable description of this language's configured inputs.
   static func describeConfig(in project: ProjectConfig) -> String
 
@@ -80,12 +124,27 @@ extension AnyLanguageSpec {
   public static func hasSources(in repoRoot: URL) -> Bool {
     hasFiles(in: repoRoot, matchingExtensions: sourceExtensions)
   }
+
+  public static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)? {
+    let candidates = discoverCandidates(repoRootURL: repoRoot)
+    guard !candidates.isEmpty else { return nil }
+    switch configPromptDescriptor.selectionStyle {
+    case .single:
+      guard let first = candidates.first else { return nil }
+      return makeConfig(from: [first])
+    case .multiple:
+      return makeConfig(from: candidates)
+    }
+  }
 }
 
 /// Contract for a supported language specification, binding language identity to its compile-time configuration schema.
 public protocol LanguageSpec: AnyLanguageSpec {
   /// The strongly-typed project configuration schema required by this language.
   associatedtype Config: LanguageConfiguration, Equatable
+
+  /// Strongly-typed automatic discovery.
+  static func autoDiscover(repoRoot: URL) async -> Config?
 }
 
 extension LanguageSpec {
@@ -96,6 +155,18 @@ extension LanguageSpec {
   public static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws {
     guard let typed = config as? Config else { return }
     try typed.encode(to: encoder)
+  }
+
+  public static func autoDiscover(repoRoot: URL) async -> Config? {
+    let candidates = discoverCandidates(repoRootURL: repoRoot)
+    guard !candidates.isEmpty else { return nil }
+    switch configPromptDescriptor.selectionStyle {
+    case .single:
+      guard let first = candidates.first else { return nil }
+      return makeConfig(from: [first]) as? Config
+    case .multiple:
+      return makeConfig(from: candidates) as? Config
+    }
   }
 }
 
@@ -182,9 +253,15 @@ public enum SwiftLanguage: LanguageSpec {
     return Array(Set(candidates)).sorted()
   }
 
-  public static func autoDiscover(repoRoot: URL) async -> Config? {
-    let candidates = discoverCandidates(repoRootURL: repoRoot)
-    guard let first = candidates.first else { return nil }
+  public static let configPromptDescriptor = LanguageConfigPromptDescriptor(
+    noCandidatesMessage: "Swift sources detected, but no index store candidate was found "
+      + "(e.g. build/Index.noindex/DataStore, .build/out, or .build/debug/index/store).",
+    manualPromptQuestion: "Enter index store path (press Enter to skip / configure later)",
+    selectionStyle: .single(selectionTitle: "Discovered Swift Index candidates:")
+  )
+
+  public static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)? {
+    guard let first = paths.first, !first.isEmpty else { return nil }
     return Config(indexStore: first)
   }
 
@@ -291,10 +368,17 @@ public enum TypeScriptLanguage: LanguageSpec {
     return candidates.sorted()
   }
 
-  public static func autoDiscover(repoRoot: URL) async -> Config? {
-    let candidates = discoverCandidates(repoRootURL: repoRoot)
-    guard !candidates.isEmpty else { return nil }
-    return Config(tsconfig: candidates)
+  public static let configPromptDescriptor = LanguageConfigPromptDescriptor(
+    noCandidatesMessage: "TypeScript sources detected, but no tsconfig.json candidate was found.",
+    manualPromptQuestion: "Enter tsconfig relative path (press Enter to skip / configure later)",
+    manualFallbackQuestion: "Enter tsconfig relative path (press Enter to skip)",
+    selectionStyle: .multiple(confirmationQuestion: "Use discovered tsconfig paths")
+  )
+
+  public static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)? {
+    let filtered = paths.filter { !$0.isEmpty }
+    guard !filtered.isEmpty else { return nil }
+    return Config(tsconfig: filtered)
   }
 
   public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {

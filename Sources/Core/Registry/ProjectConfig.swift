@@ -34,6 +34,20 @@ public struct ProjectConfig: Sendable {
     }
   }
 
+  /// Polymorphic subscript for accessing and modifying language configs by language key.
+  public subscript(language: SupportedLanguage) -> (any LanguageConfiguration)? {
+    get {
+      storage[language]
+    }
+    set {
+      if let newValue {
+        storage[language] = newValue
+      } else {
+        storage.removeValue(forKey: language)
+      }
+    }
+  }
+
   /// Returns canonical JSON string representation for a language's config.
   public func canonicalJSON(for language: SupportedLanguage) -> String? {
     storage[language]?.toCanonicalJSON()
