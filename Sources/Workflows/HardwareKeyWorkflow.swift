@@ -18,9 +18,8 @@ package enum HardwareKeyWorkflow {
         in: .whitespacesAndNewlines)
       if let pub, !pub.isEmpty {
         print("\nPublic Key:\n  \(pub)\n")
-        checkAndPrintEnrollment(pubKey: pub)
       }
-      print("\nUse 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
+      print("Use 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
       return defaultKey
     }
 
@@ -39,8 +38,24 @@ package enum HardwareKeyWorkflow {
     print("\nPublic Key:")
     print("  \(pubKey)\n")
 
-    checkAndPrintEnrollment(pubKey: pubKey)
+    return generatedKey
+  }
 
+  @discardableResult
+  package static func generateInRepo(force: Bool = false) async throws -> URL {
+    let generatedKey = try await generate(force: force)
+    let defaultPub = generatedKey.appendingPathExtension("pub")
+    let rawPub = try? String(contentsOf: defaultPub, encoding: .utf8)
+    if let pubKey = rawPub?.trimmingCharacters(in: .whitespacesAndNewlines) {
+      printProjectEnrollment(pubKey: pubKey)
+    }
+    return generatedKey
+  }
+
+  @discardableResult
+  package static func generateOutsideRepo(force: Bool = false) async throws -> URL {
+    let generatedKey = try await generate(force: force)
+    print("Share your public key above with your repository lead to be added as an authorized signer.")
     return generatedKey
   }
 
@@ -56,15 +71,14 @@ package enum HardwareKeyWorkflow {
     print(pubKey)
   }
 
-  package static func status() async {
+  package static func statusInRepo() async {
     let pubKey = await statusLocal()
-    if let root = try? RepoLocator.discover() {
-      RepoLocator.withRepoRoot(root) {
-        statusProject(for: pubKey)
-      }
-    } else {
-      statusProjectOutsideRepo()
-    }
+    statusProject(for: pubKey)
+  }
+
+  package static func statusOutsideRepo() async {
+    _ = await statusLocal()
+    statusProjectOutsideRepo()
   }
 
   private static func statusLocal() async -> String? {
@@ -138,25 +152,6 @@ package enum HardwareKeyWorkflow {
     print("  Not inside a Git repository.")
   }
 
-  package static func rotate() async throws {
-    if let root = try? RepoLocator.discover() {
-      let signersURL = RepoLocator.withRepoRoot(root) {
-        RegistryManager.allowedSignersURL()
-      }
-      if FileManager.default.fileExists(atPath: signersURL.path) {
-        try await RepoLocator.withRepoRoot(root) {
-          try await rotateInRepo()
-        }
-        return
-      }
-    }
-
-    try await rotateLocal()
-    print(
-      "Notice: Not inside an Invariants repository. To enroll this key, have a lead run 'invariants signers add'."
-    )
-  }
-
   package static func rotateInRepo() async throws {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
     guard FileManager.default.fileExists(atPath: defaultKey.path) else {
@@ -203,6 +198,13 @@ package enum HardwareKeyWorkflow {
     registry.version += 1
     try await RegistryManager.saveAndSign(registry: registry, keyURL: backupKey)
     print("✓ Key rotated successfully. Old key archived to \(backupKey.path).")
+  }
+
+  package static func rotateOutsideRepo() async throws {
+    try await rotateLocal()
+    print(
+      "Notice: Not inside an Invariants repository. To enroll this key, have a lead run 'invariants signers add'."
+    )
   }
 
   private static func rotateLocal() async throws {
@@ -272,7 +274,7 @@ package enum HardwareKeyWorkflow {
       }
     }
 
-    _ = try await rotate()
+    try await rotateLocal()
     print("✓ Generated fresh Secure Enclave signing key: \(defaultKey.path)")
     print(
       "Remember to share this new public key with your repository leads to be enrolled via 'invariants signers add'.")
@@ -305,16 +307,6 @@ package enum HardwareKeyWorkflow {
 
     let count = try HardwareKeyManager.cleanBackups(in: sshDir)
     print("✓ Cleaned up \(count) rotation backup file(s) from \(sshDir.path).")
-  }
-
-  private static func checkAndPrintEnrollment(pubKey: String) {
-    if let root = try? RepoLocator.discover() {
-      RepoLocator.withRepoRoot(root) {
-        printProjectEnrollment(pubKey: pubKey)
-      }
-    } else {
-      print("Share your public key above with your repository lead to be added as an authorized signer.")
-    }
   }
 
   private static func printProjectEnrollment(pubKey: String) {

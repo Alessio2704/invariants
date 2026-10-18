@@ -1,4 +1,5 @@
 import ArgumentParser
+import Core
 import Workflows
 
 struct KeyCommand: AsyncParsableCommand {
@@ -27,7 +28,13 @@ struct KeyCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-      _ = try await HardwareKeyWorkflow.generate(force: force)
+      if let repoRoot = try? RepoLocator.discover() {
+        try await RepoLocator.withRepoRoot(repoRoot) {
+          _ = try await HardwareKeyWorkflow.generateInRepo(force: force)
+        }
+      } else {
+        _ = try await HardwareKeyWorkflow.generateOutsideRepo(force: force)
+      }
     }
   }
 
@@ -49,7 +56,13 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async {
-      await HardwareKeyWorkflow.status()
+      if let repoRoot = try? RepoLocator.discover() {
+        await RepoLocator.withRepoRoot(repoRoot) {
+          await HardwareKeyWorkflow.statusInRepo()
+        }
+      } else {
+        await HardwareKeyWorkflow.statusOutsideRepo()
+      }
     }
   }
 
@@ -60,7 +73,13 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      try await HardwareKeyWorkflow.rotate()
+      if let repoRoot = try? RepoLocator.discover() {
+        try await RepoLocator.withRepoRoot(repoRoot) {
+          try await HardwareKeyWorkflow.rotateInRepo()
+        }
+      } else {
+        try await HardwareKeyWorkflow.rotateOutsideRepo()
+      }
     }
   }
 
