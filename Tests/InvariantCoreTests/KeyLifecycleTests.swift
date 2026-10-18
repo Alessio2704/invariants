@@ -12,20 +12,19 @@ struct KeyLifecycleTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let signingClient = SigningClient()
     let keyURL = tmpDir.appendingPathComponent("id_test")
     let pubURL = tmpDir.appendingPathComponent("id_test.pub")
 
     // Missing key returns nil
-    let missingFp = await signingClient.fingerprint(pubKeyURL: pubURL)
+    let missingFp = await SigningClient.fingerprint(pubKeyURL: pubURL)
     #expect(missingFp == nil)
 
     // Generate throwaway key
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
     // Valid fingerprint contains SHA256:
-    let validFp = await signingClient.fingerprint(pubKeyURL: pubURL)
+    let validFp = await SigningClient.fingerprint(pubKeyURL: pubURL)
     #expect(validFp != nil)
     #expect(validFp?.contains("SHA256:") == true)
   }
@@ -106,8 +105,7 @@ struct KeyLifecycleTests {
     let defaultKey = tmpDir.appendingPathComponent("invariants_p256")
     let defaultPub = defaultKey.appendingPathExtension("pub")
 
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: defaultKey)
+    try SigningClient.generateThrowawayKey(at: defaultKey)
 
     let originalPub = try String(contentsOf: defaultPub, encoding: .utf8)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,7 +123,7 @@ struct KeyLifecycleTests {
     try FileManager.default.moveItem(at: defaultPub, to: backupPub)
 
     // Generate fresh key
-    try signingClient.generateThrowawayKey(at: defaultKey)
+    try SigningClient.generateThrowawayKey(at: defaultKey)
     let freshPub = try String(contentsOf: defaultPub, encoding: .utf8)
       .trimmingCharacters(in: .whitespacesAndNewlines)
 

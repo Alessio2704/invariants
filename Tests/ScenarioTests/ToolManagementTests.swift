@@ -64,10 +64,9 @@ struct ToolManagementTests {
     defer { try? fm.removeItem(at: tmpDir) }
 
     let env = SystemEnvironment(rootURL: rootURL, binURL: binURL)
-    let installer = InstallationManager()
 
     // Install version 1.1.0 from stage
-    try await installer.installVersion(version: "1.1.0", stageDir: stageDir, environment: env)
+    try await InstallationManager.installVersion(version: "1.1.0", stageDir: stageDir, environment: env)
 
     // Verify version 1.1.0 is in versions/
     let installedBin = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
@@ -95,7 +94,6 @@ struct ToolManagementTests {
     try "dummy bin".write(to: binURL, atomically: true, encoding: .utf8)
 
     let env = SystemEnvironment(rootURL: rootURL, binURL: binURL)
-    let installer = InstallationManager()
 
     defer { try? fm.removeItem(at: tmpDir) }
 
@@ -103,7 +101,7 @@ struct ToolManagementTests {
     #expect(fm.fileExists(atPath: binURL.path))
 
     // Uninstall
-    try await installer.uninstall(environment: env)
+    try await InstallationManager.uninstall(environment: env)
 
     #expect(!fm.fileExists(atPath: rootURL.path))
     #expect(!fm.fileExists(atPath: binURL.path))

@@ -27,10 +27,6 @@ struct InitCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
-    let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let gitClient = GitClient()
-
     print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
@@ -54,10 +50,9 @@ struct InitCommand: AsyncParsableCommand {
     }
 
     // 3. Select default trunk branch
-    let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL, gitClient: gitClient)
+    let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL)
 
     // 4. Initialize repository
-    let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
     let options = InitOptions(
       engineVersion: CLIHelpers.engineVersion,
       defaultBranch: defaultBranch,
@@ -66,7 +61,7 @@ struct InitCommand: AsyncParsableCommand {
     )
 
     print("Signing registry v1 with \(keyURL.lastPathComponent)...")
-    try await initManager.initialize(repoRootURL: repoRootURL, options: options)
+    try await InitManager.initialize(repoRootURL: repoRootURL, options: options)
 
     print("✓ Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
     print("\n💡 To enforce invariants automatically on commit or push, add:")
@@ -76,14 +71,14 @@ struct InitCommand: AsyncParsableCommand {
 
   // MARK: - Helper Methods
 
-  private func selectDefaultBranch(repoRootURL: URL, gitClient: GitClient) async -> String {
+  private func selectDefaultBranch(repoRootURL: URL) async -> String {
     if let branch {
       return branch
     }
 
-    let branches = await gitClient.discoverBranches(repoRoot: repoRootURL)
-    let currentBranch = await gitClient.currentBranch(repoRoot: repoRootURL)
-    let remoteTrunk = await gitClient.detectRemoteTrunk(repoRoot: repoRootURL)
+    let branches = await GitClient.discoverBranches(repoRoot: repoRootURL)
+    let currentBranch = await GitClient.currentBranch(repoRoot: repoRootURL)
+    let remoteTrunk = await GitClient.detectRemoteTrunk(repoRoot: repoRootURL)
 
     guard !branches.isEmpty else { return "main" }
 

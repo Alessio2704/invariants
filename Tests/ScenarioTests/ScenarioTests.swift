@@ -19,14 +19,12 @@ struct ScenarioTests {
 
     try await repo.signed(version: 1)
 
-    let manager = RegistryManager(environment: repo.environment)
-    let loaded = try await manager.loadAndVerify(repoRoot: repo.repoURL, installedEngineVersion: "1.0.0")
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
     #expect(loaded.rules["toy"] != nil)
 
     // Floor check passes
-    let floorGuard = FloorGuard()
-    let histFloor = try await floorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: loaded.version)
+    let histFloor = try await FloorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: loaded.version)
     #expect(histFloor == 1)
   }
 
@@ -36,17 +34,17 @@ struct ScenarioTests {
     try repo.withRule("toy", targets: [.swift])
     try await repo.signed(version: 1)
 
-    let originalHash = try await FingerprintEngine().computeFingerprint(repoRoot: repo.repoURL, ruleId: "toy")
+    let originalHash = try await FingerprintEngine.computeFingerprint(repoRoot: repo.repoURL, ruleId: "toy")
 
     // Mutate rule.swift in working tree
     let ruleSwiftURL = repo.repoURL.appendingPathComponent("invariants/rules/toy/rule.swift")
     try Data("// mutated working tree\n".utf8).write(to: ruleSwiftURL)
 
-    let newHash = try await FingerprintEngine().computeFingerprint(repoRoot: repo.repoURL, ruleId: "toy")
+    let newHash = try await FingerprintEngine.computeFingerprint(repoRoot: repo.repoURL, ruleId: "toy")
     #expect(newHash != originalHash)
 
     // Status check reports drift
-    let reg = try await RegistryManager(environment: repo.environment).loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     #expect(reg.rules["toy"] == originalHash)
     #expect(newHash != reg.rules["toy"])
 
@@ -55,7 +53,7 @@ struct ScenarioTests {
     try FileManager.default.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempSnapshot) }
 
-    try await GitClient().archiveExtract(repoRoot: repo.repoURL, treeHash: originalHash, destinationURL: tempSnapshot)
+    try await GitClient.archiveExtract(repoRoot: repo.repoURL, treeHash: originalHash, destinationURL: tempSnapshot)
     let extractedContent = try String(contentsOf: tempSnapshot.appendingPathComponent("rule.swift"))
     #expect(!extractedContent.contains("mutated working tree"))
   }
@@ -66,8 +64,6 @@ struct ScenarioTests {
     try repo.withRule("toy", targets: [.swift])
     try await repo.signed(version: 1)
 
-    let manager = RegistryManager(environment: repo.environment)
-
     // 1. Byte mutation in registry.lock
     let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
     var data = try Data(contentsOf: lockURL)
@@ -75,18 +71,17 @@ struct ScenarioTests {
     try data.write(to: lockURL)
 
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repo.repoURL, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL, installedEngineVersion: "1.0.0")
     }
 
     // 2. Engine range mismatch
     let repo2 = try await TestRepo()
     try repo2.withRule("toy2", targets: [.swift])
     let reg2 = Registry(version: 1, engine: "^2.0.0", rules: [:])
-    let manager2 = RegistryManager(environment: repo2.environment)
-    try await manager2.saveAndSign(registry: reg2, repoRoot: repo2.repoURL, keyURL: repo2.keyURL)
+    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo2.repoURL, keyURL: repo2.keyURL)
 
     await #expect(throws: RegistryError.engineVersionMismatch(required: "^2.0.0", installed: "1.0.0")) {
-      _ = try await manager2.loadAndVerify(repoRoot: repo2.repoURL, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repo2.repoURL, installedEngineVersion: "1.0.0")
     }
   }
 
@@ -95,9 +90,8 @@ struct ScenarioTests {
     let repo = try await TestRepo()
     try repo.withRule("accuracy", targets: [.swift])
 
-    let discoverer = FixtureDiscoverer()
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/accuracy")
-    let cases = try discoverer.discover(
+    let cases = try FixtureDiscoverer.discover(
       ruleDirectory: ruleDir,
       target: .swift,
       manifestCodes: ["TEST-01": "Test violation"]
@@ -168,23 +162,20 @@ struct ScenarioTests {
     try await repo.signed(version: 1)
     try await repo.signed(version: 3)
 
-    let guardObj = FloorGuard()
-
     // Attempting to evaluate with version 2 when history max is 3 must throw versionBelowHistory
     await #expect(throws: FloorError.versionBelowHistory(current: 2, maxHistoryVersion: 3)) {
-      _ = try await guardObj.checkHistory(repoRoot: repo.repoURL, currentVersion: 2)
+      _ = try await FloorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: 2)
     }
   }
 
   @Test("Pre-push branch protection rejects non-fast-forward push to main")
   func prePushBranchProtection() async throws {
     let repo = try await TestRepo()
-    let guardObj = FloorGuard()
 
     let nonFfInput =
       "refs/heads/main 1111111111111111111111111111111111111111 refs/heads/main 2222222222222222222222222222222222222222\n"
     await #expect(throws: FloorError.self) {
-      try await guardObj.checkNoRewrite(repoRoot: repo.repoURL, pushedRefsInput: nonFfInput, defaultBranch: "main")
+      try await FloorGuard.checkNoRewrite(repoRoot: repo.repoURL, pushedRefsInput: nonFfInput, defaultBranch: "main")
     }
   }
 }

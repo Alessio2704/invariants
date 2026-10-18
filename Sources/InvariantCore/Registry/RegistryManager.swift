@@ -2,18 +2,7 @@ import CryptoKit
 public import Foundation
 
 /// Coordinates registry reading, writing, signature verification, and floor sync.
-public struct RegistryManager: Sendable {
-  public let environment: SystemEnvironment
-  private let signingClient: SigningClient
-
-  public init(
-    environment: SystemEnvironment = .standard,
-    signingClient: SigningClient = SigningClient()
-  ) {
-    self.environment = environment
-    self.signingClient = signingClient
-  }
-
+public enum RegistryManager: Sendable {
   public static func registryURL(repoRoot: URL) -> URL {
     repoRoot.appendingPathComponent("invariants/registry.lock")
   }
@@ -27,7 +16,7 @@ public struct RegistryManager: Sendable {
   }
 
   /// Loads, parses, and cryptographically verifies `registry.lock`.
-  public func loadAndVerify(
+  public static func loadAndVerify(
     repoRoot: URL,
     installedEngineVersion: String = "1.0.0",
     identity: String = "owner"
@@ -74,7 +63,7 @@ public struct RegistryManager: Sendable {
     // Verify cryptographic signature against in-repo allowed_signers
     let isValid: Bool
     do {
-      isValid = try await signingClient.verify(
+      isValid = try await SigningClient.verify(
         allowedSignersURL: signersURL,
         identity: identity,
         namespace: "invariants",
@@ -101,7 +90,7 @@ public struct RegistryManager: Sendable {
   }
 
   /// Writes registry in canonical JSON format, signs it, and records root floor.
-  public func saveAndSign(
+  public static func saveAndSign(
     registry: Registry,
     repoRoot: URL,
     keyURL: URL
@@ -136,7 +125,7 @@ public struct RegistryManager: Sendable {
 
     // Sign the file
     do {
-      try await signingClient.sign(
+      try await SigningClient.sign(
         keyURL: keyURL,
         namespace: "invariants",
         fileURL: lockURL

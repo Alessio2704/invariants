@@ -5,9 +5,6 @@ import InvariantCore
 private struct CheckContext {
   let repoRootURL: URL
   let registry: Registry
-  let gitClient: GitClient
-  let fingerprintEngine: FingerprintEngine
-  let manifestValidator: ManifestValidator
   let ruleRunner: RuleRunner
 }
 
@@ -35,18 +32,13 @@ struct CheckCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
     let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let floorGuard = FloorGuard()
 
-    let registry = try await verifyRegistry(repoRootURL: repoRootURL, registryManager: registryManager)
-    try await verifyFloor(repoRootURL: repoRootURL, registry: registry, floorGuard: floorGuard)
+    let registry = try await verifyRegistry(repoRootURL: repoRootURL)
+    try await verifyFloor(repoRootURL: repoRootURL, registry: registry)
 
     let context = CheckContext(
       repoRootURL: repoRootURL,
       registry: registry,
-      gitClient: GitClient(),
-      fingerprintEngine: FingerprintEngine(),
-      manifestValidator: ManifestValidator(),
       ruleRunner: RuleRunner(environment: env)
     )
 
@@ -68,9 +60,9 @@ struct CheckCommand: AsyncParsableCommand {
 }
 
 extension CheckCommand {
-  private func verifyRegistry(repoRootURL: URL, registryManager: RegistryManager) async throws -> Registry {
+  private func verifyRegistry(repoRootURL: URL) async throws -> Registry {
     do {
-      return try await registryManager.loadAndVerify(
+      return try await RegistryManager.loadAndVerify(
         repoRoot: repoRootURL,
         installedEngineVersion: CLIHelpers.engineVersion
       )
@@ -94,15 +86,14 @@ extension CheckCommand {
 
   private func verifyFloor(
     repoRootURL: URL,
-    registry: Registry,
-    floorGuard: FloorGuard
+    registry: Registry
   ) async throws {
     do {
-      _ = try await floorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: registry.version)
+      _ = try await FloorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: registry.version)
 
       let lockURL = RegistryManager.registryURL(repoRoot: repoRootURL)
       let sigURL = RegistryManager.signatureURL(repoRoot: repoRootURL)
-      try await floorGuard.checkSignerAncestry(
+      try await FloorGuard.checkSignerAncestry(
         repoRoot: repoRootURL,
         currentRegistry: registry,
         lockURL: lockURL,
@@ -112,7 +103,7 @@ extension CheckCommand {
       if stage == "pre-push" {
         let stdinData = FileHandle.standardInput.readDataToEndOfFile()
         let pushedRefs = String(bytes: stdinData, encoding: .utf8) ?? ""
-        try await floorGuard.checkNoRewrite(
+        try await FloorGuard.checkNoRewrite(
           repoRoot: repoRootURL,
           pushedRefsInput: pushedRefs,
           defaultBranch: registry.defaultBranch
@@ -160,7 +151,7 @@ extension CheckCommand {
       return RuleReportItem(ruleId: ruleId, statusKind: .missing, message: "Rule directory missing on disk")
     }
 
-    let workingTreeHash = try? await context.fingerprintEngine.computeFingerprint(
+    let workingTreeHash = try? await FingerprintEngine.computeFingerprint(
       repoRoot: context.repoRootURL,
       ruleId: ruleId
     )
@@ -174,7 +165,7 @@ extension CheckCommand {
 
     do {
       try fileManager.createDirectory(at: tempSnapshotDir, withIntermediateDirectories: true)
-      try await context.gitClient.archiveExtract(
+      try await GitClient.archiveExtract(
         repoRoot: context.repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshotDir
@@ -197,7 +188,7 @@ extension CheckCommand {
     }
 
     do {
-      try context.manifestValidator.validateStructure(
+      try ManifestValidator.validateStructure(
         ruleDirectory: tempSnapshotDir,
         manifest: manifest,
         repoRoot: context.repoRootURL,
@@ -242,10 +233,9 @@ extension CheckCommand {
       return nil
     }
 
-    let fixtureDiscoverer = FixtureDiscoverer()
     for target in manifest.targets {
       do {
-        let cases = try fixtureDiscoverer.discover(
+        let cases = try FixtureDiscoverer.discover(
           ruleDirectory: tempSnapshotDir,
           target: target,
           manifestCodes: manifest.codes
@@ -283,7 +273,7 @@ extension CheckCommand {
           }
 
           do {
-            try context.manifestValidator.validateReportedViolations(manifest: manifest, violations: violations)
+            try ManifestValidator.validateReportedViolations(manifest: manifest, violations: violations)
           } catch {
             return error.description
           }
@@ -308,7 +298,7 @@ extension CheckCommand {
 
     for target in ruleCtx.manifest.targets {
       guard let targetScope = ruleCtx.manifest.scope[target] else { continue }
-      let scopedFiles = context.manifestValidator.resolveScopedFiles(
+      let scopedFiles = ManifestValidator.resolveScopedFiles(
         repoRoot: context.repoRootURL,
         scope: targetScope
       )
@@ -329,7 +319,7 @@ extension CheckCommand {
           request: req,
           engineVersion: CLIHelpers.engineVersion
         )
-        try context.manifestValidator.validateReportedViolations(
+        try ManifestValidator.validateReportedViolations(
           manifest: ruleCtx.manifest,
           violations: targetViolations
         )
@@ -402,10 +392,9 @@ extension CheckCommand {
       return (0, 0)
     }
 
-    let discoverer = FixtureDiscoverer()
     for target in manifest.targets {
       guard
-        let cases = try? discoverer.discover(
+        let cases = try? FixtureDiscoverer.discover(
           ruleDirectory: draftDir, target: target, manifestCodes: manifest.codes)
       else {
         continue

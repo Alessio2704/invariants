@@ -24,10 +24,9 @@ struct TestCommand: AsyncParsableCommand {
 
     let manifestURL = ruleDir.appendingPathComponent("manifest.json")
     let manifest: RuleManifest
-    let validator = ManifestValidator()
     do {
       manifest = try ManifestParser.load(from: manifestURL, expectedId: id)
-      try validator.validateStructure(
+      try ManifestValidator.validateStructure(
         ruleDirectory: ruleDir,
         manifest: manifest,
         repoRoot: repoRootURL,
@@ -42,7 +41,6 @@ struct TestCommand: AsyncParsableCommand {
     print("Testing invariant fixtures: \(id)")
     print("────────────────────────────────")
 
-    let discoverer = FixtureDiscoverer()
     let runner = RuleRunner()
     var hasFailures = false
     var totalCases = 0
@@ -51,7 +49,7 @@ struct TestCommand: AsyncParsableCommand {
     for target in manifest.targets {
       let cases: [FixtureCase]
       do {
-        cases = try discoverer.discover(
+        cases = try FixtureDiscoverer.discover(
           ruleDirectory: ruleDir,
           target: target,
           manifestCodes: manifest.codes
@@ -110,7 +108,7 @@ struct TestCommand: AsyncParsableCommand {
           hasFailures = true
         } else {
           do {
-            try validator.validateReportedViolations(manifest: manifest, violations: reportedViolations)
+            try ManifestValidator.validateReportedViolations(manifest: manifest, violations: reportedViolations)
             if fixtureCase.isShouldPass {
               print("  ✓ \(caseLabel): 0 violations (pass)")
             } else {
@@ -125,7 +123,7 @@ struct TestCommand: AsyncParsableCommand {
       }
 
       do {
-        try validator.validateCodesCoverage(manifest: manifest, coveredCodes: coveredCodes)
+        try ManifestValidator.validateCodesCoverage(manifest: manifest, coveredCodes: coveredCodes)
       } catch {
         print("  ✗ \(target.rawValue): \(error)")
         hasFailures = true

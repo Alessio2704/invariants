@@ -13,8 +13,7 @@ struct AllowedSignersRevocationTests {
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let keyURL = tmpDir.appendingPathComponent("id_rev_p256")
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_rev_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,15 +27,12 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject expired key
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
   }
 
@@ -47,8 +43,7 @@ struct AllowedSignersRevocationTests {
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let keyURL = tmpDir.appendingPathComponent("id_pre_p256")
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_pre_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,15 +57,12 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\",valid-after=\"20350101000000\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // loadAndVerify must reject not-yet-valid key
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
   }
 
@@ -81,8 +73,7 @@ struct AllowedSignersRevocationTests {
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let keyURL = tmpDir.appendingPathComponent("id_valid_p256")
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_valid_p256.pub"))
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -95,14 +86,11 @@ struct AllowedSignersRevocationTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Valid initially
-    let loaded = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
 
     // Tamper allowed_signers in working tree (e.g. Rogue AI appends key)
@@ -114,7 +102,7 @@ struct AllowedSignersRevocationTests {
 
     // loadAndVerify must immediately throw signatureInvalid due to signers hash mismatch
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
   }
 
@@ -124,13 +112,11 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let signingClient = SigningClient()
-
     // 1. Generate Key A (senior) and Key B (to be revoked)
     let keyA = tmpDir.appendingPathComponent("id_senior")
     let keyB = tmpDir.appendingPathComponent("id_revoked")
-    try signingClient.generateThrowawayKey(at: keyA)
-    try signingClient.generateThrowawayKey(at: keyB)
+    try SigningClient.generateThrowawayKey(at: keyA)
+    try SigningClient.generateThrowawayKey(at: keyB)
 
     let pubA = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -146,14 +132,11 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(pubA)\n* namespaces=\"invariants\" \(pubB)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyB)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyB)
 
     // Initially valid when signed by B
-    let loaded1 = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+    let loaded1 = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     #expect(loaded1.version == 1)
 
     // 3. Senior A hard revokes B: purges B completely from allowed_signers and bumps to v2
@@ -162,10 +145,10 @@ struct AllowedSignersRevocationTests {
 
     var reg2 = reg
     reg2.version = 2
-    try await manager.saveAndSign(registry: reg2, repoRoot: repoDir, keyURL: keyA)
+    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repoDir, keyURL: keyA)
 
     // Verified with Senior A's signature
-    let loaded2 = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+    let loaded2 = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     #expect(loaded2.version == 2)
 
     // 4. Revoked B tries to forge a signature on registry v3
@@ -174,11 +157,11 @@ struct AllowedSignersRevocationTests {
     let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
     let lockData = try #require(CanonicalJSON.serialize(reg3).data(using: .utf8))
     try lockData.write(to: lockURL)
-    try await signingClient.sign(keyURL: keyB, namespace: "invariants", fileURL: lockURL)
+    try await SigningClient.sign(keyURL: keyB, namespace: "invariants", fileURL: lockURL)
 
     // loadAndVerify must reject because Key B is not in allowed_signers
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
   }
 
@@ -199,11 +182,10 @@ struct AllowedSignersRevocationTests {
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "senior@plans.local"])
 
-    let signingClient = SigningClient()
     let seniorKey = tmpDir.appendingPathComponent("id_senior")
     let rogueKey = tmpDir.appendingPathComponent("id_rogue")
-    try signingClient.generateThrowawayKey(at: seniorKey)
-    try signingClient.generateThrowawayKey(at: rogueKey)
+    try SigningClient.generateThrowawayKey(at: seniorKey)
+    try SigningClient.generateThrowawayKey(at: rogueKey)
 
     let seniorPub = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -218,14 +200,10 @@ struct AllowedSignersRevocationTests {
     let initialSigners = "* namespaces=\"invariants\" \(seniorPub)\n"
     try initialSigners.write(to: allowedSignersURL, atomically: true, encoding: .utf8)
 
-    let fakeEnv = SystemEnvironment(rootURL: fakeRoot)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg1 = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg1, repoRoot: repoURL, keyURL: seniorKey)
+    try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repoURL, keyURL: seniorKey)
 
-    let gitClient = GitClient()
-    try await gitClient.commit(repoRoot: repoURL, paths: ["."], message: "v1 by senior")
+    try await GitClient.commit(repoRoot: repoURL, paths: ["."], message: "v1 by senior")
 
     // Rogue AI creates v2: adds rogue key to allowed_signers, bumps version, signs with rogueKey
     let rogueSigners = initialSigners + "* namespaces=\"invariants\" \(roguePub)\n"
@@ -234,20 +212,18 @@ struct AllowedSignersRevocationTests {
     var reg2 = reg1
     reg2.version = 2
     // Manager saves and signs with rogueKey
-    try await manager.saveAndSign(registry: reg2, repoRoot: repoURL, keyURL: rogueKey)
+    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repoURL, keyURL: rogueKey)
 
-    let floorGuard = FloorGuard(gitClient: gitClient)
     let lockURL = RegistryManager.registryURL(repoRoot: repoURL)
     let sigURL = RegistryManager.signatureURL(repoRoot: repoURL)
 
     // FloorGuard ancestry check must catch that rogueKey was not in Commit 1's allowed_signers!
     await #expect(throws: FloorError.self) {
-      try await floorGuard.checkSignerAncestry(
+      try await FloorGuard.checkSignerAncestry(
         repoRoot: repoURL,
         currentRegistry: reg2,
         lockURL: lockURL,
-        sigURL: sigURL,
-        signingClient: signingClient
+        sigURL: sigURL
       )
     }
   }

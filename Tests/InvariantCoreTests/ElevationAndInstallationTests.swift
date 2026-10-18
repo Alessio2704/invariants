@@ -46,7 +46,6 @@ struct ElevationAndInstallationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let installer = InstallationManager()
     let target1 = tmpDir.appendingPathComponent("target1.txt")
     let target2 = tmpDir.appendingPathComponent("target2.txt")
     let link = tmpDir.appendingPathComponent("link.txt")
@@ -55,11 +54,11 @@ struct ElevationAndInstallationTests {
     try "T2".write(to: target2, atomically: true, encoding: .utf8)
 
     // Link to target 1
-    try await installer.createSymlink(from: target1, to: link)
+    try await InstallationManager.createSymlink(from: target1, to: link)
     #expect(try String(contentsOf: link, encoding: .utf8) == "T1")
 
     // Flip link to target 2
-    try await installer.createSymlink(from: target2, to: link)
+    try await InstallationManager.createSymlink(from: target2, to: link)
     #expect(try String(contentsOf: link, encoding: .utf8) == "T2")
   }
 
@@ -74,7 +73,6 @@ struct ElevationAndInstallationTests {
     try "dummy binary".write(to: stageDir.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
 
     let env = SystemEnvironment(rootURL: tmpRoot, binURL: tmpBinDir.appendingPathComponent("invariants"))
-    let installer = InstallationManager()
 
     defer {
       try? FileManager.default.removeItem(at: tmpRoot)
@@ -83,7 +81,7 @@ struct ElevationAndInstallationTests {
     }
 
     // 1. Install version 1.0.0
-    try await installer.installVersion(version: "1.0.0", stageDir: stageDir, environment: env)
+    try await InstallationManager.installVersion(version: "1.0.0", stageDir: stageDir, environment: env)
 
     let installedBin1 = env.versionsDirectoryURL.appendingPathComponent("1.0.0/invariants")
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
@@ -98,7 +96,7 @@ struct ElevationAndInstallationTests {
     defer { try? FileManager.default.removeItem(at: stageDir2) }
     try "v1.1.0 binary".write(to: stageDir2.appendingPathComponent("invariants"), atomically: true, encoding: .utf8)
 
-    try await installer.installVersion(version: "1.1.0", stageDir: stageDir2, environment: env)
+    try await InstallationManager.installVersion(version: "1.1.0", stageDir: stageDir2, environment: env)
 
     let installedBin2 = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
@@ -106,13 +104,13 @@ struct ElevationAndInstallationTests {
     #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "v1.1.0 binary")
 
     // 3. Uninstall (first call)
-    try await installer.uninstall(environment: env)
+    try await InstallationManager.uninstall(environment: env)
 
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
 
     // 4. Uninstall idempotency: calling uninstall again must be a safe, non-throwing no-op
-    try await installer.uninstall(environment: env)
+    try await InstallationManager.uninstall(environment: env)
     #expect(!FileManager.default.fileExists(atPath: env.rootURL.path))
     #expect(!FileManager.default.fileExists(atPath: env.binURL.path))
   }
@@ -139,7 +137,6 @@ struct ElevationAndInstallationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let installer = InstallationManager()
     let file = tmpDir.appendingPathComponent("sample.txt")
     let folder = tmpDir.appendingPathComponent("nested_folder")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -149,21 +146,21 @@ struct ElevationAndInstallationTests {
     #expect(FileManager.default.fileExists(atPath: folder.path))
 
     // 1. Remove file + verify idempotency on repeat call
-    try await installer.removeItem(at: file)
+    try await InstallationManager.removeItem(at: file)
     #expect(!FileManager.default.fileExists(atPath: file.path))
-    try await installer.removeItem(at: file)
+    try await InstallationManager.removeItem(at: file)
     #expect(!FileManager.default.fileExists(atPath: file.path))
 
     // 2. Remove directory + verify idempotency on repeat call
-    try await installer.removeItem(at: folder)
+    try await InstallationManager.removeItem(at: folder)
     #expect(!FileManager.default.fileExists(atPath: folder.path))
-    try await installer.removeItem(at: folder)
+    try await InstallationManager.removeItem(at: folder)
     #expect(!FileManager.default.fileExists(atPath: folder.path))
 
     // 3. Remove non-existent path repeat calls
     let nonExistent = tmpDir.appendingPathComponent("ghost")
-    try await installer.removeItem(at: nonExistent)
-    try await installer.removeItem(at: nonExistent)
+    try await InstallationManager.removeItem(at: nonExistent)
+    try await InstallationManager.removeItem(at: nonExistent)
     #expect(!FileManager.default.fileExists(atPath: nonExistent.path))
   }
 }

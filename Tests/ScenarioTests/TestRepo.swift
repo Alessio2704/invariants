@@ -9,9 +9,6 @@ final class TestRepo: @unchecked Sendable {
   let keyURL: URL
   let pubKeyURL: URL
   let environment: SystemEnvironment
-  private let gitClient: GitClient
-  private let signingClient: SigningClient
-  let registryManager: RegistryManager
 
   init() async throws {
     let fm = FileManager.default
@@ -32,8 +29,7 @@ final class TestRepo: @unchecked Sendable {
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "test@invariants.local"])
 
-    self.signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let pubKeyData = try Data(contentsOf: pubKeyURL)
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -44,8 +40,6 @@ final class TestRepo: @unchecked Sendable {
     try Data(signersContent.utf8).write(to: signersURL)
 
     self.environment = SystemEnvironment(rootURL: rootURL)
-    self.gitClient = GitClient()
-    self.registryManager = RegistryManager(environment: environment, signingClient: signingClient)
   }
 
   deinit {
@@ -132,13 +126,12 @@ final class TestRepo: @unchecked Sendable {
     defaultBranch: String = "main",
     project: ProjectConfig? = nil
   ) async throws -> TestRepo {
-    let fingerprintEngine = FingerprintEngine(gitClient: gitClient)
     var ruleMap: [String: String] = [:]
 
     let rulesBaseDir = repoURL.appendingPathComponent("invariants/rules")
     if let dirs = try? FileManager.default.contentsOfDirectory(atPath: rulesBaseDir.path) {
       for dir in dirs where !dir.hasPrefix(".") {
-        let hash = try await fingerprintEngine.computeFingerprint(repoRoot: repoURL, ruleId: dir)
+        let hash = try await FingerprintEngine.computeFingerprint(repoRoot: repoURL, ruleId: dir)
         ruleMap[dir] = hash
       }
     }
@@ -151,13 +144,13 @@ final class TestRepo: @unchecked Sendable {
       rules: ruleMap
     )
 
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: reg,
       repoRoot: repoURL,
       keyURL: keyURL
     )
 
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoURL,
       paths: ["."],
       message: "Signed registry v\(version)"

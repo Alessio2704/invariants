@@ -1,11 +1,12 @@
 public import Foundation
 
 /// Parses inline annotations, sidecar `.expect` files, and folder `expect` files.
-public struct AnnotationParser: Sendable {
-  public init() {}
-
+public enum AnnotationParser: Sendable {
   /// Extracts expected violations from inline comments in a file.
-  public func parseInlineAnnotations(fileURL: URL, relativePath: String) throws(HarnessError) -> [ExpectedViolation] {
+  public static func parseInlineAnnotations(
+    fileURL: URL,
+    relativePath: String
+  ) throws(HarnessError) -> [ExpectedViolation] {
     let content: String
     do {
       content = try String(contentsOf: fileURL, encoding: .utf8)
@@ -39,7 +40,7 @@ public struct AnnotationParser: Sendable {
     return results
   }
 
-  public func parseSidecarExpectFile(
+  public static func parseSidecarExpectFile(
     sidecarURL: URL,
     targetRelativePath: String
   ) throws(HarnessError) -> [ExpectedViolation] {
@@ -67,7 +68,7 @@ public struct AnnotationParser: Sendable {
   }
 
   /// Parses folder root `expect` file: `path:line CODE`.
-  public func parseFolderExpectFile(expectFileURL: URL) throws(HarnessError) -> [ExpectedViolation] {
+  public static func parseFolderExpectFile(expectFileURL: URL) throws(HarnessError) -> [ExpectedViolation] {
     guard FileManager.default.fileExists(atPath: expectFileURL.path) else { return [] }
     let content: String
     do {

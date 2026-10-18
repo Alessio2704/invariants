@@ -1,15 +1,9 @@
 public import Foundation
 
 /// Discovers fixture cases in a rule folder and parses expectations.
-public struct FixtureDiscoverer: Sendable {
-  private let annotationParser: AnnotationParser
-
-  public init(annotationParser: AnnotationParser = AnnotationParser()) {
-    self.annotationParser = annotationParser
-  }
-
+public enum FixtureDiscoverer: Sendable {
   /// Discovers all fixture cases for a target and validates annotations.
-  public func discover(
+  public static func discover(
     ruleDirectory: URL,
     target: TargetLanguage,
     manifestCodes: [String: String]
@@ -47,7 +41,7 @@ public struct FixtureDiscoverer: Sendable {
     return cases
   }
 
-  private func discoverInDirectory(
+  private static func discoverInDirectory(
     dirURL: URL,
     isShouldPass: Bool,
     target: TargetLanguage
@@ -80,7 +74,7 @@ public struct FixtureDiscoverer: Sendable {
     return cases
   }
 
-  private func parseFileCase(
+  private static func parseFileCase(
     fileURL: URL,
     isShouldPass: Bool,
     target: TargetLanguage
@@ -89,12 +83,12 @@ public struct FixtureDiscoverer: Sendable {
     var expected: [ExpectedViolation] = []
 
     // Inline annotations
-    let inline = try annotationParser.parseInlineAnnotations(fileURL: fileURL, relativePath: fileName)
+    let inline = try AnnotationParser.parseInlineAnnotations(fileURL: fileURL, relativePath: fileName)
     expected.append(contentsOf: inline)
 
     // Sidecar .expect
     let sidecarURL = fileURL.deletingLastPathComponent().appendingPathComponent("\(fileName).expect")
-    let sidecar = try annotationParser.parseSidecarExpectFile(sidecarURL: sidecarURL, targetRelativePath: fileName)
+    let sidecar = try AnnotationParser.parseSidecarExpectFile(sidecarURL: sidecarURL, targetRelativePath: fileName)
     expected.append(contentsOf: sidecar)
 
     if isShouldPass && !expected.isEmpty {
@@ -112,7 +106,7 @@ public struct FixtureDiscoverer: Sendable {
     )
   }
 
-  private func parseFolderCase(
+  private static func parseFolderCase(
     folderURL: URL,
     isShouldPass: Bool,
     target: TargetLanguage
@@ -124,7 +118,7 @@ public struct FixtureDiscoverer: Sendable {
     // Check root expect file
     let rootExpectURL = folderURL.appendingPathComponent("expect")
     if fm.fileExists(atPath: rootExpectURL.path) {
-      let folderExpect = try annotationParser.parseFolderExpectFile(expectFileURL: rootExpectURL)
+      let folderExpect = try AnnotationParser.parseFolderExpectFile(expectFileURL: rootExpectURL)
       expected.append(contentsOf: folderExpect)
     }
 
@@ -143,12 +137,12 @@ public struct FixtureDiscoverer: Sendable {
       files.append(fileURL)
 
       // Inline annotations
-      let inline = try annotationParser.parseInlineAnnotations(fileURL: fileURL, relativePath: rel)
+      let inline = try AnnotationParser.parseInlineAnnotations(fileURL: fileURL, relativePath: rel)
       expected.append(contentsOf: inline)
 
       // Sidecar
       let sidecar = fileURL.appendingPathExtension("expect")
-      let sidecarExp = try annotationParser.parseSidecarExpectFile(sidecarURL: sidecar, targetRelativePath: rel)
+      let sidecarExp = try AnnotationParser.parseSidecarExpectFile(sidecarURL: sidecar, targetRelativePath: rel)
       expected.append(contentsOf: sidecarExp)
     }
 

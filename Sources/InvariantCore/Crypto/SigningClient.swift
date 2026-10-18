@@ -4,13 +4,11 @@ import LocalAuthentication
 import Security
 
 /// Cryptographic signing and verification client combining Apple CryptoKit / Secure Enclave with OpenSSH allowed_signers verification.
-public struct SigningClient: Sendable {
-  public init() {}
-
+public enum SigningClient: Sendable {
   /// Generates a hardware-bound P-256 signing key in the Apple Secure Enclave.
   /// Strictly requires Apple Secure Enclave hardware with Touch ID / Apple Watch biometric protection.
   /// Zero fallback.
-  public func generateSigningKey(
+  public static func generateSigningKey(
     at keyURL: URL,
     comment: String = "invariants-owner"
   ) async throws(SystemError) {
@@ -91,7 +89,7 @@ public struct SigningClient: Sendable {
   }
 
   /// Generates an in-memory / software P-256 key pair for automated test suites.
-  public func generateThrowawayKey(at keyURL: URL, comment: String = "test-key") throws(SystemError) {
+  public static func generateThrowawayKey(at keyURL: URL, comment: String = "test-key") throws(SystemError) {
     let parent = keyURL.deletingLastPathComponent()
     do {
       try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -118,7 +116,7 @@ public struct SigningClient: Sendable {
 
   /// Signs a file using the private key at `keyURL` (Secure Enclave or software P-256 test key).
   /// Produces `<fileURL>.sig` in OpenSSH PROTOCOL.sshsig format.
-  public func sign(
+  public static func sign(
     keyURL: URL,
     namespace: String = "invariants",
     fileURL: URL
@@ -204,7 +202,7 @@ public struct SigningClient: Sendable {
   }
 
   /// Verifies a file signature using `ssh-keygen -Y verify -f <allowedSigners> -I <identity> -n <namespace> -s <sigFile> < <file>`.
-  public func verify(
+  public static func verify(
     allowedSignersURL: URL,
     identity: String = "owner",
     namespace: String = "invariants",
@@ -243,7 +241,7 @@ public struct SigningClient: Sendable {
   }
 
   /// Calculates the SHA-256 fingerprint of a public key file.
-  public func fingerprint(pubKeyURL: URL) async -> String? {
+  public static func fingerprint(pubKeyURL: URL) async -> String? {
     guard let content = try? String(contentsOf: pubKeyURL, encoding: .utf8) else { return nil }
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let entry = AllowedSignerEntry.parse(line: "* \(trimmed)") else { return nil }

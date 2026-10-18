@@ -77,8 +77,7 @@ struct KeyCommand: AsyncParsableCommand {
           }
           print("  Key Type:    \(type)")
           print("  Public Key:  \(pubKey)")
-          let signingClient = SigningClient()
-          if let fp = await signingClient.fingerprint(pubKeyURL: defaultPub) {
+          if let fp = await SigningClient.fingerprint(pubKeyURL: defaultPub) {
             print("  Fingerprint: \(fp)")
           }
         }
@@ -180,8 +179,7 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
-      let signingClient = SigningClient()
-      try await signingClient.generateSigningKey(at: defaultKey)
+      try await SigningClient.generateSigningKey(at: defaultKey)
 
       print("✓ Local key rotated successfully.")
       print("Old key archived to: \(backupKey.path)")
@@ -280,8 +278,7 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("Touch your Touch ID sensor to enroll a fresh hardware signing key in Apple Secure Enclave...")
-      let signingClient = SigningClient()
-      try await signingClient.generateSigningKey(at: defaultKey)
+      try await SigningClient.generateSigningKey(at: defaultKey)
 
       guard
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
@@ -368,9 +365,8 @@ extension KeyCommand {
     }
 
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
-    let signingClient = SigningClient()
     do {
-      try await signingClient.generateSigningKey(at: defaultKey)
+      try await SigningClient.generateSigningKey(at: defaultKey)
     } catch {
       fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
       throw ExitCode(1)

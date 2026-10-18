@@ -5,15 +5,9 @@ public enum FingerprintError: Error, Equatable, Sendable {
   case gitError(String)
 }
 
-public struct FingerprintEngine: Sendable {
-  private let gitClient: GitClient
-
-  public init(gitClient: GitClient = GitClient()) {
-    self.gitClient = gitClient
-  }
-
+public enum FingerprintEngine: Sendable {
   /// Computes the working tree git tree hash for a rule folder.
-  public func computeFingerprint(repoRoot: URL, ruleId: String) async throws(FingerprintError) -> String {
+  public static func computeFingerprint(repoRoot: URL, ruleId: String) async throws(FingerprintError) -> String {
     let relativePath = "invariants/rules/\(ruleId)"
     let fullURL = repoRoot.appendingPathComponent(relativePath)
     guard FileManager.default.fileExists(atPath: fullURL.path) else {
@@ -26,7 +20,7 @@ public struct FingerprintEngine: Sendable {
     }
 
     do {
-      return try await gitClient.computeTreeHash(
+      return try await GitClient.computeTreeHash(
         repoRoot: repoRoot,
         directoryRelativePath: relativePath,
         tempIndexURL: tempIndexURL

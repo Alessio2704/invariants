@@ -103,7 +103,7 @@ public protocol LanguageSpec: AnyLanguageSpec {
 }
 
 /// Swift language specification requiring an Apple / Clang index store.
-public struct SwiftLanguage: LanguageSpec {
+public enum SwiftLanguage: LanguageSpec {
   public static let language = SupportedLanguage.swift
   public static let displayName = "Swift"
   public static let sourceExtensions = ["swift"]
@@ -274,7 +274,7 @@ public struct SwiftLanguage: LanguageSpec {
 }
 
 /// TypeScript language specification requiring one or more tsconfig.json configurations.
-public struct TypeScriptLanguage: LanguageSpec {
+public enum TypeScriptLanguage: LanguageSpec {
   public static let language = SupportedLanguage.ts
   public static let displayName = "TypeScript"
   public static let ruleFileName = "rule.ts"

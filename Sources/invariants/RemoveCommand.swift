@@ -20,13 +20,10 @@ struct RemoveCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
-    let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let gitClient = GitClient()
     let fm = FileManager.default
 
     // 1. Load registry
-    var registry = try await registryManager.loadAndVerify(
+    var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
@@ -72,14 +69,14 @@ struct RemoveCommand: AsyncParsableCommand {
     }
 
     print("Signing registry v\(registry.version)...")
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     // 4. Commit
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: pathsToCommit,
       message: "Remove invariant '\(id)' (registry v\(registry.version))"

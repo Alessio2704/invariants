@@ -8,18 +8,12 @@ public enum FloorError: Error, Equatable, Sendable {
   case systemError(String)
 }
 
-public struct FloorGuard: Sendable {
-  private let gitClient: GitClient
-
-  public init(gitClient: GitClient = GitClient()) {
-    self.gitClient = gitClient
-  }
-
+public enum FloorGuard: Sendable {
   /// Verifies that currentVersion is >= the maximum registry version in the git commit ancestry.
-  public func checkHistory(repoRoot: URL, currentVersion: Int) async throws(FloorError) -> Int {
+  public static func checkHistory(repoRoot: URL, currentVersion: Int) async throws(FloorError) -> Int {
     let commits: [String]
     do {
-      commits = try await gitClient.commitHistoryTouching(
+      commits = try await GitClient.commitHistoryTouching(
         repoRoot: repoRoot,
         relativePath: "invariants/registry.lock"
       )
@@ -31,7 +25,7 @@ public struct FloorGuard: Sendable {
     for commit in commits {
       let content: String
       do {
-        content = try await gitClient.showFile(
+        content = try await GitClient.showFile(
           repoRoot: repoRoot,
           commit: commit,
           relativePath: "invariants/registry.lock"
@@ -58,7 +52,7 @@ public struct FloorGuard: Sendable {
   }
 
   /// Pre-push hook guard: Rejects force-pushes or deletions of the default branch.
-  public func checkNoRewrite(
+  public static func checkNoRewrite(
     repoRoot: URL,
     pushedRefsInput: String,
     defaultBranch: String = "main"
@@ -87,7 +81,7 @@ public struct FloorGuard: Sendable {
         if remoteSha != zeroSha {
           let isAncestor: Bool
           do {
-            isAncestor = try await gitClient.isAncestor(
+            isAncestor = try await GitClient.isAncestor(
               repoRoot: repoRoot,
               ancestor: remoteSha,
               descendant: localSha
@@ -106,16 +100,15 @@ public struct FloorGuard: Sendable {
 
   /// Verifies that if registry.lock or allowed_signers was changed from HEAD,
   /// the new signature is valid against the parent commit's allowed_signers.
-  public func checkSignerAncestry(
+  public static func checkSignerAncestry(
     repoRoot: URL,
     currentRegistry: Registry,
     lockURL: URL,
-    sigURL: URL,
-    signingClient: SigningClient = SigningClient()
+    sigURL: URL
   ) async throws(FloorError) {
     let headLock: String
     do {
-      headLock = try await gitClient.showFile(
+      headLock = try await GitClient.showFile(
         repoRoot: repoRoot,
         commit: "HEAD",
         relativePath: "invariants/registry.lock"
@@ -140,7 +133,7 @@ public struct FloorGuard: Sendable {
     if currentRegistry.version > parentRegistry.version || isWorkingTreeRegistryModified {
       let parentSignersContent: String
       do {
-        parentSignersContent = try await gitClient.showFile(
+        parentSignersContent = try await GitClient.showFile(
           repoRoot: repoRoot,
           commit: "HEAD",
           relativePath: "invariants/allowed_signers"
@@ -161,7 +154,7 @@ public struct FloorGuard: Sendable {
 
       let isValid: Bool
       do {
-        isValid = try await signingClient.verify(
+        isValid = try await SigningClient.verify(
           allowedSignersURL: parentSignersURL,
           identity: "*",
           namespace: "invariants",

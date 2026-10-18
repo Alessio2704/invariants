@@ -21,9 +21,8 @@ struct SecurityAttackTests {
     try content.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // loadAndVerify must immediately detect that signers_hash does not match
-    let manager = RegistryManager(environment: repo.environment)
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repo.repoURL)
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     }
   }
 
@@ -34,9 +33,8 @@ struct SecurityAttackTests {
     try await repo.signed(version: 1)
 
     // Attacker generates throwaway key
-    let signingClient = SigningClient()
     let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue")
-    try signingClient.generateThrowawayKey(at: rogueKeyURL)
+    try SigningClient.generateThrowawayKey(at: rogueKeyURL)
 
     let roguePub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_rogue.pub"), encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -48,22 +46,19 @@ struct SecurityAttackTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Attacker creates version 2 registry and signs with rogueKey
-    let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
     let reg2 = Registry(version: 2, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
+    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
 
     // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers!
-    let floorGuard = FloorGuard()
     let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
     let sigURL = RegistryManager.signatureURL(repoRoot: repo.repoURL)
 
     await #expect(throws: FloorError.self) {
-      try await floorGuard.checkSignerAncestry(
+      try await FloorGuard.checkSignerAncestry(
         repoRoot: repo.repoURL,
         currentRegistry: reg2,
         lockURL: lockURL,
-        sigURL: sigURL,
-        signingClient: signingClient
+        sigURL: sigURL
       )
     }
   }
@@ -76,14 +71,12 @@ struct SecurityAttackTests {
     try await repo.signed(version: 2)
 
     // Attacker attempts to revert working tree registry.lock to version 1
-    let manager = RegistryManager(environment: repo.environment)
     let reg1 = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
+    try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // FloorGuard history check must reject version 1 because history max is 2
-    let floorGuard = FloorGuard()
     await #expect(throws: FloorError.self) {
-      _ = try await floorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: 1)
+      _ = try await FloorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: 1)
     }
   }
 
@@ -93,8 +86,7 @@ struct SecurityAttackTests {
     try repo.withRule("attack-rule-4")
     try await repo.signed(version: 1)
 
-    let manager = RegistryManager(environment: repo.environment)
-    let reg = try await manager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     let signedHash = reg.rules["attack-rule-4"]
     #expect(signedHash != nil)
 
@@ -103,7 +95,7 @@ struct SecurityAttackTests {
     try "// tampered code\n".write(to: ruleSwiftURL, atomically: true, encoding: .utf8)
 
     // Fingerprint engine computes new hash that drifts from signedHash
-    let driftHash = try await FingerprintEngine().computeFingerprint(repoRoot: repo.repoURL, ruleId: "attack-rule-4")
+    let driftHash = try await FingerprintEngine.computeFingerprint(repoRoot: repo.repoURL, ruleId: "attack-rule-4")
     #expect(driftHash != signedHash)
   }
 
@@ -120,13 +112,12 @@ struct SecurityAttackTests {
     try expiredSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Save and sign with the expired key
-    let manager = RegistryManager(environment: repo.environment)
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repo.repoURL, keyURL: repo.keyURL)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repo.repoURL, keyURL: repo.keyURL)
 
     // loadAndVerify must reject with signatureInvalid (key expired)
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repo.repoURL)
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     }
   }
 }

@@ -181,8 +181,7 @@ struct SignersCommand: AsyncParsableCommand {
 
       // 2. Generate new key at defaultKey
       print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
-      let signingClient = SigningClient()
-      try await signingClient.generateSigningKey(at: defaultKey)
+      try await SigningClient.generateSigningKey(at: defaultKey)
 
       guard
         let newPubContent = try? String(contentsOf: oldPubURL, encoding: .utf8)
@@ -208,7 +207,6 @@ struct SignersCommand: AsyncParsableCommand {
   }
 
   private static func bumpAndSignRegistry(repoRoot: URL, customSigningKey: String?) async throws {
-    let registryManager = RegistryManager()
     let lockURL = RegistryManager.registryURL(repoRoot: repoRoot)
 
     guard FileManager.default.fileExists(atPath: lockURL.path),
@@ -225,6 +223,6 @@ struct SignersCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    try await registryManager.saveAndSign(registry: registry, repoRoot: repoRoot, keyURL: keyURL)
+    try await RegistryManager.saveAndSign(registry: registry, repoRoot: repoRoot, keyURL: keyURL)
   }
 }

@@ -21,20 +21,9 @@ public struct InitOptions: Sendable {
 }
 
 /// Service that initializes invariants structures, allowed signers, registry v1, and git commit.
-public struct InitManager: Sendable {
-  private let registryManager: RegistryManager
-  private let gitClient: GitClient
-
-  public init(
-    registryManager: RegistryManager = RegistryManager(),
-    gitClient: GitClient = GitClient()
-  ) {
-    self.registryManager = registryManager
-    self.gitClient = gitClient
-  }
-
+public enum InitManager: Sendable {
   /// Initializes invariants in a repository: .gitignore, registry v1, in-repo allowed_signers, signature, and git commit.
-  public func initialize(repoRootURL: URL, options: InitOptions) async throws {
+  public static func initialize(repoRootURL: URL, options: InitOptions) async throws {
     let fm = FileManager.default
 
     // 1. Update .gitignore
@@ -61,7 +50,7 @@ public struct InitManager: Sendable {
     try Self.writeInitialAllowedSigners(keyURL: options.keyURL, repoRootURL: repoRootURL)
 
     // 5. Sign registry v1
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: options.keyURL
@@ -77,7 +66,7 @@ public struct InitManager: Sendable {
       paths.append(".gitignore")
     }
 
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: paths,
       message: "Initialize invariants (v1)"

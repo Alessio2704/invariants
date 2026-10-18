@@ -23,11 +23,9 @@ struct UpdateCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
     let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let gitClient = GitClient()
     let fm = FileManager.default
 
-    var registry = try await registryManager.loadAndVerify(
+    var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
@@ -47,7 +45,7 @@ struct UpdateCommand: AsyncParsableCommand {
     defer { try? fm.removeItem(at: tempOldSnapshot) }
 
     try fm.createDirectory(at: tempOldSnapshot, withIntermediateDirectories: true)
-    try await gitClient.archiveExtract(
+    try await GitClient.archiveExtract(
       repoRoot: repoRootURL,
       treeHash: oldSignedTreeHash,
       destinationURL: tempOldSnapshot
@@ -80,9 +78,7 @@ struct UpdateCommand: AsyncParsableCommand {
     try await saveAndCommitUpdate(
       repoRootURL: repoRootURL,
       oldSignedTreeHash: oldSignedTreeHash,
-      registry: &registry,
-      registryManager: registryManager,
-      gitClient: gitClient
+      registry: &registry
     )
   }
 }
@@ -105,7 +101,6 @@ extension UpdateCommand {
     repoRootURL: URL,
     registry: Registry
   ) throws -> (RuleManifest, RuleManifest) {
-    let manifestValidator = ManifestValidator()
     let oldManifest = try ManifestParser.load(
       from: tempOldSnapshot.appendingPathComponent("manifest.json"),
       expectedId: id
@@ -115,7 +110,7 @@ extension UpdateCommand {
       expectedId: id
     )
 
-    try manifestValidator.validateStructure(
+    try ManifestValidator.validateStructure(
       ruleDirectory: ruleDir,
       manifest: newManifest,
       repoRoot: repoRootURL,
@@ -130,14 +125,11 @@ extension UpdateCommand {
     newManifest: RuleManifest,
     context: UpdateContext
   ) async throws {
-    let discoverer = FixtureDiscoverer()
-    let weakeningDetector = WeakeningDetector()
-    let manifestValidator = ManifestValidator()
     let runner = RuleRunner(environment: context.env)
 
     var oldCases: [FixtureCase] = []
     for target in oldManifest.targets {
-      if let cases = try? discoverer.discover(
+      if let cases = try? FixtureDiscoverer.discover(
         ruleDirectory: context.tempOldSnapshot,
         target: target,
         manifestCodes: oldManifest.codes
@@ -148,7 +140,7 @@ extension UpdateCommand {
 
     var newCases: [FixtureCase] = []
     for target in newManifest.targets {
-      let cases = try discoverer.discover(
+      let cases = try FixtureDiscoverer.discover(
         ruleDirectory: context.ruleDir,
         target: target,
         manifestCodes: newManifest.codes
@@ -156,7 +148,7 @@ extension UpdateCommand {
       newCases.append(contentsOf: cases)
     }
 
-    var weakening = weakeningDetector.detect(
+    var weakening = WeakeningDetector.detect(
       ruleId: id,
       oldManifest: oldManifest,
       newManifest: newManifest,
@@ -167,7 +159,6 @@ extension UpdateCommand {
     let (oldV, newV) = await countRepoViolations(
       manifest: newManifest,
       context: context,
-      manifestValidator: manifestValidator,
       runner: runner
     )
 
@@ -189,7 +180,6 @@ extension UpdateCommand {
   private func countRepoViolations(
     manifest: RuleManifest,
     context: UpdateContext,
-    manifestValidator: ManifestValidator,
     runner: RuleRunner
   ) async -> (Int, Int) {
     var oldRepoViolationsCount = 0
@@ -197,7 +187,7 @@ extension UpdateCommand {
 
     for target in manifest.targets {
       guard let scope = manifest.scope[target] else { continue }
-      let scopedFiles = manifestValidator.resolveScopedFiles(repoRoot: context.repoRootURL, scope: scope)
+      let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: context.repoRootURL, scope: scope)
 
       let oldReq = RuleRequest(
         mode: "repo",
@@ -268,12 +258,11 @@ extension UpdateCommand {
   }
 
   private func verifyFixtures(ruleDir: URL, manifest: RuleManifest, env: SystemEnvironment) async throws {
-    let discoverer = FixtureDiscoverer()
     let runner = RuleRunner(environment: env)
     print("\nVerifying fixtures for '\(id)'...")
 
     for target in manifest.targets {
-      let cases = try discoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
+      let cases = try FixtureDiscoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
       for fixtureCase in cases {
         let req = RuleRequest(
           mode: "fixture",
@@ -314,12 +303,9 @@ extension UpdateCommand {
   private func saveAndCommitUpdate(
     repoRootURL: URL,
     oldSignedTreeHash: String,
-    registry: inout Registry,
-    registryManager: RegistryManager,
-    gitClient: GitClient
+    registry: inout Registry
   ) async throws {
-    let fingerprintEngine = FingerprintEngine()
-    let newTreeHash = try await fingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
+    let newTreeHash = try await FingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
     guard newTreeHash != oldSignedTreeHash else {
       print("Notice: No changes detected. Rule '\(id)' is already at tree \(newTreeHash).")
       return
@@ -334,13 +320,13 @@ extension UpdateCommand {
     registry.rules[id] = newTreeHash
 
     print("Signing registry v\(registry.version) with \(keyURL.lastPathComponent)...")
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",

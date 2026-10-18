@@ -26,14 +26,7 @@ struct InitManagerTests {
       arguments: ["-C", repoURL.path, "config", "user.email", "tester@invariants.local"])
 
     // Generate throwaway key
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
-
-    // Run InitManager
-    let gitClient = GitClient()
-    let env = SystemEnvironment(rootURL: tmpDir.appendingPathComponent("fake_root"))
-    let registryManager = RegistryManager(environment: env, signingClient: signingClient)
-    let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let options = InitOptions(
       engineVersion: "1.0.0",
@@ -44,7 +37,7 @@ struct InitManagerTests {
       keyURL: keyURL
     )
 
-    try await initManager.initialize(repoRootURL: repoURL, options: options)
+    try await InitManager.initialize(repoRootURL: repoURL, options: options)
 
     // 1. Verify in-repo allowed_signers
     let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
@@ -62,7 +55,7 @@ struct InitManagerTests {
     #expect(fm.fileExists(atPath: sigURL.path))
 
     // 3. Verify registry can be loaded and cryptographically verified
-    let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.version == 1)
     #expect(loaded.defaultBranch == "main")
     #expect(loaded.project?[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
@@ -110,16 +103,10 @@ struct InitManagerTests {
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
 
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let gitClient = GitClient()
-    let detected = (await gitClient.discoverBranches(repoRoot: repoURL)).first
+    let detected = (await GitClient.discoverBranches(repoRoot: repoURL)).first
     #expect(detected == "develop")
-
-    let env = SystemEnvironment(rootURL: tmpDir.appendingPathComponent("fake_root"))
-    let registryManager = RegistryManager(environment: env, signingClient: signingClient)
-    let initManager = InitManager(registryManager: registryManager, gitClient: gitClient)
 
     let options = InitOptions(
       engineVersion: "1.0.0",
@@ -127,9 +114,9 @@ struct InitManagerTests {
       keyURL: keyURL
     )
 
-    try await initManager.initialize(repoRootURL: repoURL, options: options)
+    try await InitManager.initialize(repoRootURL: repoURL, options: options)
 
-    let loaded = try await registryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
     #expect(loaded.defaultBranch == "develop")
   }
 }

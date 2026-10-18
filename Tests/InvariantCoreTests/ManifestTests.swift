@@ -147,16 +147,15 @@ struct ManifestTests {
       scope: [.swift: TargetScope(include: ["**/*.swift"])],
       codes: ["C1": "Code 1", "C2": "Code 2"]
     )
-    let validator = ManifestValidator()
     #expect {
-      try validator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1"])
+      try ManifestValidator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1"])
     } throws: { error in
       guard let err = error as? ManifestError, case .codeNotTestedByFixtures(let code) = err else { return false }
       return code == "C2" && !err.description.isEmpty
     }
 
     // Full coverage passes
-    try validator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1", "C2"])
+    try ManifestValidator.validateCodesCoverage(manifest: manifest, coveredCodes: ["C1", "C2"])
   }
 
   @Test("ManifestValidator rejects undeclared codes in reported violations")
@@ -168,11 +167,10 @@ struct ManifestTests {
       scope: [.swift: TargetScope(include: ["**/*.swift"])],
       codes: ["C1": "Code 1"]
     )
-    let validator = ManifestValidator()
     let badViolation = ReportedViolation(
       code: "UNKNOWN", file: "foo.swift", line: 1, column: 1, message: "msg", fix: "")
     #expect {
-      try validator.validateReportedViolations(manifest: manifest, violations: [badViolation])
+      try ManifestValidator.validateReportedViolations(manifest: manifest, violations: [badViolation])
     } throws: { error in
       guard let err = error as? ManifestError, case .undeclaredCodeEmitted(let code, let ruleId) = err else {
         return false
@@ -181,6 +179,6 @@ struct ManifestTests {
     }
 
     let goodViolation = ReportedViolation(code: "C1", file: "foo.swift", line: 1, column: 1, message: "msg", fix: "")
-    try validator.validateReportedViolations(manifest: manifest, violations: [goodViolation])
+    try ManifestValidator.validateReportedViolations(manifest: manifest, violations: [goodViolation])
   }
 }

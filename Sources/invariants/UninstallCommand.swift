@@ -13,7 +13,6 @@ struct UninstallCommand: AsyncParsableCommand {
 
   func run() async throws {
     let env = SystemEnvironment.standard
-    let installer = InstallationManager()
 
     print("Invariants Uninstaller")
     print("──────────────────────")
@@ -33,7 +32,7 @@ struct UninstallCommand: AsyncParsableCommand {
     }
 
     do {
-      try await installer.uninstall(environment: env)
+      try await InstallationManager.uninstall(environment: env)
       print("✓ Invariants successfully uninstalled from \(env.rootURL.path).")
     } catch {
       fputs("Error: Uninstall failed: \(error)\n", stderr)

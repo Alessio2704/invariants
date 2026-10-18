@@ -106,8 +106,7 @@ struct RegistryTests {
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
     let keyURL = tmpDir.appendingPathComponent("id_test_p256")
-    let signingClient = SigningClient()
-    try signingClient.generateThrowawayKey(at: keyURL)
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     // Read public key
     let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_test_p256.pub"))
@@ -121,14 +120,11 @@ struct RegistryTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    let fakeEnv = SystemEnvironment(rootURL: tmpDir)
-    let manager = RegistryManager(environment: fakeEnv, signingClient: signingClient)
-
     let reg = Registry(version: 1, engine: "^1.0.0")
-    try await manager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
+    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
 
     // Verify valid
-    let loaded = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     #expect(loaded.version == reg.version)
     #expect(loaded.signersHash != nil)
 
@@ -140,7 +136,7 @@ struct RegistryTests {
 
     // Verification must throw signatureInvalid
     await #expect(throws: RegistryError.self) {
-      _ = try await manager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
     }
   }
 }

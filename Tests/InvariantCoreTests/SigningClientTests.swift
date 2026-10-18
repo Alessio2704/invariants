@@ -19,8 +19,7 @@ struct SigningClientTests {
     try pubLine.write(to: tmpPub, atomically: true, encoding: .utf8)
     defer { try? FileManager.default.removeItem(at: tmpPub) }
 
-    let client = SigningClient()
-    let fp = await client.fingerprint(pubKeyURL: tmpPub)
+    let fp = await SigningClient.fingerprint(pubKeyURL: tmpPub)
     #expect(fp != nil)
     #expect(fp?.hasPrefix("SHA256:") == true)
   }
@@ -37,8 +36,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    let client = SigningClient()
-    try client.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
@@ -48,7 +46,7 @@ struct SigningClientTests {
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Sign using CryptoKit
-    try await client.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
+    try await SigningClient.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
 
     let sigURL = messageURL.appendingPathExtension("sig")
     #expect(FileManager.default.fileExists(atPath: sigURL.path))
@@ -58,7 +56,7 @@ struct SigningClientTests {
     #expect(sigContent.contains("-----END SSH SIGNATURE-----"))
 
     // Verify using standard OpenSSH ssh-keygen -Y verify
-    let isValid = try await client.verify(
+    let isValid = try await SigningClient.verify(
       allowedSignersURL: signersURL,
       identity: "lead@plans",
       namespace: "invariants",
@@ -80,8 +78,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    let client = SigningClient()
-    try client.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
@@ -90,13 +87,13 @@ struct SigningClientTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyContent)\n"
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    try await client.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
+    try await SigningClient.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
 
     // Tamper with the message
     try "{\"version\":2,\"rules\":[]}\n".write(to: messageURL, atomically: true, encoding: .utf8)
 
     let sigURL = messageURL.appendingPathExtension("sig")
-    let isValid = try await client.verify(
+    let isValid = try await SigningClient.verify(
       allowedSignersURL: signersURL,
       identity: "lead@plans",
       namespace: "invariants",
@@ -118,8 +115,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    let client = SigningClient()
-    try client.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
@@ -128,11 +124,11 @@ struct SigningClientTests {
     let signersContent = "* namespaces=\"invariants\" \(pubKeyContent)\n"
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    try await client.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
+    try await SigningClient.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
 
     let sigURL = messageURL.appendingPathExtension("sig")
     // Attempt verification with "git" namespace instead of "invariants"
-    let isValid = try await client.verify(
+    let isValid = try await SigningClient.verify(
       allowedSignersURL: signersURL,
       identity: "lead@plans",
       namespace: "git",

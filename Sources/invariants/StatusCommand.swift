@@ -10,10 +10,6 @@ struct StatusCommand: AsyncParsableCommand {
 
   func run() async throws {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
-
-    let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let fingerprintEngine = FingerprintEngine()
     let fm = FileManager.default
 
     print("Invariants Status")
@@ -22,7 +18,7 @@ struct StatusCommand: AsyncParsableCommand {
     // 1. Registry & Signature
     var registry: Registry?
     do {
-      let loaded = try await registryManager.loadAndVerify(
+      let loaded = try await RegistryManager.loadAndVerify(
         repoRoot: repoRootURL,
         installedEngineVersion: CLIHelpers.engineVersion
       )
@@ -45,8 +41,7 @@ struct StatusCommand: AsyncParsableCommand {
 
     // 2. Floor
     if let reg = registry {
-      let floorGuard = FloorGuard()
-      if let histFloor = try? await floorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: reg.version) {
+      if let histFloor = try? await FloorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: reg.version) {
         print("Git Floor:   v\(histFloor) (history max)")
       }
     }
@@ -82,7 +77,7 @@ struct StatusCommand: AsyncParsableCommand {
 
       let workingHash: String?
       do {
-        workingHash = try await fingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: ruleId)
+        workingHash = try await FingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: ruleId)
       } catch {
         workingHash = nil
       }

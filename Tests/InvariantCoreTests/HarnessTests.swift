@@ -23,8 +23,7 @@ struct HarnessTests {
     let fileURL = tmpDir.appendingPathComponent("Sample.swift")
     try sampleSwift.data(using: .utf8)?.write(to: fileURL)
 
-    let parser = AnnotationParser()
-    let expected = try parser.parseInlineAnnotations(fileURL: fileURL, relativePath: "Sample.swift")
+    let expected = try AnnotationParser.parseInlineAnnotations(fileURL: fileURL, relativePath: "Sample.swift")
 
     #expect(expected.count == 3)
     #expect(expected[0].code == "RAW-TEXT")
@@ -49,8 +48,8 @@ struct HarnessTests {
     let sidecarURL = tmpDir.appendingPathComponent("sample.json.expect")
     try sidecarContent.data(using: .utf8)?.write(to: sidecarURL)
 
-    let parser = AnnotationParser()
-    let expected = try parser.parseSidecarExpectFile(sidecarURL: sidecarURL, targetRelativePath: "sample.json")
+    let expected = try AnnotationParser.parseSidecarExpectFile(
+      sidecarURL: sidecarURL, targetRelativePath: "sample.json")
 
     #expect(expected.count == 2)
     #expect(expected[0].code == "RAW-TEXT")
@@ -76,9 +75,8 @@ struct HarnessTests {
     let legalFailFile = failDir.appendingPathComponent("Bad.swift")
     try Data("// expect: TOY-01\nlet y = 2\n".utf8).write(to: legalFailFile)
 
-    let discoverer = FixtureDiscoverer()
     #expect(throws: HarnessError.self) {
-      _ = try discoverer.discover(
+      _ = try FixtureDiscoverer.discover(
         ruleDirectory: tmpDir,
         target: .swift,
         manifestCodes: ["TOY-01": "Desc"]

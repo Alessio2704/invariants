@@ -35,11 +35,9 @@ public struct WeakeningReport: Sendable, Equatable {
   }
 }
 
-public struct WeakeningDetector: Sendable {
-  public init() {}
-
+public enum WeakeningDetector: Sendable {
   /// Analyzes mutations between an old signed rule and the new working tree rule.
-  public func detect(
+  public static func detect(
     ruleId: String,
     oldManifest: RuleManifest,
     newManifest: RuleManifest,

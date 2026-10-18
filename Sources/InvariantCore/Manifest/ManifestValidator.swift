@@ -1,11 +1,9 @@
 public import Foundation
 
 /// Validates rule directory structure, required/forbidden files, and scope resolution.
-public struct ManifestValidator: Sendable {
-  public init() {}
-
+public enum ManifestValidator: Sendable {
   /// Validates directory layout, target files, fixture directories, and scope.
-  public func validateStructure(
+  public static func validateStructure(
     ruleDirectory: URL,
     manifest: RuleManifest,
     repoRoot: URL? = nil,
@@ -73,7 +71,7 @@ public struct ManifestValidator: Sendable {
   }
 
   /// Resolves all files in repoRoot matching the include patterns and not excluded.
-  public func resolveScopedFiles(repoRoot: URL, scope: TargetScope) -> [URL] {
+  public static func resolveScopedFiles(repoRoot: URL, scope: TargetScope) -> [URL] {
     let fm = FileManager.default
     guard
       let enumerator = fm.enumerator(
@@ -125,7 +123,7 @@ public struct ManifestValidator: Sendable {
   }
 
   /// Validates that all codes declared in the manifest are covered by at least one fixture.
-  public func validateCodesCoverage(
+  public static func validateCodesCoverage(
     manifest: RuleManifest,
     coveredCodes: Set<String>
   ) throws(ManifestError) {
@@ -135,7 +133,7 @@ public struct ManifestValidator: Sendable {
   }
 
   /// Validates that all violations emitted by a rule correspond to codes declared in the manifest.
-  public func validateReportedViolations(
+  public static func validateReportedViolations(
     manifest: RuleManifest,
     violations: [ReportedViolation]
   ) throws(ManifestError) {

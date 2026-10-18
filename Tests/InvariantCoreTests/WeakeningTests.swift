@@ -57,8 +57,7 @@ struct WeakeningTests {
       target: .swift
     )
 
-    let detector = WeakeningDetector()
-    let report = detector.detect(
+    let report = WeakeningDetector.detect(
       ruleId: "no-raw-text",
       oldManifest: oldManifest,
       newManifest: newManifest,
@@ -98,8 +97,7 @@ struct WeakeningTests {
       target: .swift
     )
 
-    let detector = WeakeningDetector()
-    let report = detector.detect(
+    let report = WeakeningDetector.detect(
       ruleId: "no-raw-text",
       oldManifest: manifest,
       newManifest: manifest,

@@ -49,7 +49,7 @@ struct RuleEnforcementE2ETests {
 
     try await repo.signed(version: 1, project: project)
 
-    let reg = try await repo.registryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     let ruleTreeHash = try #require(reg.rules["no-fatal-error"])
 
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-fatal-error")
@@ -188,7 +188,7 @@ struct RuleEnforcementE2ETests {
 
     try await repo.signed(version: 1, project: project)
 
-    let reg = try await repo.registryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
     let ruleTreeHash = try #require(reg.rules["no-eval"])
 
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-eval")
@@ -310,8 +310,7 @@ struct RuleEnforcementE2ETests {
     project: ProjectConfig
   ) async throws {
     let runner = RuleRunner()
-    let discoverer = FixtureDiscoverer()
-    let cases = try discoverer.discover(
+    let cases = try FixtureDiscoverer.discover(
       ruleDirectory: ruleDir,
       target: target,
       manifestCodes: manifestCodes

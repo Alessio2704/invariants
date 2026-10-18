@@ -18,15 +18,10 @@ struct AddCommand: AsyncParsableCommand {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
     let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let fingerprintEngine = FingerprintEngine()
-    let manifestValidator = ManifestValidator()
-    let discoverer = FixtureDiscoverer()
     let runner = RuleRunner(environment: env)
-    let gitClient = GitClient()
 
     // 1. Load registry
-    var registry = try await registryManager.loadAndVerify(
+    var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
@@ -45,7 +40,7 @@ struct AddCommand: AsyncParsableCommand {
 
     // 2. Validate manifest and structure
     let manifest = try ManifestParser.load(from: ruleDir.appendingPathComponent("manifest.json"), expectedId: id)
-    try manifestValidator.validateStructure(
+    try ManifestValidator.validateStructure(
       ruleDirectory: ruleDir,
       manifest: manifest,
       repoRoot: repoRootURL,
@@ -56,7 +51,7 @@ struct AddCommand: AsyncParsableCommand {
     // 3. Self-test fixtures
     print("Running fixture self-test for '\(id)'...")
     for target in manifest.targets {
-      let cases = try discoverer.discover(
+      let cases = try FixtureDiscoverer.discover(
         ruleDirectory: ruleDir,
         target: target,
         manifestCodes: manifest.codes
@@ -101,7 +96,7 @@ struct AddCommand: AsyncParsableCommand {
     var repoViolationsCount = 0
     for target in manifest.targets {
       guard let targetScope = manifest.scope[target] else { continue }
-      let files = manifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
+      let files = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
       let req = RuleRequest(
         mode: "repo",
         repoRoot: repoRootURL.path,
@@ -132,7 +127,7 @@ struct AddCommand: AsyncParsableCommand {
     }
 
     // 5. Compute tree hash
-    let treeHash = try await fingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
+    let treeHash = try await FingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: id)
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
@@ -146,14 +141,14 @@ struct AddCommand: AsyncParsableCommand {
     registry.rules[id] = treeHash
 
     print("Signing registry v\(registry.version) with key \(keyURL.lastPathComponent)...")
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     // 8. Commit
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",

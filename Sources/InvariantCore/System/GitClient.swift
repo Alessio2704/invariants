@@ -1,11 +1,9 @@
 public import Foundation
 
 /// Git client wrapping `/usr/bin/git`.
-public struct GitClient: Sendable {
-  public init() {}
-
+public enum GitClient: Sendable {
   /// Computes the git tree hash of a directory using a temporary index file.
-  public func computeTreeHash(
+  public static func computeTreeHash(
     repoRoot: URL,
     directoryRelativePath: String,
     tempIndexURL: URL
@@ -47,7 +45,7 @@ public struct GitClient: Sendable {
   }
 
   /// Extracts a tree hash into destination directory using `git archive | tar -x`.
-  public func archiveExtract(repoRoot: URL, treeHash: String, destinationURL: URL) async throws(SystemError) {
+  public static func archiveExtract(repoRoot: URL, treeHash: String, destinationURL: URL) async throws(SystemError) {
     let archiveOutput = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoRoot.path, "archive", treeHash],
@@ -80,7 +78,7 @@ public struct GitClient: Sendable {
   }
 
   /// Lists all commit hashes touching a specific file in the current ancestry.
-  public func commitHistoryTouching(repoRoot: URL, relativePath: String) async throws(SystemError) -> [String] {
+  public static func commitHistoryTouching(repoRoot: URL, relativePath: String) async throws(SystemError) -> [String] {
     let output = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoRoot.path, "log", "--format=%H", "--", relativePath],
@@ -97,7 +95,7 @@ public struct GitClient: Sendable {
   }
 
   /// Reads a file's content at a given commit.
-  public func showFile(repoRoot: URL, commit: String, relativePath: String) async throws(SystemError) -> String {
+  public static func showFile(repoRoot: URL, commit: String, relativePath: String) async throws(SystemError) -> String {
     let output = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoRoot.path, "show", "\(commit):\(relativePath)"],
@@ -115,7 +113,7 @@ public struct GitClient: Sendable {
   }
 
   /// Checks if `ancestor` is an ancestor of `descendant` (i.e. fast-forward).
-  public func isAncestor(repoRoot: URL, ancestor: String, descendant: String) async throws(SystemError) -> Bool {
+  public static func isAncestor(repoRoot: URL, ancestor: String, descendant: String) async throws(SystemError) -> Bool {
     let output = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoRoot.path, "merge-base", "--is-ancestor", ancestor, descendant],
@@ -125,7 +123,7 @@ public struct GitClient: Sendable {
   }
 
   /// Stages files and commits them.
-  public func commit(repoRoot: URL, paths: [String], message: String) async throws(SystemError) {
+  public static func commit(repoRoot: URL, paths: [String], message: String) async throws(SystemError) {
     var addArgs = ["-C", repoRoot.path, "add"]
     addArgs.append(contentsOf: paths)
     let addOutput = try await SubprocessRunner.run(
@@ -158,7 +156,7 @@ public struct GitClient: Sendable {
   }
 
   /// Returns the name of the remote default branch (e.g. "main" from refs/remotes/origin/HEAD) if available.
-  public func detectRemoteTrunk(repoRoot: URL) async -> String? {
+  public static func detectRemoteTrunk(repoRoot: URL) async -> String? {
     guard
       let out = try? await SubprocessRunner.run(
         binary: .git,
@@ -175,7 +173,7 @@ public struct GitClient: Sendable {
   }
 
   /// Returns the current active branch name.
-  public func currentBranch(repoRoot: URL) async -> String? {
+  public static func currentBranch(repoRoot: URL) async -> String? {
     guard
       let out = try? await SubprocessRunner.run(
         binary: .git,
@@ -190,7 +188,7 @@ public struct GitClient: Sendable {
   }
 
   /// Discovers all available branches in the repository, prioritizing remote trunk and canonical branches first.
-  public func discoverBranches(repoRoot: URL) async -> [String] {
+  public static func discoverBranches(repoRoot: URL) async -> [String] {
     var branches: [String] = []
 
     if let out = try? await SubprocessRunner.run(

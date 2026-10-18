@@ -1,18 +1,16 @@
 public import Foundation
 
 /// Manages installation, updates, and uninstallation of the Invariants engine on the host system.
-public struct InstallationManager: Sendable {
-  public init() {}
-
+public enum InstallationManager: Sendable {
   /// Creates a symbolic link, automatically elevating if the destination requires root privileges.
-  public func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
+  public static func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()
     let command = "mkdir -p '\(parent.path)' && ln -sfn '\(sourceURL.path)' '\(destinationURL.path)'"
     _ = try await SubprocessRunner.runShell(command, targetURL: destinationURL, checkExitCode: true)
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
-  public func removeItem(at targetURL: URL) async throws(SystemError) {
+  public static func removeItem(at targetURL: URL) async throws(SystemError) {
     let exists =
       FileManager.default.fileExists(atPath: targetURL.path)
       || (try? targetURL.checkResourceIsReachable()) == true
@@ -23,7 +21,7 @@ public struct InstallationManager: Sendable {
   }
 
   /// Installs an engine version payload from a staging directory into the system environment.
-  public func installVersion(
+  public static func installVersion(
     version: String,
     stageDir: URL,
     environment: SystemEnvironment
@@ -49,7 +47,7 @@ public struct InstallationManager: Sendable {
   }
 
   /// Completely uninstalls the invariants engine from the system environment.
-  public func uninstall(environment: SystemEnvironment) async throws(SystemError) {
+  public static func uninstall(environment: SystemEnvironment) async throws(SystemError) {
     try await removeItem(at: environment.binURL)
     try await removeItem(at: environment.rootURL)
   }

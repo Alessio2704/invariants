@@ -15,14 +15,10 @@ struct UpgradeCommand: AsyncParsableCommand {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
     let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let gitClient = GitClient()
-    let manifestValidator = ManifestValidator()
-    let discoverer = FixtureDiscoverer()
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
-    var registry = try await registryManager.loadAndVerify(
+    var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
@@ -35,7 +31,7 @@ struct UpgradeCommand: AsyncParsableCommand {
       defer { try? fm.removeItem(at: tempSnapshot) }
 
       try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
-      try await gitClient.archiveExtract(
+      try await GitClient.archiveExtract(
         repoRoot: repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshot
@@ -46,7 +42,8 @@ struct UpgradeCommand: AsyncParsableCommand {
 
       // Test fixtures
       for target in manifest.targets {
-        let cases = try discoverer.discover(ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
+        let cases = try FixtureDiscoverer.discover(
+          ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
         for fixtureCase in cases {
           let req = RuleRequest(
             mode: "fixture",
@@ -72,7 +69,7 @@ struct UpgradeCommand: AsyncParsableCommand {
       // Check repo scope
       for target in manifest.targets {
         guard let scope = manifest.scope[target] else { continue }
-        let scopedFiles = manifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: scope)
+        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: scope)
         let req = RuleRequest(
           mode: "repo",
           repoRoot: repoRootURL.path,
@@ -111,13 +108,13 @@ struct UpgradeCommand: AsyncParsableCommand {
       throw ExitCode(1)
     }
 
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",

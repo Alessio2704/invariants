@@ -28,14 +28,10 @@ struct ConfigCommand: AsyncParsableCommand {
     let repoRootURL = try CLIHelpers.requireRepoRoot()
 
     let env = SystemEnvironment.standard
-    let registryManager = RegistryManager(environment: env)
-    let gitClient = GitClient()
-    let manifestValidator = ManifestValidator()
-    let discoverer = FixtureDiscoverer()
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
-    var registry = try await registryManager.loadAndVerify(
+    var registry = try await RegistryManager.loadAndVerify(
       repoRoot: repoRootURL,
       installedEngineVersion: CLIHelpers.engineVersion
     )
@@ -79,7 +75,7 @@ struct ConfigCommand: AsyncParsableCommand {
       defer { try? fm.removeItem(at: tempSnapshot) }
 
       try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
-      try await gitClient.archiveExtract(
+      try await GitClient.archiveExtract(
         repoRoot: repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshot
@@ -90,7 +86,8 @@ struct ConfigCommand: AsyncParsableCommand {
 
       // 1. Fixtures must still pass with newProject
       for target in manifest.targets {
-        let cases = try discoverer.discover(ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
+        let cases = try FixtureDiscoverer.discover(
+          ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
         for fixtureCase in cases {
           let req = RuleRequest(
             mode: "fixture",
@@ -116,7 +113,7 @@ struct ConfigCommand: AsyncParsableCommand {
       // 2. Repo check: compare old vs new files and violations
       for target in manifest.targets {
         guard let targetScope = manifest.scope[target] else { continue }
-        let scopedFiles = manifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
+        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
 
         let reqOld = RuleRequest(
           mode: "repo",
@@ -182,13 +179,13 @@ struct ConfigCommand: AsyncParsableCommand {
     }
 
     print("Updating project analysis configuration in registry v\(registry.version)...")
-    try await registryManager.saveAndSign(
+    try await RegistryManager.saveAndSign(
       registry: registry,
       repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
-    try await gitClient.commit(
+    try await GitClient.commit(
       repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",
