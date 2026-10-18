@@ -45,10 +45,14 @@ public enum SystemPaths: Sendable {
   /// Relative subpath for developer workspace scaffolding (`invariants/.dev`).
   public static let devWorkspaceSubpath: String = "invariants/.dev"
 
+  /// Relative subpath for rule language SDK kits (`kits`).
+  public static let kitsDirectorySubpath: String = "kits"
+
   /// Universal directories and subpaths ignored across all file discovery and static analysis scans.
   public static let universalIgnoredPaths: [String] = [
     ".git",
     devWorkspaceSubpath,
+    kitsDirectorySubpath,
   ]
 }
 

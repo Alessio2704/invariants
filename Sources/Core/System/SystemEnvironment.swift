@@ -23,7 +23,14 @@ public struct SystemEnvironment: Sendable {
 
   /// Returns the installation URL for a kit by its directory name.
   public func kitURL(named name: String) -> URL {
-    currentVersionURL.appendingPathComponent(name)
+    let inKits =
+      currentVersionURL
+      .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
+      .appendingPathComponent(name)
+    if FileManager.default.fileExists(atPath: inKits.path) {
+      return inKits
+    }
+    return currentVersionURL.appendingPathComponent(name)
   }
 
   /// System environment root and binary locations, with optional overrides for testing and sandboxing.

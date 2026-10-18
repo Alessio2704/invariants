@@ -104,29 +104,37 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     let builtBinary = workDir.appendingPathComponent(".build/release/invariants")
     try fm.copyItem(at: builtBinary, to: stageDir.appendingPathComponent("invariants"))
 
-    let kitSwiftDest = stageDir.appendingPathComponent("kit-swift/Sources")
+    let kitSwiftDest = stageDir.appendingPathComponent("kits/kit-swift/Sources")
     try fm.createDirectory(at: kitSwiftDest, withIntermediateDirectories: true)
-    try fm.copyItem(
-      at: workDir.appendingPathComponent("Sources/InvariantKit"),
-      to: kitSwiftDest.appendingPathComponent("InvariantKit"))
-    try fm.copyItem(
-      at: workDir.appendingPathComponent("templates/kit-swift/Package.swift"),
-      to: stageDir.appendingPathComponent("kit-swift/Package.swift"))
+    let kitSwiftSrc = workDir.appendingPathComponent("kits/kit-swift")
+    let invariantKitSrc =
+      fm.fileExists(atPath: kitSwiftSrc.appendingPathComponent("Sources/InvariantKit").path)
+      ? kitSwiftSrc.appendingPathComponent("Sources/InvariantKit")
+      : workDir.appendingPathComponent("Sources/InvariantKit")
+    try fm.copyItem(at: invariantKitSrc, to: kitSwiftDest.appendingPathComponent("InvariantKit"))
+    let packageSwiftSrc =
+      fm.fileExists(atPath: kitSwiftSrc.appendingPathComponent("Package.swift").path)
+      ? kitSwiftSrc.appendingPathComponent("Package.swift")
+      : workDir.appendingPathComponent("templates/kit-swift/Package.swift")
+    try fm.copyItem(at: packageSwiftSrc, to: stageDir.appendingPathComponent("kits/kit-swift/Package.swift"))
 
     if fm.fileExists(atPath: workDir.appendingPathComponent("Package.resolved").path) {
       try fm.copyItem(
         at: workDir.appendingPathComponent("Package.resolved"),
-        to: stageDir.appendingPathComponent("kit-swift/Package.resolved"))
+        to: stageDir.appendingPathComponent("kits/kit-swift/Package.resolved"))
     }
 
     // Build kit-ts if present
-    let kitTsSrc = workDir.appendingPathComponent("kit-ts")
+    let kitTsSrc =
+      fm.fileExists(atPath: workDir.appendingPathComponent("kits/kit-ts").path)
+      ? workDir.appendingPathComponent("kits/kit-ts")
+      : workDir.appendingPathComponent("kit-ts")
     if fm.fileExists(atPath: kitTsSrc.path) {
       _ = try? await SubprocessRunner.run(
         executableURL: URL(fileURLWithPath: "/bin/sh"),
         arguments: ["-c", "cd '\(kitTsSrc.path)' && npm ci --ignore-scripts && npm run build"]
       )
-      let kitTsDest = stageDir.appendingPathComponent("kit-ts")
+      let kitTsDest = stageDir.appendingPathComponent("kits/kit-ts")
       try fm.createDirectory(at: kitTsDest, withIntermediateDirectories: true)
       if fm.fileExists(atPath: kitTsSrc.appendingPathComponent("dist").path) {
         try fm.copyItem(at: kitTsSrc.appendingPathComponent("dist"), to: kitTsDest.appendingPathComponent("dist"))
@@ -136,6 +144,15 @@ struct SelfUpdateCommand: AsyncParsableCommand {
           at: kitTsSrc.appendingPathComponent("node_modules"), to: kitTsDest.appendingPathComponent("node_modules"))
       }
     }
+
+    _ = try? fm.createSymbolicLink(
+      at: stageDir.appendingPathComponent("kit-swift"),
+      withDestinationURL: URL(fileURLWithPath: "kits/kit-swift")
+    )
+    _ = try? fm.createSymbolicLink(
+      at: stageDir.appendingPathComponent("kit-ts"),
+      withDestinationURL: URL(fileURLWithPath: "kits/kit-ts")
+    )
 
     // 5. Installation via InstallationManager
     print("Installing version \(version) to \(env.rootURL.path)...")

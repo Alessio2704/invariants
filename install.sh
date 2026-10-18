@@ -33,7 +33,12 @@ echo "Running test suite on release candidate..."
 /usr/bin/xcrun swift test --package-path "$WORK"
 
 echo "Building TypeScript kit..."
-(cd "$WORK/kit-ts" && npm ci --ignore-scripts && npm test && npm run build)
+if [ -d "$WORK/kits/kit-ts" ]; then
+  KIT_TS_DIR="$WORK/kits/kit-ts"
+else
+  KIT_TS_DIR="$WORK/kit-ts"
+fi
+(cd "$KIT_TS_DIR" && npm ci --ignore-scripts && npm test && npm run build)
 
 echo "Installing version $V to $PREFIX..."
 if [ "${PREFIX#/usr/local/invariants}" != "$PREFIX" ]; then
@@ -45,12 +50,23 @@ fi
 $SUDO /bin/sh -c "set -e
   mkdir -p '$PREFIX/versions/$V'
   cp '$WORK/.build/release/invariants' '$PREFIX/versions/$V/'
-  mkdir -p '$PREFIX/versions/$V/kit-swift/Sources'
-  cp -R '$WORK/Sources/InvariantKit' '$PREFIX/versions/$V/kit-swift/Sources/'
-  cp '$WORK/templates/kit-swift/Package.swift' '$PREFIX/versions/$V/kit-swift/Package.swift'
-  cp '$WORK/Package.resolved' '$PREFIX/versions/$V/kit-swift/Package.resolved'
-  mkdir -p '$PREFIX/versions/$V/kit-ts'
-  cp -R '$WORK/kit-ts/dist' '$WORK/kit-ts/node_modules' '$PREFIX/versions/$V/kit-ts/'
+  mkdir -p '$PREFIX/versions/$V/kits/kit-swift/Sources'
+  if [ -d '$WORK/kits/kit-swift/Sources/InvariantKit' ]; then
+    cp -R '$WORK/kits/kit-swift/Sources/InvariantKit' '$PREFIX/versions/$V/kits/kit-swift/Sources/'
+    cp '$WORK/kits/kit-swift/Package.swift' '$PREFIX/versions/$V/kits/kit-swift/Package.swift'
+  else
+    cp -R '$WORK/Sources/InvariantKit' '$PREFIX/versions/$V/kits/kit-swift/Sources/'
+    cp '$WORK/templates/kit-swift/Package.swift' '$PREFIX/versions/$V/kits/kit-swift/Package.swift'
+  fi
+  cp '$WORK/Package.resolved' '$PREFIX/versions/$V/kits/kit-swift/Package.resolved'
+  mkdir -p '$PREFIX/versions/$V/kits/kit-ts'
+  if [ -d '$WORK/kits/kit-ts' ]; then
+    cp -R '$WORK/kits/kit-ts/dist' '$WORK/kits/kit-ts/node_modules' '$PREFIX/versions/$V/kits/kit-ts/'
+  else
+    cp -R '$WORK/kit-ts/dist' '$WORK/kit-ts/node_modules' '$PREFIX/versions/$V/kits/kit-ts/'
+  fi
+  ln -sfn 'kits/kit-swift' '$PREFIX/versions/$V/kit-swift'
+  ln -sfn 'kits/kit-ts' '$PREFIX/versions/$V/kit-ts'
   ln -sfn '$PREFIX/versions/$V' '$PREFIX/current'
   mkdir -p /usr/local/bin
   ln -sfn '$PREFIX/current/invariants' /usr/local/bin/invariants

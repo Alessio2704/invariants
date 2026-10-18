@@ -2,9 +2,10 @@ strict: true
 included:
   - Sources
   - Tests
+  - kits/kit-swift
 excluded:
   - .build
-  - kit-ts
+  - kits/kit-ts
   - invariants/.dev
 disabled_rules:
   - trailing_comma

@@ -50,6 +50,7 @@ let package = Package(
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
+            path: "kits/kit-swift/Sources/InvariantKit",
             swiftSettings: swiftSettings
         ),
         .target(

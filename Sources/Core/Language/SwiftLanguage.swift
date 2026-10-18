@@ -108,7 +108,11 @@ public enum SwiftLanguage: LanguageSpec {
   public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {
     let fm = FileManager.default
     let kitSwiftURL = environment.kitURL(named: "kit-swift")
-    let kitSwiftPath = fm.fileExists(atPath: kitSwiftURL.path) ? kitSwiftURL.path : repoRootURL.path
+    let repoKitURL = repoRootURL.appendingPathComponent("kits/kit-swift")
+    let kitSwiftPath =
+      fm.fileExists(atPath: kitSwiftURL.path)
+      ? kitSwiftURL.path
+      : (fm.fileExists(atPath: repoKitURL.path) ? repoKitURL.path : repoRootURL.path)
     let kitPackageName =
       URL(fileURLWithPath: kitSwiftPath).lastPathComponent == "kit-swift" ? "kit-swift" : "invariants"
 

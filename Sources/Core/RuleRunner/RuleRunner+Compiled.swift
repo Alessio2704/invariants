@@ -152,6 +152,12 @@ extension RuleRunner {
       let targetResolved = cacheDirectory.appendingPathComponent("Package.resolved")
       if fm.fileExists(atPath: kitResolved.path) && !fm.fileExists(atPath: targetResolved.path) {
         try? fm.copyItem(at: kitResolved, to: targetResolved)
+      } else if !fm.fileExists(atPath: targetResolved.path) {
+        let rootResolved = kitURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
+          "Package.resolved")
+        if fm.fileExists(atPath: rootResolved.path) {
+          try? fm.copyItem(at: rootResolved, to: targetResolved)
+        }
       }
 
       let packageManifest = """

@@ -7,7 +7,7 @@ cd "$REPO_ROOT"
 echo "Running full verification checks..."
 
 # 1. Swift format lint
-swift format lint --strict --recursive Sources Tests
+swift format lint --strict --recursive Sources Tests kits
 
 # 2. SwiftLint
 if command -v swiftlint >/dev/null 2>&1; then
@@ -28,7 +28,11 @@ swift test
 
 # 6. Kit-TS checks & test coverage
 (
-  cd "$REPO_ROOT/kit-ts"
+  if [ -d "$REPO_ROOT/kits/kit-ts" ]; then
+    cd "$REPO_ROOT/kits/kit-ts"
+  else
+    cd "$REPO_ROOT/kit-ts"
+  fi
   npx biome ci
   npx tsc --noEmit
   npm run knip

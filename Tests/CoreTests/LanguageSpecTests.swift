@@ -306,6 +306,7 @@ struct LanguageSpecTests {
     let allPaths = SupportedLanguage.allDefaultIgnoredPaths
     #expect(allPaths.contains(".git"))
     #expect(allPaths.contains("invariants/.dev"))
+    #expect(allPaths.contains("kits"))
     #expect(allPaths.contains(".build"))
     #expect(allPaths.contains("build"))
     #expect(allPaths.contains("node_modules"))
@@ -321,8 +322,10 @@ struct LanguageSpecTests {
     // Universal ignored paths
     #expect(SwiftLanguage.shouldSkip(relativePath: ".git/HEAD"))
     #expect(SwiftLanguage.shouldSkip(relativePath: "invariants/.dev/Package.swift"))
+    #expect(SwiftLanguage.shouldSkip(relativePath: "kits/kit-swift/Package.swift"))
     #expect(TypeScriptLanguage.shouldSkip(relativePath: ".git/config"))
     #expect(TypeScriptLanguage.shouldSkip(relativePath: "invariants/.dev/rule.ts"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "kits/kit-ts/tsconfig.json"))
 
     // Swift specific
     #expect(SwiftLanguage.shouldSkip(relativePath: ".build/debug/foo.o"))

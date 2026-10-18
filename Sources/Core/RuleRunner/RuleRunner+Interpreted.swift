@@ -80,6 +80,12 @@ extension RuleRunner {
       return installed
     }
     if let execURL = Bundle.main.executableURL {
+      let kitsCandidate = execURL.deletingLastPathComponent()
+        .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
+        .appendingPathComponent(name)
+      if FileManager.default.fileExists(atPath: kitsCandidate.path) {
+        return kitsCandidate
+      }
       let candidate = execURL.deletingLastPathComponent().appendingPathComponent(name)
       if FileManager.default.fileExists(atPath: candidate.path) {
         return candidate
@@ -91,6 +97,13 @@ extension RuleRunner {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
+    let kitsCandidate =
+      repoRoot
+      .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
+      .appendingPathComponent(name)
+    if FileManager.default.fileExists(atPath: kitsCandidate.path) {
+      return kitsCandidate
+    }
     let candidate = repoRoot.appendingPathComponent(name)
     if FileManager.default.fileExists(atPath: candidate.path) {
       return candidate
@@ -99,6 +112,12 @@ extension RuleRunner {
       return repoRoot
     }
     // In local development / tests: use current repo root
+    let localKitsCandidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
+      .appendingPathComponent(name)
+    if FileManager.default.fileExists(atPath: localKitsCandidate.path) {
+      return localKitsCandidate
+    }
     let localCandidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(name)
     if FileManager.default.fileExists(atPath: localCandidate.path) {
       return localCandidate
@@ -115,6 +134,16 @@ extension RuleRunner {
     let devRunner = kitURL.appendingPathComponent(spec.devRunnerRelativePath)
     if FileManager.default.fileExists(atPath: devRunner.path) {
       return devRunner
+    }
+    let localKitsDist = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
+      "\(SystemPaths.kitsDirectorySubpath)/\(spec.kitDirectoryName)/\(spec.kitRunnerRelativePath)")
+    if FileManager.default.fileExists(atPath: localKitsDist.path) {
+      return localKitsDist
+    }
+    let localKitsDev = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
+      "\(SystemPaths.kitsDirectorySubpath)/\(spec.kitDirectoryName)/\(spec.devRunnerRelativePath)")
+    if FileManager.default.fileExists(atPath: localKitsDev.path) {
+      return localKitsDev
     }
     let localDist = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
       "\(spec.kitDirectoryName)/\(spec.kitRunnerRelativePath)")
