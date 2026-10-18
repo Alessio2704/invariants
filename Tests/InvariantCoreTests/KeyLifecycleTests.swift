@@ -166,16 +166,15 @@ struct KeyLifecycleTests {
   }
 
   @Test("SigningClient deleteSigningKey returns early when target key does not exist")
-  func deleteSigningKeyNonExistent() async throws {
+  func deleteSigningKeyNonExistent() throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
     let nonExistentKey = tmpDir.appendingPathComponent("non_existent_key")
-    try await SigningClient.deleteSigningKey(at: nonExistentKey) { _ in
-      Issue.record("Authenticator should not be called when key does not exist")
-    }
+    let token = BiometricAuthToken.forTesting()
+    try SigningClient.deleteSigningKey(at: nonExistentKey, token: token)
   }
 
-  @Test("SigningClient deleteSigningKey removes key and pub atomically upon biometric confirmation")
-  func deleteSigningKeySuccess() async throws {
+  @Test("SigningClient deleteSigningKey removes key and pub atomically with valid BiometricAuthToken")
+  func deleteSigningKeySuccess() throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
@@ -187,21 +186,15 @@ struct KeyLifecycleTests {
     #expect(FileManager.default.fileExists(atPath: keyURL.path))
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
-    final class AuthPromptBox: @unchecked Sendable {
-      var prompt: String?
-    }
-    let box = AuthPromptBox()
-    try await SigningClient.deleteSigningKey(at: keyURL) { reason in
-      box.prompt = reason
-    }
+    let token = BiometricAuthToken.forTesting()
+    try SigningClient.deleteSigningKey(at: keyURL, token: token)
 
-    #expect(box.prompt?.contains("Touch ID") == true)
     #expect(!FileManager.default.fileExists(atPath: keyURL.path))
     #expect(!FileManager.default.fileExists(atPath: pubURL.path))
   }
 
-  @Test("SigningClient deleteSigningKey aborts and preserves credentials if biometric authorization fails")
-  func deleteSigningKeyBiometricFailureAborts() async throws {
+  @Test("SigningClient deleteSigningKey rejects expired BiometricAuthToken and preserves credentials")
+  func deleteSigningKeyExpiredToken() throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
@@ -213,13 +206,16 @@ struct KeyLifecycleTests {
     #expect(FileManager.default.fileExists(atPath: keyURL.path))
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
+    let expiredToken = BiometricAuthToken.forTesting(
+      authorizedAt: Date().addingTimeInterval(-60),
+      expirationInterval: 30
+    )
+
     do {
-      try await SigningClient.deleteSigningKey(at: keyURL) { _ in
-        throw SystemError.cryptographicError("Touch ID biometric verification failed.")
-      }
-      Issue.record("Expected deleteSigningKey to throw when biometric authentication fails")
+      try SigningClient.deleteSigningKey(at: keyURL, token: expiredToken)
+      Issue.record("Expected deleteSigningKey to throw when token is expired")
     } catch {
-      #expect(error == .cryptographicError("Touch ID biometric verification failed."))
+      #expect(error == .cryptographicError("Biometric authorization token has expired."))
     }
 
     // Key and pub MUST be preserved on disk

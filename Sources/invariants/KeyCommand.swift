@@ -179,7 +179,10 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
-      try await SigningClient.generateSigningKey(at: defaultKey)
+      let rotateToken = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
+      )
+      try SigningClient.generateSigningKey(at: defaultKey, token: rotateToken)
 
       print("✓ Local key rotated successfully.")
       print("Old key archived to: \(backupKey.path)")
@@ -226,7 +229,10 @@ struct KeyCommand: AsyncParsableCommand {
 
       print("Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key...")
       do {
-        try await SigningClient.deleteSigningKey(at: defaultKey)
+        let token = try await Authorizer.authorizeBiometrics(
+          reason: "Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key"
+        )
+        try SigningClient.deleteSigningKey(at: defaultKey, token: token)
       } catch {
         fputs("Error: Could not delete signing key: \(error)\n", stderr)
         throw ExitCode(1)
@@ -283,7 +289,10 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("Touch your Touch ID sensor to enroll a fresh hardware signing key in Apple Secure Enclave...")
-      try await SigningClient.generateSigningKey(at: defaultKey)
+      let resetToken = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll a fresh hardware signing key in Apple Secure Enclave"
+      )
+      try SigningClient.generateSigningKey(at: defaultKey, token: resetToken)
 
       guard
         let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
@@ -371,7 +380,10 @@ extension KeyCommand {
 
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     do {
-      try await SigningClient.generateSigningKey(at: defaultKey)
+      let token = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
+      )
+      try SigningClient.generateSigningKey(at: defaultKey, token: token)
     } catch {
       fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
       throw ExitCode(1)

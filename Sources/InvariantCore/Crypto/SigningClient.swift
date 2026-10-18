@@ -5,64 +5,18 @@ import Security
 
 /// Cryptographic signing and verification client combining Apple CryptoKit / Secure Enclave with OpenSSH allowed_signers verification.
 public enum SigningClient: Sendable {
-  /// Biometric verification function type.
-  public typealias BiometricAuthenticator = @Sendable (_ reason: String) async throws -> Void
-
-  /// Verifies the device owner's biometric identity (Touch ID / Apple Watch) using Apple LocalAuthentication.
-  static func authenticateBiometrics(
-    reason: String,
-    context: LAContext = LAContext()
-  ) async throws(SystemError) {
-    guard SecureEnclave.isAvailable else {
-      throw SystemError.secureEnclaveUnavailable(
-        "Apple Secure Enclave hardware is not available on this machine."
-      )
-    }
-
-    var authError: NSError?
-    guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else {
-      let desc = authError?.localizedDescription ?? "Touch ID is not configured or available."
-      throw SystemError.cryptographicError("Touch ID biometric verification is required: \(desc)")
-    }
-
-    context.localizedReason = reason
-
-    do {
-      let authorized = try await context.evaluatePolicy(
-        .deviceOwnerAuthenticationWithBiometrics,
-        localizedReason: reason
-      )
-      guard authorized else {
-        throw SystemError.cryptographicError("Touch ID biometric verification failed.")
-      }
-    } catch {
-      throw SystemError.cryptographicError("Touch ID biometric verification failed: \(error.localizedDescription)")
-    }
-  }
-
   /// Deletes a local private signing key and its corresponding public key from this machine.
-  /// Strictly requires Touch ID biometric verification before credentials are deleted.
+  /// Strictly requires a valid BiometricAuthToken issued by Authorizer.
   public static func deleteSigningKey(
     at keyURL: URL,
-    reason: String = "Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key",
-    authenticator: BiometricAuthenticator? = nil
-  ) async throws(SystemError) {
+    token: BiometricAuthToken
+  ) throws(SystemError) {
+    try token.validateFreshness()
+
     let pubURL = keyURL.appendingPathExtension("pub")
     guard FileManager.default.fileExists(atPath: keyURL.path) || FileManager.default.fileExists(atPath: pubURL.path)
     else {
       return
-    }
-
-    do {
-      if let authenticator {
-        try await authenticator(reason)
-      } else {
-        try await authenticateBiometrics(reason: reason)
-      }
-    } catch let error as SystemError {
-      throw error
-    } catch {
-      throw SystemError.cryptographicError(error.localizedDescription)
     }
 
     do {
@@ -78,23 +32,20 @@ public enum SigningClient: Sendable {
   }
 
   /// Generates a hardware-bound P-256 signing key in the Apple Secure Enclave.
-  /// Strictly requires Apple Secure Enclave hardware with Touch ID / Apple Watch biometric protection.
+  /// Strictly requires Apple Secure Enclave hardware with a valid BiometricAuthToken.
   /// Zero fallback.
   public static func generateSigningKey(
     at keyURL: URL,
-    comment: String = "invariants-owner"
-  ) async throws(SystemError) {
+    comment: String = "invariants-owner",
+    token: BiometricAuthToken
+  ) throws(SystemError) {
+    try token.validateFreshness()
+
     guard SecureEnclave.isAvailable else {
       throw SystemError.secureEnclaveUnavailable(
         "Apple Secure Enclave hardware is not available on this machine. Secure hardware keys cannot be created."
       )
     }
-
-    let authContext = LAContext()
-    try await authenticateBiometrics(
-      reason: "Touch your Touch ID sensor to enroll your Apple Secure Enclave signing key",
-      context: authContext
-    )
 
     let parent = keyURL.deletingLastPathComponent()
     do {
@@ -120,7 +71,7 @@ public enum SigningClient: Sendable {
     do {
       privateKey = try SecureEnclave.P256.Signing.PrivateKey(
         accessControl: accessControl,
-        authenticationContext: authContext
+        authenticationContext: token.context
       )
     } catch {
       throw SystemError.cryptographicError(
