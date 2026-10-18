@@ -5,8 +5,9 @@
 ---
 
 > [!WARNING]
-> **Status: Conceptual & Work in Progress**  
-> This project is an experimental prototype and research proof-of-concept exploring how cryptographic hardware security (Apple Secure Enclave, Touch ID, OpenSSH) and deep AST semantic analysis can prevent architectural degradation by autonomous AI coding agents. APIs, schemas, and workflows are actively evolving.
+> **Status: Experimental Proof of Concept**  
+> This repository should be taken for now strictly as a concept of what can be done. It is an experimental exploration into using cryptographic hardware security (Apple Secure Enclave, Touch ID, OpenSSH) and deep AST semantic analysis to prevent architectural degradation by autonomous AI coding agents.  
+> **The installer and toolchain are experimental and might not work reliably across all setups or environments.** APIs, schemas, and workflows are actively evolving.
 
 ---
 
