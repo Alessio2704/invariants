@@ -29,7 +29,13 @@ struct KeyCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-      _ = try await HardwareKeyWorkflow.generate(force: force, showContextualStatus: true)
+      if let root = try? RepoLocator.discover() {
+        _ = try await RepoLocator.withRepoRoot(root) {
+          try await HardwareKeyWorkflow.generate(force: force, showContextualStatus: true)
+        }
+      } else {
+        _ = try await HardwareKeyWorkflow.generate(force: force, showContextualStatus: true)
+      }
     }
   }
 
@@ -56,7 +62,13 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async {
-      await HardwareKeyWorkflow.status()
+      if let root = try? RepoLocator.discover() {
+        await RepoLocator.withRepoRoot(root) {
+          await HardwareKeyWorkflow.status()
+        }
+      } else {
+        await HardwareKeyWorkflow.status()
+      }
     }
   }
 
@@ -67,12 +79,12 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      if let repoRoot = RepoLocator.findRepoRoot() {
-        let signersURL = RepoLocator.withRepoRoot(repoRoot) {
+      if let root = try? RepoLocator.discover() {
+        let signersURL = RepoLocator.withRepoRoot(root) {
           RegistryManager.allowedSignersURL()
         }
         if FileManager.default.fileExists(atPath: signersURL.path) {
-          try await RepoLocator.withRepoRoot(repoRoot) {
+          try await RepoLocator.withRepoRoot(root) {
             try await SignersCommand.Rotate().run()
           }
           return

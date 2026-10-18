@@ -6,7 +6,7 @@ import Foundation
 package enum LanguageConfigManager {
   /// Discovers candidate paths for a supported language's configuration.
   package static func discoverCandidates(for language: SupportedLanguage) -> [String] {
-    language.spec.discoverCandidates(repoRootURL: RepoLocator.current)
+    language.spec.discoverCandidates()
   }
 
   /// Applies a language configuration dynamically into a repository languages configuration.
@@ -20,6 +20,6 @@ package enum LanguageConfigManager {
 
   /// Detects languages with source files present in the repository root.
   package static func detectLanguages() -> [SupportedLanguage] {
-    SupportedLanguage.allCases.filter { $0.spec.hasSources(in: RepoLocator.current) }
+    SupportedLanguage.allCases.filter { $0.spec.hasSources() }
   }
 }

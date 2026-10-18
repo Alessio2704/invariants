@@ -59,7 +59,7 @@ struct RepoLocatorTests {
     #expect(!RepoLocator.hasCurrent)
   }
 
-  @Test("RepoLocator.discover and findRepoRoot detect .git boundary")
+  @Test("RepoLocator.discover detects .git boundary")
   func discoveryFromSubdirectory() throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent("discover_test_\(UUID().uuidString)")
@@ -70,9 +70,6 @@ struct RepoLocatorTests {
 
     let discovered = try RepoLocator.discover(from: subDir)
     #expect(discovered.standardizedFileURL.path == tmpDir.standardizedFileURL.path)
-
-    let found = RepoLocator.findRepoRoot(from: subDir)
-    #expect(found?.standardizedFileURL.path == tmpDir.standardizedFileURL.path)
   }
 
   @Test("RepoLocator.discover throws repositoryNotFound when no .git exists")
@@ -85,6 +82,5 @@ struct RepoLocatorTests {
     #expect(throws: RepoLocatorError.notInsideGitRepository) {
       try RepoLocator.discover(from: tmpDir)
     }
-    #expect(RepoLocator.findRepoRoot(from: tmpDir) == nil)
   }
 }

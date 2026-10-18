@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 
 /// TypeScript language specification requiring one or more tsconfig.json configurations.
 public enum TypeScriptLanguage: LanguageSpec {
@@ -44,10 +44,10 @@ public enum TypeScriptLanguage: LanguageSpec {
     return list.isEmpty ? "none" : list.joined(separator: ", ")
   }
 
-  public static func discoverCandidates(repoRootURL: URL) -> [String] {
+  public static func discoverCandidates() -> [String] {
     let fm = FileManager.default
     var candidates: [String] = []
-    let rootURL = repoRootURL.resolvingSymlinksInPath()
+    let rootURL = RepoLocator.current.resolvingSymlinksInPath()
     let rootPath = rootURL.path
 
     if let enumerator = fm.enumerator(
@@ -56,7 +56,7 @@ public enum TypeScriptLanguage: LanguageSpec {
       options: [.skipsHiddenFiles]
     ) {
       while let fileURL = enumerator.nextObject() as? URL {
-        if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
+        if SupportedLanguage.shouldSkipAny(url: fileURL) {
           enumerator.skipDescendants()
           continue
         }
@@ -86,7 +86,7 @@ public enum TypeScriptLanguage: LanguageSpec {
     return Config(tsconfig: filtered)
   }
 
-  public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {
+  public static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile] {
     let devTsconfig = """
       {
         "compilerOptions": {

@@ -32,7 +32,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: candidateDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let discovered = await SwiftLanguage.autoDiscover(repoRoot: tmpDir)
+    let discovered = await RepoLocator.withRepoRoot(tmpDir) {
+      await SwiftLanguage.autoDiscover()
+    }
     #expect(discovered != nil)
     #expect(discovered?.indexStore == "build/Index.noindex/DataStore")
   }
@@ -62,7 +64,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: pkgTsconfigDir, withIntermediateDirectories: true)
     try Data("{}".utf8).write(to: pkgTsconfigDir.appendingPathComponent("tsconfig.json"))
 
-    let discovered = await TypeScriptLanguage.autoDiscover(repoRoot: tmpDir)
+    let discovered = await RepoLocator.withRepoRoot(tmpDir) {
+      await TypeScriptLanguage.autoDiscover()
+    }
     #expect(discovered != nil)
     let paths = discovered?.tsconfig ?? []
     #expect(paths.contains("tsconfig.json"))
@@ -146,20 +150,22 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    #expect(!SwiftLanguage.hasSources(in: tmpDir))
-    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+    try RepoLocator.withRepoRoot(tmpDir) {
+      #expect(!SwiftLanguage.hasSources())
+      #expect(!TypeScriptLanguage.hasSources())
 
-    // Add Swift file
-    let swiftFile = tmpDir.appendingPathComponent("main.swift")
-    try Data("print(1)".utf8).write(to: swiftFile)
-    #expect(SwiftLanguage.hasSources(in: tmpDir))
-    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+      // Add Swift file
+      let swiftFile = tmpDir.appendingPathComponent("main.swift")
+      try Data("print(1)".utf8).write(to: swiftFile)
+      #expect(SwiftLanguage.hasSources())
+      #expect(!TypeScriptLanguage.hasSources())
 
-    // Add TS file
-    let tsFile = tmpDir.appendingPathComponent("index.ts")
-    try Data("console.log(1)".utf8).write(to: tsFile)
-    #expect(SwiftLanguage.hasSources(in: tmpDir))
-    #expect(TypeScriptLanguage.hasSources(in: tmpDir))
+      // Add TS file
+      let tsFile = tmpDir.appendingPathComponent("index.ts")
+      try Data("console.log(1)".utf8).write(to: tsFile)
+      #expect(SwiftLanguage.hasSources())
+      #expect(TypeScriptLanguage.hasSources())
+    }
   }
 
   @Test(
@@ -209,7 +215,9 @@ struct LanguageSpecTests {
     let repoURL = URL(fileURLWithPath: "/tmp/fake-repo")
     let env = SystemEnvironment(rootURL: URL(fileURLWithPath: "/tmp/fake-install"))
 
-    let files = language.spec.devWorkspaceFiles(repoRootURL: repoURL, environment: env)
+    let files = RepoLocator.withRepoRoot(repoURL) {
+      language.spec.devWorkspaceFiles(environment: env)
+    }
     #expect(!files.isEmpty)
     for file in files {
       #expect(!file.relativePath.isEmpty)
@@ -225,7 +233,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: candidateDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let candidates = SwiftLanguage.discoverCandidates(repoRootURL: tmpDir)
+    let candidates = RepoLocator.withRepoRoot(tmpDir) {
+      SwiftLanguage.discoverCandidates()
+    }
     #expect(candidates.contains("build/Index.noindex/DataStore"))
   }
 
@@ -243,7 +253,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: pkgTsconfigDir, withIntermediateDirectories: true)
     try Data("{}".utf8).write(to: pkgTsconfigDir.appendingPathComponent("tsconfig.json"))
 
-    let candidates = TypeScriptLanguage.discoverCandidates(repoRootURL: tmpDir)
+    let candidates = RepoLocator.withRepoRoot(tmpDir) {
+      TypeScriptLanguage.discoverCandidates()
+    }
     #expect(candidates.contains("tsconfig.json"))
     #expect(candidates.contains("packages/api/tsconfig.json"))
   }
@@ -283,13 +295,15 @@ struct LanguageSpecTests {
     try Data("{}".utf8).write(to: tmpDir.appendingPathComponent("tsconfig.json"))
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let swiftConfig = await SupportedLanguage.swift.spec.autoDiscover(repoRoot: tmpDir)
-    #expect(swiftConfig != nil)
-    #expect((swiftConfig as? SwiftLanguage.Config)?.indexStore == "build/Index.noindex/DataStore")
+    await RepoLocator.withRepoRoot(tmpDir) {
+      let swiftConfig = await SupportedLanguage.swift.spec.autoDiscover()
+      #expect(swiftConfig != nil)
+      #expect((swiftConfig as? SwiftLanguage.Config)?.indexStore == "build/Index.noindex/DataStore")
 
-    let tsConfig = await SupportedLanguage.ts.spec.autoDiscover(repoRoot: tmpDir)
-    #expect(tsConfig != nil)
-    #expect((tsConfig as? TypeScriptLanguage.Config)?.tsconfig.contains("tsconfig.json") == true)
+      let tsConfig = await SupportedLanguage.ts.spec.autoDiscover()
+      #expect(tsConfig != nil)
+      #expect((tsConfig as? TypeScriptLanguage.Config)?.tsconfig.contains("tsconfig.json") == true)
+    }
   }
 
   @Test("Language specifications declare default ignored paths and extensions under OCP")
@@ -353,53 +367,55 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    // Initially empty
-    #expect(!SwiftLanguage.hasSources(in: tmpDir))
-    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+    try RepoLocator.withRepoRoot(tmpDir) {
+      // Initially empty
+      #expect(!SwiftLanguage.hasSources())
+      #expect(!TypeScriptLanguage.hasSources())
 
-    // Swift file inside node_modules or .build should NOT count as sources
-    let nodeModulesSwift = tmpDir.appendingPathComponent("node_modules/fake-pod/File.swift")
-    try fm.createDirectory(at: nodeModulesSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// swift".utf8).write(to: nodeModulesSwift)
+      // Swift file inside node_modules or .build should NOT count as sources
+      let nodeModulesSwift = tmpDir.appendingPathComponent("node_modules/fake-pod/File.swift")
+      try fm.createDirectory(at: nodeModulesSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// swift".utf8).write(to: nodeModulesSwift)
 
-    let buildSwift = tmpDir.appendingPathComponent(".build/Generated.swift")
-    try fm.createDirectory(at: buildSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// swift".utf8).write(to: buildSwift)
+      let buildSwift = tmpDir.appendingPathComponent(".build/Generated.swift")
+      try fm.createDirectory(at: buildSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// swift".utf8).write(to: buildSwift)
 
-    let devSwift = tmpDir.appendingPathComponent("invariants/.dev/Dev.swift")
-    try fm.createDirectory(at: devSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// swift".utf8).write(to: devSwift)
+      let devSwift = tmpDir.appendingPathComponent("invariants/.dev/Dev.swift")
+      try fm.createDirectory(at: devSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// swift".utf8).write(to: devSwift)
 
-    #expect(!SwiftLanguage.hasSources(in: tmpDir))
+      #expect(!SwiftLanguage.hasSources())
 
-    // Real Swift file in Sources
-    let realSwift = tmpDir.appendingPathComponent("Sources/Real.swift")
-    try fm.createDirectory(at: realSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// swift".utf8).write(to: realSwift)
+      // Real Swift file in Sources
+      let realSwift = tmpDir.appendingPathComponent("Sources/Real.swift")
+      try fm.createDirectory(at: realSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// swift".utf8).write(to: realSwift)
 
-    #expect(SwiftLanguage.hasSources(in: tmpDir))
+      #expect(SwiftLanguage.hasSources())
 
-    // TypeScript file in node_modules, kits, or .d.ts should NOT count as sources
-    let kitsTs = tmpDir.appendingPathComponent("kits/kit-ts/src/runner.ts")
-    try fm.createDirectory(at: kitsTs.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// ts".utf8).write(to: kitsTs)
+      // TypeScript file in node_modules, kits, or .d.ts should NOT count as sources
+      let kitsTs = tmpDir.appendingPathComponent("kits/kit-ts/src/runner.ts")
+      try fm.createDirectory(at: kitsTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// ts".utf8).write(to: kitsTs)
 
-    let nodeModulesTs = tmpDir.appendingPathComponent("node_modules/react/index.ts")
-    try fm.createDirectory(at: nodeModulesTs.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// ts".utf8).write(to: nodeModulesTs)
+      let nodeModulesTs = tmpDir.appendingPathComponent("node_modules/react/index.ts")
+      try fm.createDirectory(at: nodeModulesTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// ts".utf8).write(to: nodeModulesTs)
 
-    let dtsFile = tmpDir.appendingPathComponent("types/globals.d.ts")
-    try fm.createDirectory(at: dtsFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// dts".utf8).write(to: dtsFile)
+      let dtsFile = tmpDir.appendingPathComponent("types/globals.d.ts")
+      try fm.createDirectory(at: dtsFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// dts".utf8).write(to: dtsFile)
 
-    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+      #expect(!TypeScriptLanguage.hasSources())
 
-    // Real TS file
-    let realTs = tmpDir.appendingPathComponent("src/app.ts")
-    try fm.createDirectory(at: realTs.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data("// ts".utf8).write(to: realTs)
+      // Real TS file
+      let realTs = tmpDir.appendingPathComponent("src/app.ts")
+      try fm.createDirectory(at: realTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("// ts".utf8).write(to: realTs)
 
-    #expect(TypeScriptLanguage.hasSources(in: tmpDir))
+      #expect(TypeScriptLanguage.hasSources())
+    }
   }
 
   @Test("invariants repository root detects only Swift sources and skips kits")
@@ -408,7 +424,9 @@ struct LanguageSpecTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-    #expect(SwiftLanguage.hasSources(in: repoRoot))
-    #expect(!TypeScriptLanguage.hasSources(in: repoRoot))
+    RepoLocator.withRepoRoot(repoRoot) {
+      #expect(SwiftLanguage.hasSources())
+      #expect(!TypeScriptLanguage.hasSources())
+    }
   }
 }

@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 
 /// Swift language specification requiring an Apple / Clang index store.
 public enum SwiftLanguage: LanguageSpec {
@@ -49,10 +49,10 @@ public enum SwiftLanguage: LanguageSpec {
     languages[Self.self]?.indexStore ?? "none"
   }
 
-  public static func discoverCandidates(repoRootURL: URL) -> [String] {
+  public static func discoverCandidates() -> [String] {
     let fm = FileManager.default
     var candidates: [String] = []
-    let rootURL = repoRootURL.resolvingSymlinksInPath()
+    let rootURL = RepoLocator.current.resolvingSymlinksInPath()
     let rootPath = rootURL.path
 
     if let enumerator = fm.enumerator(
@@ -62,7 +62,7 @@ public enum SwiftLanguage: LanguageSpec {
     ) {
       while let fileURL = enumerator.nextObject() as? URL {
         let path = fileURL.resolvingSymlinksInPath().path
-        if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
+        if SupportedLanguage.shouldSkipAny(url: fileURL) {
           if fileURL.lastPathComponent == "build" {
             // Allow searching within build directory for Index.noindex/DataStore
           } else {
@@ -105,9 +105,10 @@ public enum SwiftLanguage: LanguageSpec {
     return Config(indexStore: first)
   }
 
-  public static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile] {
+  public static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile] {
     let fm = FileManager.default
     let kitSwiftURL = environment.kitURL(named: "kit-swift")
+    let repoRootURL = RepoLocator.current
     let repoKitURL = repoRootURL.appendingPathComponent("kits/kit-swift")
     let kitSwiftPath =
       fm.fileExists(atPath: kitSwiftURL.path)

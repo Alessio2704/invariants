@@ -43,7 +43,7 @@ extension SupportedLanguage {
   }
 
   /// Checks if a file URL should be skipped across any supported language or universal system path.
-  public static func shouldSkipAny(url: URL, repoRoot: URL) -> Bool {
-    allCases.contains { $0.spec.shouldSkip(url: url, repoRoot: repoRoot) }
+  public static func shouldSkipAny(url: URL) -> Bool {
+    allCases.contains { $0.spec.shouldSkip(url: url) }
   }
 }

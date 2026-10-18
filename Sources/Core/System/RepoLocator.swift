@@ -69,15 +69,4 @@ public enum RepoLocator: Sendable {
       current = parent
     }
   }
-
-  /// Locates the enclosing git repository root directory, returning `nil` if not inside a git repository.
-  /// If an ambient repository root is already bound, returns `current`.
-  public static func findRepoRoot(
-    from startURL: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-  ) -> URL? {
-    if let bound = _current {
-      return bound
-    }
-    return try? discover(from: startURL)
-  }
 }

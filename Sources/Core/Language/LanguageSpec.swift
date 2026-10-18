@@ -21,7 +21,7 @@ public protocol AnyLanguageSpec: Sendable {
   static func shouldSkip(relativePath: String) -> Bool
 
   /// Checks if a file URL should be skipped for this language.
-  static func shouldSkip(url: URL, repoRoot: URL) -> Bool
+  static func shouldSkip(url: URL) -> Bool
 
   /// Decodes this language's configuration polymorphically from a decoder.
   static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)?
@@ -30,10 +30,10 @@ public protocol AnyLanguageSpec: Sendable {
   static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws
 
   /// Detects if this language has source files in the repository.
-  static func hasSources(in repoRoot: URL) -> Bool
+  static func hasSources() -> Bool
 
-  /// Discovers candidate paths for this language in the given repository root.
-  static func discoverCandidates(repoRootURL: URL) -> [String]
+  /// Discovers candidate paths for this language in the repository root.
+  static func discoverCandidates() -> [String]
 
   /// Specification descriptor for interactive terminal configuration prompts.
   static var configPromptDescriptor: LanguageConfigPromptDescriptor { get }
@@ -42,13 +42,13 @@ public protocol AnyLanguageSpec: Sendable {
   static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)?
 
   /// Automatically discovers configuration without user intervention.
-  static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)?
+  static func autoDiscover() async -> (any LanguageConfiguration)?
 
   /// Returns a human-readable description of this language's configured inputs.
   static func describeConfig(in languages: LanguagesConfig) -> String
 
   /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
-  static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile]
+  static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile]
 }
 
 extension AnyLanguageSpec {
@@ -87,8 +87,8 @@ extension AnyLanguageSpec {
     return false
   }
 
-  public static func shouldSkip(url: URL, repoRoot: URL) -> Bool {
-    let rootPath = repoRoot.standardizedFileURL.path
+  public static func shouldSkip(url: URL) -> Bool {
+    let rootPath = RepoLocator.current.standardizedFileURL.path
     let filePath = url.standardizedFileURL.path
     if filePath.hasPrefix(rootPath) {
       var rel = String(filePath.dropFirst(rootPath.count))
@@ -98,9 +98,9 @@ extension AnyLanguageSpec {
     return shouldSkip(relativePath: url.lastPathComponent)
   }
 
-  public static func hasSources(in repoRoot: URL) -> Bool {
+  public static func hasSources() -> Bool {
     let fm = FileManager.default
-    let rootURL = repoRoot.standardizedFileURL
+    let rootURL = RepoLocator.current.standardizedFileURL
     guard
       let enumerator = fm.enumerator(
         at: rootURL,
@@ -111,7 +111,7 @@ extension AnyLanguageSpec {
 
     let exts = Set(sourceExtensions)
     while let fileURL = enumerator.nextObject() as? URL {
-      if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
+      if SupportedLanguage.shouldSkipAny(url: fileURL) {
         enumerator.skipDescendants()
         continue
       }
@@ -122,8 +122,8 @@ extension AnyLanguageSpec {
     return false
   }
 
-  public static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)? {
-    let candidates = discoverCandidates(repoRootURL: repoRoot)
+  public static func autoDiscover() async -> (any LanguageConfiguration)? {
+    let candidates = discoverCandidates()
     guard !candidates.isEmpty else { return nil }
     switch configPromptDescriptor.selectionStyle {
     case .single:
@@ -141,7 +141,7 @@ public protocol LanguageSpec: AnyLanguageSpec {
   associatedtype Config: LanguageConfiguration, Equatable
 
   /// Strongly-typed automatic discovery.
-  static func autoDiscover(repoRoot: URL) async -> Config?
+  static func autoDiscover() async -> Config?
 }
 
 extension LanguageSpec {
@@ -154,8 +154,8 @@ extension LanguageSpec {
     try typed.encode(to: encoder)
   }
 
-  public static func autoDiscover(repoRoot: URL) async -> Config? {
-    let candidates = discoverCandidates(repoRootURL: repoRoot)
+  public static func autoDiscover() async -> Config? {
+    let candidates = discoverCandidates()
     guard !candidates.isEmpty else { return nil }
     switch configPromptDescriptor.selectionStyle {
     case .single:

@@ -133,12 +133,10 @@ package enum HardwareKeyManager {
     let backupCount = items.filter { $0.hasPrefix(SystemPaths.keyBackupPrefix) && !$0.hasSuffix(".pub") }.count
 
     var isAuthorized: Bool = false
-    if let repoRoot = RepoLocator.findRepoRoot(), let pubKey {
-      RepoLocator.withRepoRoot(repoRoot) {
-        let signersURL = RegistryManager.allowedSignersURL()
-        if let signersFile = try? AllowedSignersFile.read(from: signersURL) {
-          isAuthorized = signersFile.entries.contains { $0.matches(keyString: pubKey) && $0.isActive() }
-        }
+    if RepoLocator.hasCurrent, let pubKey {
+      let signersURL = RegistryManager.allowedSignersURL()
+      if let signersFile = try? AllowedSignersFile.read(from: signersURL) {
+        isAuthorized = signersFile.entries.contains { $0.matches(keyString: pubKey) && $0.isActive() }
       }
     }
 

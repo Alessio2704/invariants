@@ -17,7 +17,7 @@ struct DevCommand: AsyncParsableCommand {
 
       let env = SystemEnvironment.standard
       for language in SupportedLanguage.allCases {
-        let files = language.spec.devWorkspaceFiles(repoRootURL: RepoLocator.current, environment: env)
+        let files = language.spec.devWorkspaceFiles(environment: env)
         for file in files {
           let fileURL = devDir.appendingPathComponent(file.relativePath)
           let parentDir = fileURL.deletingLastPathComponent()
