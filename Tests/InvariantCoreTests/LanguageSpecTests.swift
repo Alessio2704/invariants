@@ -117,75 +117,14 @@ struct LanguageSpecTests {
     #expect(decoded[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "tsconfig.node.json"])
   }
 
-  @Test("LanguageCLIParser parses valid language configurations into ProjectConfig")
-  func languageCLIParserValid() throws {
-    var project = ProjectConfig()
-
-    try LanguageCLIParser.apply(entry: "swift.indexStore=build/MyDataStore", into: &project)
-    #expect(project[SwiftLanguage.self]?.indexStore == "build/MyDataStore")
-
-    try LanguageCLIParser.apply(
-      entry: "ts.tsconfig=tsconfig.json,packages/core/tsconfig.json",
-      into: &project
-    )
-    #expect(project[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "packages/core/tsconfig.json"])
-
-    // Overwrite existing configuration
-    try LanguageCLIParser.apply(entry: "swift.indexStore=build_sim/NewStore", into: &project)
-    #expect(project[SwiftLanguage.self]?.indexStore == "build_sim/NewStore")
-  }
-
-  @Test("LanguageCLIParser rejects malformed entries with LanguageError and suggestions")
-  func languageCLIParserErrors() {
-    var project = ProjectConfig()
-
-    #expect(throws: LanguageError.invalidCLIFormat("no_equals_sign")) {
-      try LanguageCLIParser.apply(entry: "no_equals_sign", into: &project)
-    }
-
-    #expect(throws: LanguageError.invalidCLIFormat("no_dot_target=value")) {
-      try LanguageCLIParser.apply(entry: "no_dot_target=value", into: &project)
-    }
-
-    #expect(throws: LanguageError.unknownLanguage("rust", suggestion: nil)) {
-      try LanguageCLIParser.apply(entry: "rust.manifest=Cargo.toml", into: &project)
-    }
-
-    #expect(throws: LanguageError.unknownLanguage("typescript", suggestion: "ts")) {
-      try LanguageCLIParser.apply(entry: "typescript.tsconfig=tsconfig.json", into: &project)
-    }
-
-    #expect(
-      throws: LanguageError.unsupportedField(
-        language: "swift",
-        field: "tsconfig",
-        expected: ["indexStore"],
-        suggestion: nil
-      )
-    ) {
-      try LanguageCLIParser.apply(entry: "swift.tsconfig=tsconfig.json", into: &project)
-    }
-
-    #expect(
-      throws: LanguageError.unsupportedField(
-        language: "ts",
-        field: "config",
-        expected: ["tsconfig"],
-        suggestion: "tsconfig"
-      )
-    ) {
-      try LanguageCLIParser.apply(entry: "ts.config=tsconfig.json", into: &project)
-    }
-  }
-
-  @Test("LanguageCLIParser helpDiscussion details all supported languages and syntax")
-  func helpDiscussionContent() {
-    let discussion = LanguageCLIParser.helpDiscussion
-    for language in SupportedLanguage.allCases {
-      #expect(discussion.contains("\(language.rawValue) (\(language.spec.displayName)):"))
-      for example in language.spec.fieldExamples {
-        #expect(discussion.contains(example))
-      }
+  @Test(
+    "All supported languages define non-empty sourceExtensions",
+    arguments: SupportedLanguage.allCases
+  )
+  func sourceExtensionsValidation(language: SupportedLanguage) {
+    #expect(!language.spec.sourceExtensions.isEmpty)
+    for ext in language.spec.sourceExtensions {
+      #expect(!ext.hasPrefix("."), "sourceExtensions should be bare extensions without leading dots")
     }
   }
 

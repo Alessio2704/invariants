@@ -1,5 +1,8 @@
+public import ArgumentParser
 import Foundation
 import InvariantCore
+
+extension SupportedLanguage: ExpressibleByArgument {}
 
 enum CLIError: LocalizedError, Equatable {
   case notInsideGitRepository

@@ -12,11 +12,10 @@ struct ConfigCommand: AsyncParsableCommand {
     name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
-      "Language input in <lang>.<field>=<value> format.",
-      discussion: LanguageCLIParser.helpDiscussion
+      "Target languages to reconfigure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")))."
     )
   )
-  var languages: [String] = []
+  var languages: [SupportedLanguage] = []
 
   @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
   var defaultBranch: String?
@@ -36,20 +35,47 @@ struct ConfigCommand: AsyncParsableCommand {
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
-    if languages.isEmpty && defaultBranch == nil {
-      print("No configuration changes specified. Use --languages <language>.<field>=<value> or --default-branch.")
+    let targetLanguages: [SupportedLanguage]
+    if !languages.isEmpty {
+      targetLanguages = languages
+    } else if defaultBranch == nil && CLIHelpers.isInteractive {
+      let prompter = CLIInteractivePrompter()
+      prompter.printLine("Select language to reconfigure:")
+      for (idx, lang) in SupportedLanguage.allCases.enumerated() {
+        let currentDesc = lang.spec.describeConfig(in: registry.project ?? ProjectConfig())
+        prompter.printLine("  [\(idx + 1)] \(lang.spec.displayName) (current: \(currentDesc))")
+      }
+      let choice = prompter.prompt(
+        question: "Select languages [1-\(SupportedLanguage.allCases.count)] (comma-separated, or Enter to cancel)"
+      )
+      guard !choice.isEmpty else {
+        print("No configuration changes specified.")
+        return
+      }
+      let numbers = choice.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+      targetLanguages = numbers.compactMap { num in
+        guard num >= 1 && num <= SupportedLanguage.allCases.count else { return nil }
+        return SupportedLanguage.allCases[num - 1]
+      }
+    } else if defaultBranch == nil {
+      print("No configuration changes specified. Use --languages or --default-branch.")
+      return
+    } else {
+      targetLanguages = []
+    }
+
+    let prompter: (any InteractivePrompter)? = CLIHelpers.isInteractive ? CLIInteractivePrompter() : nil
+    let oldProject = registry.project ?? ProjectConfig()
+    var newProject = oldProject
+    for lang in targetLanguages {
+      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &newProject)
+    }
+
+    if newProject == oldProject && defaultBranch == nil {
+      print("No configuration changes made.")
       return
     }
 
-    let oldProject = registry.project ?? ProjectConfig()
-    var newProject = oldProject
-    for entry in languages {
-      do {
-        try LanguageCLIParser.apply(entry: entry, into: &newProject)
-      } catch {
-        throw ValidationError(error.description)
-      }
-    }
     let oldDefaultBranch = registry.defaultBranch
     if let defaultBranch {
       registry.defaultBranch = defaultBranch

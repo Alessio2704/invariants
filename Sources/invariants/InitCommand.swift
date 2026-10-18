@@ -15,11 +15,10 @@ struct InitCommand: AsyncParsableCommand {
     name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
-      "Language input in <lang>.<field>=<value> format.",
-      discussion: LanguageCLIParser.helpDiscussion
+      "Target languages to configure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")))."
     )
   )
-  var languages: [String] = []
+  var languages: [SupportedLanguage] = []
 
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
@@ -37,17 +36,7 @@ struct InitCommand: AsyncParsableCommand {
 
     // 2. Detect project inputs interactively or via flags
     var projectConfig = ProjectConfig()
-    if !languages.isEmpty {
-      for entry in languages {
-        do {
-          try LanguageCLIParser.apply(entry: entry, into: &projectConfig)
-        } catch {
-          throw ValidationError(error.description)
-        }
-      }
-    } else {
-      selectLanguageConfigurations(repoRootURL: repoRootURL, into: &projectConfig)
-    }
+    resolveLanguageConfigurations(repoRootURL: repoRootURL, into: &projectConfig)
 
     // 3. Select default trunk branch
     let defaultBranch = await selectDefaultBranch(repoRootURL: repoRootURL)
@@ -70,6 +59,65 @@ struct InitCommand: AsyncParsableCommand {
   }
 
   // MARK: - Helper Methods
+
+  private func resolveLanguageConfigurations(repoRootURL: URL, into projectConfig: inout ProjectConfig) {
+    let prompter: (any InteractivePrompter)? = CLIHelpers.isInteractive ? CLIInteractivePrompter() : nil
+    let targetLanguages: [SupportedLanguage]
+
+    if !languages.isEmpty {
+      targetLanguages = languages
+    } else {
+      let detected = SupportedLanguage.allCases.filter { $0.spec.hasSources(in: repoRootURL) }
+      if !detected.isEmpty {
+        if let prompter {
+          prompter.printLine("\nDiscovered languages in this repository:")
+          for lang in detected {
+            let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+            prompter.printLine("  • \(lang.spec.displayName) (\(exts))")
+          }
+          let confirmed = prompter.promptConfirmation(
+            question: "Configure invariants for discovered languages?",
+            default: true
+          )
+          if confirmed {
+            targetLanguages = detected
+          } else {
+            targetLanguages = promptForLanguages(prompter: prompter)
+          }
+        } else {
+          targetLanguages = detected
+        }
+      } else {
+        if let prompter {
+          prompter.printLine("\nNo known source files detected in repository.")
+          targetLanguages = promptForLanguages(prompter: prompter)
+        } else {
+          targetLanguages = []
+        }
+      }
+    }
+
+    for lang in targetLanguages {
+      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &projectConfig)
+    }
+  }
+
+  private func promptForLanguages(prompter: any InteractivePrompter) -> [SupportedLanguage] {
+    prompter.printLine("\nAvailable languages:")
+    for (idx, lang) in SupportedLanguage.allCases.enumerated() {
+      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+      prompter.printLine("  [\(idx + 1)] \(lang.spec.displayName) (extensions: \(exts))")
+    }
+    let choice = prompter.prompt(
+      question: "Select languages to configure (comma-separated numbers, e.g. 1, 2 or press Enter to skip)"
+    )
+    guard !choice.isEmpty else { return [] }
+    let numbers = choice.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+    return numbers.compactMap { num in
+      guard num >= 1 && num <= SupportedLanguage.allCases.count else { return nil }
+      return SupportedLanguage.allCases[num - 1]
+    }
+  }
 
   private func selectDefaultBranch(repoRootURL: URL) async -> String {
     if let branch {
@@ -111,13 +159,5 @@ struct InitCommand: AsyncParsableCommand {
     }
 
     return branches[0]
-  }
-
-  private func selectLanguageConfigurations(repoRootURL: URL, into projectConfig: inout ProjectConfig) {
-    let prompter: (any InteractivePrompter)? = CLIHelpers.isInteractive ? CLIInteractivePrompter() : nil
-    for lang in SupportedLanguage.allCases {
-      guard lang.spec.hasSources(in: repoRootURL) else { continue }
-      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &projectConfig)
-    }
   }
 }
