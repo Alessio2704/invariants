@@ -125,17 +125,7 @@ enum TerminalPrompt {
     )
     if shouldGenerate {
       do {
-        print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
-        let key = try await SigningKeyResolver.generateHardwareKey(force: false)
-        let pubURL = key.appendingPathExtension("pub")
-        let pubStr = (try? String(contentsOf: pubURL, encoding: .utf8))?
-          .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let pubKey = pubStr, !pubKey.isEmpty {
-          print("✓ Created Apple Secure Enclave P-256 signing key: \(key.path)")
-          print("✓ Protected by Touch ID biometric hardware authorization\n")
-          print("Public Key:\n  \(pubKey)\n")
-        }
-        return key
+        return try await KeyCommand.generateHardwareKey(force: false, showContextualStatus: false)
       } catch {
         fputs("Warning: Could not generate Secure Enclave key: \(error)\n", stderr)
       }

@@ -21,28 +21,4 @@ public enum SigningKeyResolver: Sendable {
 
     return nil
   }
-
-  /// Generates a dedicated Touch ID signing key in Apple Secure Enclave.
-  @discardableResult
-  public static func generateHardwareKey(
-    at destinationURL: URL = SystemEnvironment.defaultSigningKeyURL,
-    force: Bool = false
-  ) async throws -> URL {
-    let pubURL = destinationURL.appendingPathExtension("pub")
-
-    if FileManager.default.fileExists(atPath: destinationURL.path) && !force {
-      return destinationURL
-    }
-
-    let token = try await Authorizer.authorizeBiometrics(
-      reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
-    )
-    try SigningClient.generateSigningKey(at: destinationURL, token: token)
-
-    guard FileManager.default.fileExists(atPath: pubURL.path) else {
-      throw SystemError.cryptographicError("Could not create public key at \(pubURL.path)")
-    }
-
-    return destinationURL
-  }
 }

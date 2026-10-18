@@ -380,7 +380,10 @@ extension KeyCommand {
 
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     do {
-      _ = try await SigningKeyResolver.generateHardwareKey(at: defaultKey, force: force)
+      let token = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
+      )
+      try SigningClient.generateSigningKey(at: defaultKey, token: token)
     } catch {
       fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
       throw ExitCode(1)
