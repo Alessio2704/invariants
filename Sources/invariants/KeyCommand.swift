@@ -28,61 +28,7 @@ struct KeyCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-      let defaultKey = SystemEnvironment.defaultSigningKeyURL
-      let defaultPub = defaultKey.appendingPathExtension("pub")
-
-      if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
-        print("Local signing key already exists at \(defaultKey.path).")
-        let pub = try? String(contentsOf: defaultPub, encoding: .utf8)
-          .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let pub, !pub.isEmpty {
-          print("\nPublic Key:\n  \(pub)")
-        }
-        print("\nUse 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
-        return
-      }
-
-      print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
-      let signingClient = SigningClient()
-      do {
-        try await signingClient.generateSigningKey(at: defaultKey)
-      } catch {
-        fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
-        throw ExitCode(1)
-      }
-
-      guard
-        let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
-          in: .whitespacesAndNewlines)
-      else {
-        fputs("Error: Key was generated but could not read public key at \(defaultPub.path).\n", stderr)
-        throw ExitCode(1)
-      }
-
-      print("✓ Created Apple Secure Enclave P-256 signing key: \(defaultKey.path)")
-      print("✓ Protected by Touch ID biometric hardware authorization")
-      print("\nPublic Key:")
-      print("  \(pubKey)\n")
-
-      // Contextual check: Are we inside an Invariants repository?
-      if let repoRoot = CLIHelpers.findRepoRoot() {
-        let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
-        if FileManager.default.fileExists(atPath: signersURL.path) {
-          let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
-          if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
-            print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
-          } else {
-            print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
-            print("Share your public key above with a repository lead to be added via:")
-            print("    invariants signers add \"\(pubKey)\"")
-          }
-        } else {
-          print(
-            "ℹ️  Invariants is not initialized in '\(repoRoot.lastPathComponent)'. Run 'invariants init' to seal it.")
-        }
-      } else {
-        print("Share your public key above with your repository lead to be added as an authorized signer.")
-      }
+      _ = try await KeyCommand.generateHardwareKey(force: force, showContextualStatus: true)
     }
   }
 
@@ -397,6 +343,77 @@ struct KeyCommand: AsyncParsableCommand {
       }
 
       print("✓ Cleaned up \(deletedCount) rotation backup file(s) from \(sshDir.path).")
+    }
+  }
+}
+
+extension KeyCommand {
+  @discardableResult
+  static func generateHardwareKey(
+    force: Bool = false,
+    showContextualStatus: Bool = true
+  ) async throws -> URL {
+    let defaultKey = SystemEnvironment.defaultSigningKeyURL
+    let defaultPub = defaultKey.appendingPathExtension("pub")
+
+    if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
+      print("Local signing key already exists at \(defaultKey.path).")
+      let pub = try? String(contentsOf: defaultPub, encoding: .utf8)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if let pub, !pub.isEmpty {
+        print("\nPublic Key:\n  \(pub)")
+      }
+      print("\nUse 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
+      return defaultKey
+    }
+
+    print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
+    let signingClient = SigningClient()
+    do {
+      try await signingClient.generateSigningKey(at: defaultKey)
+    } catch {
+      fputs("Error: Could not generate Secure Enclave key: \(error)\n", stderr)
+      throw ExitCode(1)
+    }
+
+    guard
+      let pubKey = try? String(contentsOf: defaultPub, encoding: .utf8).trimmingCharacters(
+        in: .whitespacesAndNewlines)
+    else {
+      fputs("Error: Key was generated but could not read public key at \(defaultPub.path).\n", stderr)
+      throw ExitCode(1)
+    }
+
+    print("✓ Created Apple Secure Enclave P-256 signing key: \(defaultKey.path)")
+    print("✓ Protected by Touch ID biometric hardware authorization")
+    print("\nPublic Key:")
+    print("  \(pubKey)\n")
+
+    if showContextualStatus {
+      printContextualStatus(pubKey: pubKey)
+    }
+
+    return defaultKey
+  }
+
+  private static func printContextualStatus(pubKey: String) {
+    if let repoRoot = CLIHelpers.findRepoRoot() {
+      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+      if FileManager.default.fileExists(atPath: signersURL.path) {
+        let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
+        if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
+          print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
+        } else {
+          print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
+          print("Share your public key above with a repository lead to be added via:")
+          print("    invariants signers add \"\(pubKey)\"")
+        }
+      } else {
+        print(
+          "ℹ️  Invariants is not initialized in '\(repoRoot.lastPathComponent)'. Run 'invariants init' to seal it.")
+      }
+    } else {
+      print("Share your public key above with your repository lead to be added as an authorized signer.")
     }
   }
 }

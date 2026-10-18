@@ -97,18 +97,13 @@ enum CLIHelpers {
     }
 
     if isInteractive {
-      let defaultKey = SystemEnvironment.defaultSigningKeyURL
       let shouldGenerate = promptConfirmation(
         question: "Signing key not found at ~/.ssh/invariants_p256. Generate a Touch ID hardware key now?",
         default: true
       )
       if shouldGenerate {
-        print("Touch your Touch ID sensor to enroll your hardware signing key...")
-        let signingClient = SigningClient()
         do {
-          try await signingClient.generateSigningKey(at: defaultKey)
-          print("✓ Created hardware signing key at \(defaultKey.path)")
-          return defaultKey
+          return try await KeyCommand.generateHardwareKey(force: false, showContextualStatus: false)
         } catch {
           fputs("Warning: Could not generate Secure Enclave key: \(error)\n", stderr)
         }
