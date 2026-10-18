@@ -112,10 +112,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       ? kitSwiftSrc.appendingPathComponent("Sources/InvariantKit")
       : workDir.appendingPathComponent("Sources/InvariantKit")
     try fm.copyItem(at: invariantKitSrc, to: kitSwiftDest.appendingPathComponent("InvariantKit"))
-    let packageSwiftSrc =
-      fm.fileExists(atPath: kitSwiftSrc.appendingPathComponent("Package.swift").path)
-      ? kitSwiftSrc.appendingPathComponent("Package.swift")
-      : workDir.appendingPathComponent("templates/kit-swift/Package.swift")
+    let packageSwiftSrc = kitSwiftSrc.appendingPathComponent("Package.swift")
     try fm.copyItem(at: packageSwiftSrc, to: stageDir.appendingPathComponent("kits/kit-swift/Package.swift"))
 
     if fm.fileExists(atPath: workDir.appendingPathComponent("Package.resolved").path) {

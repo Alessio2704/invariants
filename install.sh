@@ -51,13 +51,8 @@ $SUDO /bin/sh -c "set -e
   mkdir -p '$PREFIX/versions/$V'
   cp '$WORK/.build/release/invariants' '$PREFIX/versions/$V/'
   mkdir -p '$PREFIX/versions/$V/kits/kit-swift/Sources'
-  if [ -d '$WORK/kits/kit-swift/Sources/InvariantKit' ]; then
-    cp -R '$WORK/kits/kit-swift/Sources/InvariantKit' '$PREFIX/versions/$V/kits/kit-swift/Sources/'
-    cp '$WORK/kits/kit-swift/Package.swift' '$PREFIX/versions/$V/kits/kit-swift/Package.swift'
-  else
-    cp -R '$WORK/Sources/InvariantKit' '$PREFIX/versions/$V/kits/kit-swift/Sources/'
-    cp '$WORK/templates/kit-swift/Package.swift' '$PREFIX/versions/$V/kits/kit-swift/Package.swift'
-  fi
+  cp -R '$WORK/kits/kit-swift/Sources/InvariantKit' '$PREFIX/versions/$V/kits/kit-swift/Sources/'
+  cp '$WORK/kits/kit-swift/Package.swift' '$PREFIX/versions/$V/kits/kit-swift/Package.swift'
   cp '$WORK/Package.resolved' '$PREFIX/versions/$V/kits/kit-swift/Package.resolved'
   mkdir -p '$PREFIX/versions/$V/kits/kit-ts'
   if [ -d '$WORK/kits/kit-ts' ]; then

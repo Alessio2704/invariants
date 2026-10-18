@@ -1,8 +1,0 @@
-#!/bin/sh
-set -e
-REFS="$(cat)"
-LOCAL="$(git rev-parse --show-toplevel)/.githooks/pre-push.local"
-if [ -f "$LOCAL" ]; then
-  printf '%s\n' "$REFS" | "$LOCAL" "$@"
-fi
-printf '%s\n' "$REFS" | exec /usr/local/bin/invariants check --stage pre-push "$@"

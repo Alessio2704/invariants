@@ -379,7 +379,11 @@ struct LanguageSpecTests {
 
     #expect(SwiftLanguage.hasSources(in: tmpDir))
 
-    // TypeScript file in node_modules or .d.ts should NOT count as sources
+    // TypeScript file in node_modules, kits, or .d.ts should NOT count as sources
+    let kitsTs = tmpDir.appendingPathComponent("kits/kit-ts/src/runner.ts")
+    try fm.createDirectory(at: kitsTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// ts".utf8).write(to: kitsTs)
+
     let nodeModulesTs = tmpDir.appendingPathComponent("node_modules/react/index.ts")
     try fm.createDirectory(at: nodeModulesTs.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data("// ts".utf8).write(to: nodeModulesTs)
@@ -396,5 +400,15 @@ struct LanguageSpecTests {
     try Data("// ts".utf8).write(to: realTs)
 
     #expect(TypeScriptLanguage.hasSources(in: tmpDir))
+  }
+
+  @Test("invariants repository root detects only Swift sources and skips kits")
+  func invariantsRepoRootDetectsOnlySwift() {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    #expect(SwiftLanguage.hasSources(in: repoRoot))
+    #expect(!TypeScriptLanguage.hasSources(in: repoRoot))
   }
 }
