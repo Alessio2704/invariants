@@ -224,8 +224,13 @@ struct KeyCommand: AsyncParsableCommand {
         }
       }
 
-      try? FileManager.default.removeItem(at: defaultKey)
-      try? FileManager.default.removeItem(at: defaultPub)
+      print("Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key...")
+      do {
+        try await SigningClient.deleteSigningKey(at: defaultKey)
+      } catch {
+        fputs("Error: Could not delete signing key: \(error)\n", stderr)
+        throw ExitCode(1)
+      }
 
       print("✓ Deleted local signing key: \(defaultKey.path)")
       print("\n⚠️  Important Reminder:")

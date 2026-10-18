@@ -164,4 +164,66 @@ struct KeyLifecycleTests {
     #expect(rotatedSigners.contains(oldPub))
     #expect(rotatedSigners.contains(newPub))
   }
+
+  @Test("SigningClient deleteSigningKey returns early when target key does not exist")
+  func deleteSigningKeyNonExistent() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
+    let nonExistentKey = tmpDir.appendingPathComponent("non_existent_key")
+    try await SigningClient.deleteSigningKey(at: nonExistentKey) { _ in
+      Issue.record("Authenticator should not be called when key does not exist")
+    }
+  }
+
+  @Test("SigningClient deleteSigningKey removes key and pub atomically upon biometric confirmation")
+  func deleteSigningKeySuccess() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let keyURL = tmpDir.appendingPathComponent("key_to_delete")
+    let pubURL = keyURL.appendingPathExtension("pub")
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+    #expect(FileManager.default.fileExists(atPath: keyURL.path))
+    #expect(FileManager.default.fileExists(atPath: pubURL.path))
+
+    final class AuthPromptBox: @unchecked Sendable {
+      var prompt: String?
+    }
+    let box = AuthPromptBox()
+    try await SigningClient.deleteSigningKey(at: keyURL) { reason in
+      box.prompt = reason
+    }
+
+    #expect(box.prompt?.contains("Touch ID") == true)
+    #expect(!FileManager.default.fileExists(atPath: keyURL.path))
+    #expect(!FileManager.default.fileExists(atPath: pubURL.path))
+  }
+
+  @Test("SigningClient deleteSigningKey aborts and preserves credentials if biometric authorization fails")
+  func deleteSigningKeyBiometricFailureAborts() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("del_test_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let keyURL = tmpDir.appendingPathComponent("key_protected")
+    let pubURL = keyURL.appendingPathExtension("pub")
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+    #expect(FileManager.default.fileExists(atPath: keyURL.path))
+    #expect(FileManager.default.fileExists(atPath: pubURL.path))
+
+    do {
+      try await SigningClient.deleteSigningKey(at: keyURL) { _ in
+        throw SystemError.cryptographicError("Touch ID biometric verification failed.")
+      }
+      Issue.record("Expected deleteSigningKey to throw when biometric authentication fails")
+    } catch {
+      #expect(error == .cryptographicError("Touch ID biometric verification failed."))
+    }
+
+    // Key and pub MUST be preserved on disk
+    #expect(FileManager.default.fileExists(atPath: keyURL.path))
+    #expect(FileManager.default.fileExists(atPath: pubURL.path))
+  }
 }
