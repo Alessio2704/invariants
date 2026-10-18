@@ -20,7 +20,7 @@ package enum SigningKeyWorkflow {
     )
     if shouldGenerate {
       do {
-        return try await HardwareKeyWorkflow.generate(force: false, showContextualStatus: false)
+        return try await HardwareKeyWorkflow.generate(force: false)
       } catch {
         fputs("Warning: Could not generate Secure Enclave key: \(error)\n", stderr)
       }

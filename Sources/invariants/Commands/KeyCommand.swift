@@ -29,12 +29,17 @@ struct KeyCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-      if let root = try? RepoLocator.discover() {
-        _ = try await RepoLocator.withRepoRoot(root) {
-          try await HardwareKeyWorkflow.generate(force: force, showContextualStatus: true)
+      let keyURL = try await HardwareKeyWorkflow.generate(force: force)
+      let pubURL = keyURL.appendingPathExtension("pub")
+      let pubContent = try? String(contentsOf: pubURL, encoding: .utf8)
+      if let pubKey = pubContent?.trimmingCharacters(in: .whitespacesAndNewlines) {
+        if let root = try? RepoLocator.discover() {
+          RepoLocator.withRepoRoot(root) {
+            HardwareKeyWorkflow.printProjectEnrollment(pubKey: pubKey)
+          }
+        } else {
+          print("Share your public key above with your repository lead to be added as an authorized signer.")
         }
-      } else {
-        _ = try await HardwareKeyWorkflow.generate(force: force, showContextualStatus: true)
       }
     }
   }
@@ -62,12 +67,13 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async {
+      let pubKey = await HardwareKeyWorkflow.statusLocal()
       if let root = try? RepoLocator.discover() {
-        await RepoLocator.withRepoRoot(root) {
-          await HardwareKeyWorkflow.status()
+        RepoLocator.withRepoRoot(root) {
+          HardwareKeyWorkflow.statusProject(for: pubKey)
         }
       } else {
-        await HardwareKeyWorkflow.status()
+        HardwareKeyWorkflow.statusProjectOutsideRepo()
       }
     }
   }

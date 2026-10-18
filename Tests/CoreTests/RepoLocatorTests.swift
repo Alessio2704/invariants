@@ -5,17 +5,12 @@ import Testing
 
 @Suite("Repository Locator & Task-Local Context", .tags(.unit))
 struct RepoLocatorTests {
-  @Test("RepoLocator.hasCurrent reflects active scope")
-  func hasCurrentReflection() {
-    #expect(!RepoLocator.hasCurrent)
-
+  @Test("RepoLocator.withRepoRoot binds current repository URL")
+  func synchronousBinding() {
     let dummyURL = URL(fileURLWithPath: "/tmp/fake_repo")
     RepoLocator.withRepoRoot(dummyURL) {
-      #expect(RepoLocator.hasCurrent)
       #expect(RepoLocator.current == dummyURL)
     }
-
-    #expect(!RepoLocator.hasCurrent)
   }
 
   @Test("RepoLocator.withRepoRoot propagates across async calls and child tasks")
@@ -23,7 +18,6 @@ struct RepoLocatorTests {
     let dummyURL = URL(fileURLWithPath: "/tmp/async_repo")
 
     await RepoLocator.withRepoRoot(dummyURL) {
-      #expect(RepoLocator.hasCurrent)
       #expect(RepoLocator.current == dummyURL)
 
       // Child task via Task
@@ -55,8 +49,6 @@ struct RepoLocatorTests {
 
       #expect(RepoLocator.current == parentURL)
     }
-
-    #expect(!RepoLocator.hasCurrent)
   }
 
   @Test("RepoLocator.discover detects .git boundary")

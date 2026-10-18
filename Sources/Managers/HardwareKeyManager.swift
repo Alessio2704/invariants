@@ -10,22 +10,19 @@ package enum HardwareKeyManager {
     package let keyType: String?
     package let fingerprint: String?
     package let backupCount: Int
-    package let isAuthorizedInRepo: Bool
 
     package init(
       keyURL: URL,
       pubKey: String?,
       keyType: String?,
       fingerprint: String?,
-      backupCount: Int,
-      isAuthorizedInRepo: Bool
+      backupCount: Int
     ) {
       self.keyURL = keyURL
       self.pubKey = pubKey
       self.keyType = keyType
       self.fingerprint = fingerprint
       self.backupCount = backupCount
-      self.isAuthorizedInRepo = isAuthorizedInRepo
     }
   }
 
@@ -132,21 +129,12 @@ package enum HardwareKeyManager {
     let items = (try? FileManager.default.contentsOfDirectory(atPath: sshDir.path)) ?? []
     let backupCount = items.filter { $0.hasPrefix(SystemPaths.keyBackupPrefix) && !$0.hasSuffix(".pub") }.count
 
-    var isAuthorized: Bool = false
-    if RepoLocator.hasCurrent, let pubKey {
-      let signersURL = RegistryManager.allowedSignersURL()
-      if let signersFile = try? AllowedSignersFile.read(from: signersURL) {
-        isAuthorized = signersFile.entries.contains { $0.matches(keyString: pubKey) && $0.isActive() }
-      }
-    }
-
     return KeyInspectionResult(
       keyURL: keyURL,
       pubKey: pubKey,
       keyType: keyType,
       fingerprint: fingerprint,
-      backupCount: backupCount,
-      isAuthorizedInRepo: isAuthorized
+      backupCount: backupCount
     )
   }
 }

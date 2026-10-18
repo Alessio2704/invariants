@@ -30,11 +30,6 @@ public enum RepoLocator: Sendable {
     return root
   }
 
-  /// Whether an ambient repository root is currently bound in the active task hierarchy.
-  public static var hasCurrent: Bool {
-    _current != nil
-  }
-
   /// Executes an asynchronous operation within the scoped context of a repository root URL.
   public static func withRepoRoot<R>(_ url: URL, operation: () async throws -> R) async rethrows -> R {
     try await $_current.withValue(url.standardizedFileURL) {
