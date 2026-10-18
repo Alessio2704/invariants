@@ -11,42 +11,42 @@ package enum LanguageConfigWorkflow {
     repoRootURL: URL,
     baseConfig: ProjectConfig = ProjectConfig()
   ) -> ProjectConfig {
-    let targetLanguages: [SupportedLanguage]
-
-    if !explicitLanguages.isEmpty {
-      targetLanguages = explicitLanguages
-    } else {
-      let detected = LanguageConfigManager.detectLanguages(in: repoRootURL)
-      if !detected.isEmpty {
-        if TerminalPrompt.isInteractive {
-          print("\nDiscovered languages in this repository:")
-          for lang in detected {
-            let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
-            print("  • \(lang.spec.displayName) (\(exts))")
-          }
-          let confirmed = TerminalPrompt.promptConfirmation(
-            question: "Configure invariants for discovered languages?",
-            default: true
-          )
-          if confirmed {
-            targetLanguages = detected
-          } else {
-            targetLanguages = promptForLanguageSelection()
-          }
-        } else {
-          targetLanguages = detected
-        }
-      } else {
-        if TerminalPrompt.isInteractive {
-          print("\nNo known source files detected in repository.")
-          targetLanguages = promptForLanguageSelection()
-        } else {
-          targetLanguages = []
-        }
-      }
+    guard explicitLanguages.isEmpty else {
+      return configure(languages: explicitLanguages, in: repoRootURL, baseConfig: baseConfig)
     }
 
+    let targetLanguages = resolveDiscoveredOrInteractiveLanguages(in: repoRootURL)
     return configure(languages: targetLanguages, in: repoRootURL, baseConfig: baseConfig)
+  }
+
+  private static func resolveDiscoveredOrInteractiveLanguages(in repoRootURL: URL) -> [SupportedLanguage] {
+    let detected = LanguageConfigManager.detectLanguages(in: repoRootURL)
+
+    guard !detected.isEmpty else {
+      guard TerminalPrompt.isInteractive else { return [] }
+      print("\nNo known source files detected in repository.")
+      return promptForLanguageSelection()
+    }
+
+    guard TerminalPrompt.isInteractive else {
+      return detected
+    }
+
+    print("\nDiscovered languages in this repository:")
+    for lang in detected {
+      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+      print("  • \(lang.spec.displayName) (\(exts))")
+    }
+
+    let confirmed = TerminalPrompt.promptConfirmation(
+      question: "Configure invariants for discovered languages?",
+      default: true
+    )
+    guard confirmed else {
+      return promptForLanguageSelection()
+    }
+
+    return detected
   }
 
   /// Interactively configures a collection of languages and returns the updated project configuration.

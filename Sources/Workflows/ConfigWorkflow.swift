@@ -19,24 +19,14 @@ package enum ConfigWorkflow {
       installedEngineVersion: EngineVersion.current
     )
 
-    let targetLanguages: [SupportedLanguage]
-    if !languages.isEmpty {
-      targetLanguages = languages
-    } else if defaultBranch == nil && TerminalPrompt.isInteractive {
-      let options = SupportedLanguage.allCases.map { lang in
-        let currentDesc = lang.spec.describeConfig(in: registry.project ?? ProjectConfig())
-        return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
-      }
-      targetLanguages = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)
-      guard !targetLanguages.isEmpty else {
-        print("No configuration changes specified.")
-        return
-      }
-    } else if defaultBranch == nil {
-      print("No configuration changes specified. Use --languages or --default-branch.")
+    guard
+      let targetLanguages = resolveTargetLanguages(
+        explicitLanguages: languages,
+        defaultBranch: defaultBranch,
+        project: registry.project ?? ProjectConfig()
+      )
+    else {
       return
-    } else {
-      targetLanguages = []
     }
 
     let oldProject = registry.project ?? ProjectConfig()
@@ -46,7 +36,7 @@ package enum ConfigWorkflow {
       baseConfig: oldProject
     )
 
-    if newProject == oldProject && defaultBranch == nil {
+    guard newProject != oldProject || defaultBranch != nil else {
       print("No configuration changes made.")
       return
     }
@@ -164,7 +154,7 @@ package enum ConfigWorkflow {
     if TerminalPrompt.isInteractive {
       let confirm = TerminalPrompt.promptConfirmation(
         question: "Sign and commit new configuration?", default: true)
-      if !confirm {
+      guard confirm else {
         print("Aborted.")
         return
       }
@@ -194,6 +184,36 @@ package enum ConfigWorkflow {
     )
 
     print("✓ Configuration updated in registry v\(registry.version).")
+  }
+
+  private static func resolveTargetLanguages(
+    explicitLanguages: [SupportedLanguage],
+    defaultBranch: String?,
+    project: ProjectConfig
+  ) -> [SupportedLanguage]? {
+    guard explicitLanguages.isEmpty else {
+      return explicitLanguages
+    }
+
+    guard defaultBranch == nil else {
+      return []
+    }
+
+    guard TerminalPrompt.isInteractive else {
+      print("No configuration changes specified. Use --languages or --default-branch.")
+      return nil
+    }
+
+    let options = SupportedLanguage.allCases.map { lang in
+      let currentDesc = lang.spec.describeConfig(in: project)
+      return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
+    }
+    let selected = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)
+    guard !selected.isEmpty else {
+      print("No configuration changes specified.")
+      return nil
+    }
+    return selected
   }
 }
 
