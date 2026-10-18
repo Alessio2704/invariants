@@ -41,7 +41,7 @@ extension RuleRunner {
 
     let output: ProcessOutput
     do {
-      output = try await runner.run(
+      output = try await SubprocessRunner.run(
         executableURL: runtimeURL,
         arguments: [runnerScriptURL.path, ruleFileURL.path, tempReqURL.path],
         workingDirectory: URL(fileURLWithPath: request.repoRoot),

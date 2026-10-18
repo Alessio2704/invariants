@@ -5,11 +5,7 @@ import Security
 
 /// Cryptographic signing and verification client combining Apple CryptoKit / Secure Enclave with OpenSSH allowed_signers verification.
 public struct SigningClient: Sendable {
-  private let runner: SubprocessRunner
-
-  public init(runner: SubprocessRunner = SubprocessRunner()) {
-    self.runner = runner
-  }
+  public init() {}
 
   /// Generates a hardware-bound P-256 signing key in the Apple Secure Enclave.
   /// Strictly requires Apple Secure Enclave hardware with Touch ID / Apple Watch biometric protection.
@@ -232,7 +228,7 @@ public struct SigningClient: Sendable {
       throw SystemError.fileIOError("Failed to read file for verification: \(error.localizedDescription)")
     }
 
-    let output = try await runner.run(
+    let output = try await SubprocessRunner.run(
       binary: .sshKeygen,
       arguments: [
         "-Y", "verify",

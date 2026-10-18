@@ -17,12 +17,11 @@ struct InitManagerTests {
     defer { try? fm.removeItem(at: tmpDir) }
 
     // Setup git repo
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Init Tester"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "tester@invariants.local"])
 
@@ -78,14 +77,14 @@ struct InitManagerTests {
     // 5. Verify NO git hooks hijacked
     let githooksDir = repoURL.appendingPathComponent(".githooks")
     #expect(!fm.fileExists(atPath: githooksDir.path))
-    let hooksCheck = try await runner.run(
+    let hooksCheck = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "--get", "core.hooksPath"]
     )
     #expect(hooksCheck.exitCode != 0 || hooksCheck.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
     // 6. Verify git commit exists with initial commit
-    let logOutput = try await runner.run(
+    let logOutput = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "log", "--oneline"]
     )
@@ -103,12 +102,11 @@ struct InitManagerTests {
     try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "develop"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Branch Tester"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
 

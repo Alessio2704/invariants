@@ -17,7 +17,6 @@ struct SelfUpdateCommand: AsyncParsableCommand {
   func run() async throws {
     let env = SystemEnvironment.standard
     let installer = InstallationManager()
-    let runner = SubprocessRunner()
     let fm = FileManager.default
 
     let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
@@ -51,7 +50,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     print("Extracting \(tag) archive...")
     let archiveCmd =
       "\(SystemBinary.git.path) archive '\(tag)' | \(SystemBinary.tar.path) -x -C '\(workDir.path)'"
-    let extractOutput = try await runner.runShell(archiveCmd)
+    let extractOutput = try await SubprocessRunner.runShell(archiveCmd)
     guard extractOutput.exitCode == 0 else {
       fputs("Error: Failed to extract tag archive: \(extractOutput.stderrString)\n", stderr)
       throw ExitCode(1)
@@ -59,7 +58,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
     // 2. Build release binary
     print("Building release binary for \(tag)...")
-    let buildOutput = try await runner.run(
+    let buildOutput = try await SubprocessRunner.run(
       binary: .xcrun,
       arguments: ["swift", "build", "-c", "release", "--package-path", workDir.path]
     )
@@ -70,7 +69,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
     // 3. Run test suite
     print("Running verification test suite...")
-    let testOutput = try await runner.run(
+    let testOutput = try await SubprocessRunner.run(
       binary: .xcrun,
       arguments: ["swift", "test", "--package-path", workDir.path]
     )
@@ -105,7 +104,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     // Build kit-ts if present
     let kitTsSrc = workDir.appendingPathComponent("kit-ts")
     if fm.fileExists(atPath: kitTsSrc.path) {
-      _ = try? await runner.run(
+      _ = try? await SubprocessRunner.run(
         executableURL: URL(fileURLWithPath: "/bin/sh"),
         arguments: ["-c", "cd '\(kitTsSrc.path)' && npm ci --ignore-scripts && npm run build"]
       )

@@ -191,12 +191,11 @@ struct AllowedSignersRevocationTests {
     try FileManager.default.createDirectory(at: fakeRoot, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Senior"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "senior@plans.local"])
 

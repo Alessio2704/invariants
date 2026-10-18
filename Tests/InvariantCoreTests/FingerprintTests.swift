@@ -13,8 +13,7 @@ struct FingerprintTests {
     defer { try? fm.removeItem(at: tmpDir) }
 
     // Initialize git repo
-    let runner = SubprocessRunner()
-    _ = try await runner.run(binary: .git, arguments: ["-C", tmpDir.path, "init"])
+    _ = try await SubprocessRunner.run(binary: .git, arguments: ["-C", tmpDir.path, "init"])
 
     let ruleDir = tmpDir.appendingPathComponent("invariants/rules/toy")
     try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)

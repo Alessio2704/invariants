@@ -12,12 +12,11 @@ struct FloorTests {
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", tmpDir.path, "config", "user.name", "Tester"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", tmpDir.path, "config", "user.email", "test@invariants.local"]
     )
@@ -55,8 +54,7 @@ struct FloorTests {
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", tmpDir.path, "init", "-b", "main"])
 
     let dummyFile = tmpDir.appendingPathComponent("file.txt")

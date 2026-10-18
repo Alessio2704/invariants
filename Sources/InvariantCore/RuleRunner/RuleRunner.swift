@@ -3,16 +3,13 @@ public import Foundation
 /// Builds and executes rule processes across supported languages according to their declarative execution specs.
 public struct RuleRunner: Sendable {
   public let environment: SystemEnvironment
-  let runner: SubprocessRunner
   public var timeoutSeconds: Double
 
   public init(
     environment: SystemEnvironment = .standard,
-    runner: SubprocessRunner = SubprocessRunner(),
     timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds
   ) {
     self.environment = environment
-    self.runner = runner
     self.timeoutSeconds = timeoutSeconds
   }
 

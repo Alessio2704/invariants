@@ -9,9 +9,8 @@ struct BranchingScenarioTests {
   @Test("Scenario 1: Invariants initialized on main, branched out to add rules, and merged back")
   func scenario1_initOnMainAndBranchMerge() async throws {
     let repo = try await TestRepo()
-    let signingClient = SigningClient()
     let gitClient = GitClient()
-    let runner = SubprocessRunner()
+    let signingClient = SigningClient()
     let manager = RegistryManager(environment: repo.environment, signingClient: signingClient)
 
     // 1. Initialized on main
@@ -20,7 +19,7 @@ struct BranchingScenarioTests {
     try await gitClient.commit(repoRoot: repo.repoURL, paths: ["."], message: "Init invariants on main")
 
     // 2. Branch out to feat/new-rule
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "-b", "feat/new-rule"]
     )
@@ -40,11 +39,11 @@ struct BranchingScenarioTests {
       repoRoot: repo.repoURL, pushedRefsInput: pushInput, defaultBranch: reg2.defaultBranch)
 
     // 4. Merge back into main
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "main"]
     )
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repo.repoURL.path, "merge", "--no-ff", "feat/new-rule", "-m", "Merge feat/new-rule into main"]
     )
@@ -62,7 +61,6 @@ struct BranchingScenarioTests {
   @Test("Scenario 2: Invariants initialized on feature branch, merged back into main")
   func scenario2_initOnFeatureBranchAndMerge() async throws {
     let repo = try await TestRepo()
-    let runner = SubprocessRunner()
     let gitClient = GitClient()
     let signingClient = SigningClient()
     let registryManager = RegistryManager(environment: repo.environment, signingClient: signingClient)
@@ -73,7 +71,7 @@ struct BranchingScenarioTests {
     try await gitClient.commit(repoRoot: repo.repoURL, paths: ["README.md"], message: "Initial commit on main")
 
     // 2. Checkout feature branch BEFORE initializing invariants
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "-b", "feat/setup-invariants"]
     )
@@ -89,11 +87,11 @@ struct BranchingScenarioTests {
     try await initManager.initialize(repoRootURL: repo.repoURL, options: options)
 
     // 4. Merge feature branch into main
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repo.repoURL.path, "checkout", "main"]
     )
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: [
         "-C", repo.repoURL.path, "merge", "--no-ff", "feat/setup-invariants", "-m", "Merge feat/setup-invariants",

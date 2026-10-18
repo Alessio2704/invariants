@@ -2,17 +2,13 @@ public import Foundation
 
 /// Manages installation, updates, and uninstallation of the Invariants engine on the host system.
 public struct InstallationManager: Sendable {
-  public let runner: SubprocessRunner
-
-  public init(runner: SubprocessRunner = SubprocessRunner()) {
-    self.runner = runner
-  }
+  public init() {}
 
   /// Creates a symbolic link, automatically elevating if the destination requires root privileges.
   public func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()
     let command = "mkdir -p '\(parent.path)' && ln -sfn '\(sourceURL.path)' '\(destinationURL.path)'"
-    _ = try await runner.runShell(command, targetURL: destinationURL, checkExitCode: true)
+    _ = try await SubprocessRunner.runShell(command, targetURL: destinationURL, checkExitCode: true)
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
@@ -23,7 +19,7 @@ public struct InstallationManager: Sendable {
     guard exists else { return }
 
     let command = "rm -rf '\(targetURL.path)'"
-    _ = try await runner.runShell(command, targetURL: targetURL, checkExitCode: true)
+    _ = try await SubprocessRunner.runShell(command, targetURL: targetURL, checkExitCode: true)
   }
 
   /// Installs an engine version payload from a staging directory into the system environment.
@@ -38,7 +34,7 @@ public struct InstallationManager: Sendable {
       mkdir -p '\(targetVersionDir.path)'
       cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
       """
-    _ = try await runner.runShell(copyCommand, targetURL: environment.rootURL, checkExitCode: true)
+    _ = try await SubprocessRunner.runShell(copyCommand, targetURL: environment.rootURL, checkExitCode: true)
 
     try await createSymlink(from: targetVersionDir, to: environment.currentVersionURL)
 
@@ -49,7 +45,7 @@ public struct InstallationManager: Sendable {
       chown -R root:wheel '\(environment.rootURL.path)' 2>/dev/null || true
       chmod -R go-w '\(environment.rootURL.path)' 2>/dev/null || true
       """
-    _ = try await runner.runShell(permsCommand, targetURL: environment.rootURL, checkExitCode: true)
+    _ = try await SubprocessRunner.runShell(permsCommand, targetURL: environment.rootURL, checkExitCode: true)
   }
 
   /// Completely uninstalls the invariants engine from the system environment.

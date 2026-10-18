@@ -24,10 +24,9 @@ struct SystemBinaryTests {
     }
   }
 
-  @Test("ProcessRunning executes command via SystemBinary overload")
-  func processRunningWithSystemBinary() async throws {
-    let runner = SubprocessRunner()
-    let output = try await runner.run(
+  @Test("SubprocessRunner executes command via SystemBinary overload")
+  func subprocessRunnerWithSystemBinary() async throws {
+    let output = try await SubprocessRunner.run(
       binary: .sh,
       arguments: ["-c", "echo 'system_binary_invocation'"]
     )

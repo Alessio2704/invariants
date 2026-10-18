@@ -123,8 +123,7 @@ struct ElevationAndInstallationTests {
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-    let runner = SubprocessRunner()
-    let output = try await runner.runShell(
+    let output = try await SubprocessRunner.runShell(
       "echo $MY_VAR && pwd",
       targetURL: tmpDir,
       workingDirectory: tmpDir,

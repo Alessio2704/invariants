@@ -24,12 +24,11 @@ final class TestRepo: @unchecked Sendable {
     try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
     try fm.createDirectory(at: rootURL, withIntermediateDirectories: true)
 
-    let runner = SubprocessRunner()
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Test User"])
-    _ = try await runner.run(
+    _ = try await SubprocessRunner.run(
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "user.email", "test@invariants.local"])
 

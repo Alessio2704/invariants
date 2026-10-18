@@ -58,7 +58,7 @@ extension RuleRunner {
 
     let output: ProcessOutput
     do {
-      output = try await runner.run(
+      output = try await SubprocessRunner.run(
         executableURL: binaryURL,
         arguments: ["--request", requestURL.path],
         workingDirectory: URL(fileURLWithPath: request.repoRoot),
@@ -191,7 +191,7 @@ extension RuleRunner {
       if args.contains("swift") {
         args.append(contentsOf: ["--package-path", cacheDirectory.path])
       }
-      buildOutput = try await runner.run(
+      buildOutput = try await SubprocessRunner.run(
         binary: spec.buildToolchain,
         arguments: args,
         workingDirectory: cacheDirectory,

@@ -21,11 +21,9 @@ public struct ProcessOutput: Sendable, Equatable {
   }
 }
 
-/// Strict wrapper for running system binaries with absolute paths and automatic elevation support.
-public struct SubprocessRunner: ProcessRunning, Sendable {
+/// Strict namespace for running system binaries with absolute paths and automatic elevation support.
+public enum SubprocessRunner: Sendable {
   public static let defaultTimeoutSeconds: Double = 600.0  // 10 minutes
-
-  public init() {}
 
   /// Determines whether writing to the target URL requires elevated privileges.
   public static func requiresElevation(for targetURL: URL) -> Bool {
@@ -45,10 +43,10 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
 
   /// Executes a system binary described by `request`, automatically elevating via `sudo` if the target location requires it.
   @discardableResult
-  public func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
+  public static func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
     let needsElevation: Bool
     if let targetURL = request.targetURL {
-      needsElevation = Self.requiresElevation(for: targetURL)
+      needsElevation = requiresElevation(for: targetURL)
     } else {
       needsElevation = false
     }
@@ -147,5 +145,78 @@ public struct SubprocessRunner: ProcessRunning, Sendable {
     }
 
     return output
+  }
+
+  /// Runs an executable using its exact URL and arguments.
+  @discardableResult
+  public static func run(
+    executableURL: URL,
+    arguments: [String] = [],
+    targetURL: URL? = nil,
+    workingDirectory: URL? = nil,
+    environment: [String: String]? = nil,
+    stdinData: Data? = nil,
+    timeoutSeconds: Double = defaultTimeoutSeconds,
+    checkExitCode: Bool = false
+  ) async throws(SystemError) -> ProcessOutput {
+    try await run(
+      ProcessRequest(
+        executableURL: executableURL,
+        arguments: arguments,
+        targetURL: targetURL,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        stdinData: stdinData,
+        timeoutSeconds: timeoutSeconds,
+        checkExitCode: checkExitCode
+      )
+    )
+  }
+
+  /// Runs a trusted canonical system binary using its `SystemBinary` identifier.
+  @discardableResult
+  public static func run(
+    binary: SystemBinary,
+    arguments: [String] = [],
+    targetURL: URL? = nil,
+    workingDirectory: URL? = nil,
+    environment: [String: String]? = nil,
+    stdinData: Data? = nil,
+    timeoutSeconds: Double = defaultTimeoutSeconds,
+    checkExitCode: Bool = false
+  ) async throws(SystemError) -> ProcessOutput {
+    try await run(
+      executableURL: binary.url,
+      arguments: arguments,
+      targetURL: targetURL,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      stdinData: stdinData,
+      timeoutSeconds: timeoutSeconds,
+      checkExitCode: checkExitCode
+    )
+  }
+
+  /// Runs a shell command via `/bin/sh -c`.
+  @discardableResult
+  public static func runShell(
+    _ command: String,
+    targetURL: URL? = nil,
+    workingDirectory: URL? = nil,
+    environment: [String: String]? = nil,
+    stdinData: Data? = nil,
+    timeoutSeconds: Double = defaultTimeoutSeconds,
+    checkExitCode: Bool = false
+  ) async throws(SystemError) -> ProcessOutput {
+    try await run(
+      executableURL: SystemBinary.sh.url,
+      arguments: ["-c", command],
+      targetURL: targetURL,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      stdinData: stdinData,
+      timeoutSeconds: timeoutSeconds,
+      checkExitCode: checkExitCode
+    )
   }
 }
