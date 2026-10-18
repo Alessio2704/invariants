@@ -3,7 +3,6 @@ import Core
 import Foundation
 
 private struct CheckContext {
-  let repoRootURL: URL
   let registry: Registry
   let ruleRunner: RuleRunner
 }
@@ -30,40 +29,40 @@ struct CheckCommand: AsyncParsableCommand {
   var json: Bool = false
 
   func run() async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
-    let env = SystemEnvironment.standard
+    let repoRoot = try RepoLocator.discover()
+    try await RepoLocator.withRepoRoot(repoRoot) {
+      let env = SystemEnvironment.standard
 
-    let registry = try await verifyRegistry(repoRootURL: repoRootURL)
-    try await verifyFloor(repoRootURL: repoRootURL, registry: registry)
+      let registry = try await verifyRegistry()
+      try await verifyFloor(registry: registry)
 
-    let context = CheckContext(
-      repoRootURL: repoRootURL,
-      registry: registry,
-      ruleRunner: RuleRunner(environment: env)
-    )
+      let context = CheckContext(
+        registry: registry,
+        ruleRunner: RuleRunner(environment: env)
+      )
 
-    let activeItems = try await checkActiveRules(context: context)
-    let draftItems = await discoverDraftRules(context: context)
+      let activeItems = try await checkActiveRules(context: context)
+      let draftItems = await discoverDraftRules(context: context)
 
-    let report = CheckReport(
-      registryVersion: registry.version,
-      engineVersion: EngineVersion.current,
-      rules: activeItems + draftItems
-    )
+      let report = CheckReport(
+        registryVersion: registry.version,
+        engineVersion: EngineVersion.current,
+        rules: activeItems + draftItems
+      )
 
-    outputReport(report)
+      outputReport(report)
 
-    if report.hasProblems {
-      throw ExitCode(1)
+      if report.hasProblems {
+        throw ExitCode(1)
+      }
     }
   }
 }
 
 extension CheckCommand {
-  private func verifyRegistry(repoRootURL: URL) async throws -> Registry {
+  private func verifyRegistry() async throws -> Registry {
     do {
       return try await RegistryManager.loadAndVerify(
-        repoRoot: repoRootURL,
         installedEngineVersion: EngineVersion.current
       )
     } catch let regErr {
@@ -85,26 +84,19 @@ extension CheckCommand {
   }
 
   private func verifyFloor(
-    repoRootURL: URL,
     registry: Registry
   ) async throws {
     do {
-      _ = try await FloorGuard.checkHistory(repoRoot: repoRootURL, currentVersion: registry.version)
+      _ = try await FloorGuard.checkHistory(currentVersion: registry.version)
 
-      let lockURL = RegistryManager.registryURL(repoRoot: repoRootURL)
-      let sigURL = RegistryManager.signatureURL(repoRoot: repoRootURL)
       try await FloorGuard.checkSignerAncestry(
-        repoRoot: repoRootURL,
-        currentRegistry: registry,
-        lockURL: lockURL,
-        sigURL: sigURL
+        currentRegistry: registry
       )
 
       if stage == "pre-push" {
         let stdinData = FileHandle.standardInput.readDataToEndOfFile()
         let pushedRefs = String(bytes: stdinData, encoding: .utf8) ?? ""
         try await FloorGuard.checkNoRewrite(
-          repoRoot: repoRootURL,
           pushedRefsInput: pushedRefs,
           defaultBranch: registry.defaultBranch
         )
@@ -145,14 +137,13 @@ extension CheckCommand {
     context: CheckContext
   ) async -> RuleReportItem {
     let fileManager = FileManager.default
-    let ruleDir = context.repoRootURL.appendingPathComponent("invariants/rules/\(ruleId)")
+    let ruleDir = RepoLocator.current.appendingPathComponent("invariants/rules/\(ruleId)")
 
     guard fileManager.fileExists(atPath: ruleDir.path) else {
       return RuleReportItem(ruleId: ruleId, statusKind: .missing, message: "Rule directory missing on disk")
     }
 
     let workingTreeHash = try? await FingerprintEngine.computeFingerprint(
-      repoRoot: context.repoRootURL,
       ruleId: ruleId
     )
     let isModified = (workingTreeHash != signedTreeHash)
@@ -166,7 +157,6 @@ extension CheckCommand {
     do {
       try fileManager.createDirectory(at: tempSnapshotDir, withIntermediateDirectories: true)
       try await GitClient.archiveExtract(
-        repoRoot: context.repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshotDir
       )
@@ -191,7 +181,6 @@ extension CheckCommand {
       try ManifestValidator.validateStructure(
         ruleDirectory: tempSnapshotDir,
         manifest: manifest,
-        repoRoot: context.repoRootURL,
         registry: context.registry,
         isFixtureMode: false
       )
@@ -299,14 +288,13 @@ extension CheckCommand {
     for target in ruleCtx.manifest.targets {
       guard let targetScope = ruleCtx.manifest.scope[target] else { continue }
       let scopedFiles = ManifestValidator.resolveScopedFiles(
-        repoRoot: context.repoRootURL,
         scope: targetScope,
         target: target
       )
 
       let req = RuleRequest(
         mode: "repo",
-        repoRoot: context.repoRootURL.path,
+        repoRoot: RepoLocator.current.path,
         ruleDir: ruleCtx.tempSnapshotDir.path,
         files: scopedFiles.map { $0.path },
         languages: context.registry.languages
@@ -350,7 +338,7 @@ extension CheckCommand {
 
   private func discoverDraftRules(context: CheckContext) async -> [RuleReportItem] {
     let fileManager = FileManager.default
-    let rulesBaseDir = context.repoRootURL.appendingPathComponent("invariants/rules")
+    let rulesBaseDir = RepoLocator.current.appendingPathComponent("invariants/rules")
     guard let allDirs = try? fileManager.contentsOfDirectory(atPath: rulesBaseDir.path) else {
       return []
     }

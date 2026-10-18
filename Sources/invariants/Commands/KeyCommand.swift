@@ -67,11 +67,14 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      // If inside an Invariants repository with allowed_signers, delegate to SignersCommand.Rotate
       if let repoRoot = RepoLocator.findRepoRoot() {
-        let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+        let signersURL = RepoLocator.withRepoRoot(repoRoot) {
+          RegistryManager.allowedSignersURL()
+        }
         if FileManager.default.fileExists(atPath: signersURL.path) {
-          try await SignersCommand.Rotate().run()
+          try await RepoLocator.withRepoRoot(repoRoot) {
+            try await SignersCommand.Rotate().run()
+          }
           return
         }
       }

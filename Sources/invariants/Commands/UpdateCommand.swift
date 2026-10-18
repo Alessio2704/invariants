@@ -22,18 +22,21 @@ struct UpdateCommand: AsyncParsableCommand {
   var confirm: Bool = false
 
   func run() async throws {
-    do {
-      try await UpdateRuleWorkflow.execute(
-        input: .init(
-          id: id,
-          keyPath: key,
-          confirmId: confirmId,
-          confirm: confirm
+    let repoRoot = try RepoLocator.discover()
+    try await RepoLocator.withRepoRoot(repoRoot) {
+      do {
+        try await UpdateRuleWorkflow.execute(
+          input: .init(
+            id: id,
+            keyPath: key,
+            confirmId: confirmId,
+            confirm: confirm
+          )
         )
-      )
-    } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
-      throw ExitCode(1)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 }

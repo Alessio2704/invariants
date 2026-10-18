@@ -6,7 +6,6 @@ public enum ManifestValidator: Sendable {
   public static func validateStructure(
     ruleDirectory: URL,
     manifest: RuleManifest,
-    repoRoot: URL? = nil,
     registry: Registry? = nil,
     isFixtureMode: Bool = false
   ) throws(ManifestError) {
@@ -57,12 +56,12 @@ public enum ManifestValidator: Sendable {
     }
 
     // 2. In repo mode, verify each declared scope matches >= 1 real file
-    if !isFixtureMode, let repoRoot {
+    if !isFixtureMode {
       for target in manifest.targets {
         guard let targetScope = manifest.scope[target] else {
           throw ManifestError.missingTargetScope(target)
         }
-        let matchingFiles = resolveScopedFiles(repoRoot: repoRoot, scope: targetScope, target: target)
+        let matchingFiles = resolveScopedFiles(scope: targetScope, target: target)
         if matchingFiles.isEmpty {
           throw ManifestError.scopeMatchesNoFiles(target, targetScope.include)
         }
@@ -72,10 +71,10 @@ public enum ManifestValidator: Sendable {
 
   /// Resolves all files in repoRoot matching the include patterns and not excluded.
   public static func resolveScopedFiles(
-    repoRoot: URL,
     scope: TargetScope,
     target: TargetLanguage? = nil
   ) -> [URL] {
+    let repoRoot = RepoLocator.current
     let fm = FileManager.default
     guard
       let enumerator = fm.enumerator(

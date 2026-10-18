@@ -38,29 +38,31 @@ struct InitManagerTests {
       keyURL: keyURL
     )
 
-    try await InitManager.initialize(repoRootURL: repoURL, options: options)
+    try await RepoLocator.withRepoRoot(repoURL) {
+      try await InitManager.initialize(options: options)
 
-    // 1. Verify in-repo allowed_signers
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
-    #expect(fm.fileExists(atPath: signersURL.path))
-    let signersContent = try String(contentsOf: signersURL, encoding: .utf8)
-    let pubKey = try String(contentsOf: keyURL.appendingPathExtension("pub"), encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    #expect(signersContent.contains(pubKey))
-    #expect(signersContent.contains("namespaces=\"invariants\""))
+      // 1. Verify in-repo allowed_signers
+      let signersURL = RegistryManager.allowedSignersURL()
+      #expect(fm.fileExists(atPath: signersURL.path))
+      let signersContent = try String(contentsOf: signersURL, encoding: .utf8)
+      let pubKey = try String(contentsOf: keyURL.appendingPathExtension("pub"), encoding: .utf8)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      #expect(signersContent.contains(pubKey))
+      #expect(signersContent.contains("namespaces=\"invariants\""))
 
-    // 2. Verify registry.lock and registry.lock.sig
-    let lockURL = RegistryManager.registryURL(repoRoot: repoURL)
-    let sigURL = RegistryManager.signatureURL(repoRoot: repoURL)
-    #expect(fm.fileExists(atPath: lockURL.path))
-    #expect(fm.fileExists(atPath: sigURL.path))
+      // 2. Verify registry.lock and registry.lock.sig
+      let lockURL = RegistryManager.registryURL()
+      let sigURL = RegistryManager.signatureURL()
+      #expect(fm.fileExists(atPath: lockURL.path))
+      #expect(fm.fileExists(atPath: sigURL.path))
 
-    // 3. Verify registry can be loaded and cryptographically verified
-    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
-    #expect(loaded.version == 1)
-    #expect(loaded.defaultBranch == "main")
-    #expect(loaded.languages[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
-    #expect(loaded.languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+      // 3. Verify registry can be loaded and cryptographically verified
+      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      #expect(loaded.version == 1)
+      #expect(loaded.defaultBranch == "main")
+      #expect(loaded.languages[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
+      #expect(loaded.languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+    }
 
     // 4. Verify .gitignore updated with invariants/.dev/
     let gitignoreURL = repoURL.appendingPathComponent(".gitignore")
@@ -106,22 +108,24 @@ struct InitManagerTests {
 
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let detected = (await GitClient.discoverBranches(repoRoot: repoURL)).first
-    #expect(detected == "develop")
+    try await RepoLocator.withRepoRoot(repoURL) {
+      let detected = (await GitClient.discoverBranches()).first
+      #expect(detected == "develop")
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+      var languages = LanguagesConfig()
+      languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
 
-    let options = InitOptions(
-      engineVersion: "1.0.0",
-      defaultBranch: "develop",
-      languages: languages,
-      keyURL: keyURL
-    )
+      let options = InitOptions(
+        engineVersion: "1.0.0",
+        defaultBranch: "develop",
+        languages: languages,
+        keyURL: keyURL
+      )
 
-    try await InitManager.initialize(repoRootURL: repoURL, options: options)
+      try await InitManager.initialize(options: options)
 
-    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
-    #expect(loaded.defaultBranch == "develop")
+      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      #expect(loaded.defaultBranch == "develop")
+    }
   }
 }

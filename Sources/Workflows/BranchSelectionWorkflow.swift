@@ -1,17 +1,17 @@
 import Core
-package import Foundation
+import Foundation
 import Managers
 import Terminal
 
 /// Interactive CLI workflow responsible for selecting the default trunk branch.
 package enum BranchSelectionWorkflow {
   /// Resolves the default trunk branch for repository initialization.
-  package static func selectDefaultBranch(explicitBranch: String? = nil, repoRootURL: URL) async -> String {
+  package static func selectDefaultBranch(explicitBranch: String? = nil) async -> String {
     if let explicitBranch, !explicitBranch.isEmpty {
       return explicitBranch
     }
 
-    let info = await BranchSelectionManager.discoverBranchInfo(repoRootURL: repoRootURL)
+    let info = await BranchSelectionManager.discoverBranchInfo()
     guard !info.branches.isEmpty else { return "main" }
 
     let options = info.branches.map { b in

@@ -49,7 +49,9 @@ struct RuleEnforcementE2ETests {
 
     try await repo.signed(version: 1, languages: languages)
 
-    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await repo.run {
+      try await RegistryManager.loadAndVerify()
+    }
     let ruleTreeHash = try #require(reg.rules["no-fatal-error"])
 
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-fatal-error")
@@ -188,7 +190,9 @@ struct RuleEnforcementE2ETests {
 
     try await repo.signed(version: 1, languages: languages)
 
-    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await repo.run {
+      try await RegistryManager.loadAndVerify()
+    }
     let ruleTreeHash = try #require(reg.rules["no-eval"])
 
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-eval")

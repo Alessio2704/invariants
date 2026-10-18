@@ -120,29 +120,31 @@ struct RegistryTests {
     let invariantsDir = repoDir.appendingPathComponent("invariants")
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
 
-    let allowedSignersURL = RegistryManager.allowedSignersURL(repoRoot: repoDir)
-    let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
-    try Data(signersContent.utf8).write(to: allowedSignersURL)
+    try await RepoLocator.withRepoRoot(repoDir) {
+      let allowedSignersURL = RegistryManager.allowedSignersURL()
+      let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
+      try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
-    let reg = Registry(version: 1, engine: "^1.0.0", languages: languages)
-    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repoDir, keyURL: keyURL)
+      var languages = LanguagesConfig()
+      languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
+      let reg = Registry(version: 1, engine: "^1.0.0", languages: languages)
+      try await RegistryManager.saveAndSign(registry: reg, keyURL: keyURL)
 
-    // Verify valid
-    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
-    #expect(loaded.version == reg.version)
-    #expect(loaded.signersHash != nil)
+      // Verify valid
+      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      #expect(loaded.version == reg.version)
+      #expect(loaded.signersHash != nil)
 
-    // Tamper registry.lock
-    let lockURL = RegistryManager.registryURL(repoRoot: repoDir)
-    var tamperedData = try Data(contentsOf: lockURL)
-    tamperedData.append(Data("tampered".utf8))
-    try tamperedData.write(to: lockURL)
+      // Tamper registry.lock
+      let lockURL = RegistryManager.registryURL()
+      var tamperedData = try Data(contentsOf: lockURL)
+      tamperedData.append(Data("tampered".utf8))
+      try tamperedData.write(to: lockURL)
 
-    // Verification must throw signatureInvalid
-    await #expect(throws: RegistryError.self) {
-      _ = try await RegistryManager.loadAndVerify(repoRoot: repoDir, installedEngineVersion: "1.0.0")
+      // Verification must throw signatureInvalid
+      await #expect(throws: RegistryError.self) {
+        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      }
     }
   }
 }

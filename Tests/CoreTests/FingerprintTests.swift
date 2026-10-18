@@ -24,21 +24,23 @@ struct FingerprintTests {
     let gitignoreURL = tmpDir.appendingPathComponent(".gitignore")
     try Data("*.ignored\n".utf8).write(to: gitignoreURL)
 
-    let hash1 = try await FingerprintEngine.computeFingerprint(repoRoot: tmpDir, ruleId: "toy")
-    #expect(hash1.count == 40)
+    try await RepoLocator.withRepoRoot(tmpDir) {
+      let hash1 = try await FingerprintEngine.computeFingerprint(ruleId: "toy")
+      #expect(hash1.count == 40)
 
-    // Adding an ignored file should not change the fingerprint
-    let ignoredFile = ruleDir.appendingPathComponent("scratch.ignored")
-    try Data("some ignored content".utf8).write(to: ignoredFile)
+      // Adding an ignored file should not change the fingerprint
+      let ignoredFile = ruleDir.appendingPathComponent("scratch.ignored")
+      try Data("some ignored content".utf8).write(to: ignoredFile)
 
-    let hash2 = try await FingerprintEngine.computeFingerprint(repoRoot: tmpDir, ruleId: "toy")
-    #expect(hash1 == hash2)
+      let hash2 = try await FingerprintEngine.computeFingerprint(ruleId: "toy")
+      #expect(hash1 == hash2)
 
-    // Adding an unignored untracked file MUST change the fingerprint
-    let trackedFile = ruleDir.appendingPathComponent("rule.swift")
-    try Data("// Swift rule".utf8).write(to: trackedFile)
+      // Adding an unignored untracked file MUST change the fingerprint
+      let trackedFile = ruleDir.appendingPathComponent("rule.swift")
+      try Data("// Swift rule".utf8).write(to: trackedFile)
 
-    let hash3 = try await FingerprintEngine.computeFingerprint(repoRoot: tmpDir, ruleId: "toy")
-    #expect(hash3 != hash1)
+      let hash3 = try await FingerprintEngine.computeFingerprint(ruleId: "toy")
+      #expect(hash3 != hash1)
+    }
   }
 }

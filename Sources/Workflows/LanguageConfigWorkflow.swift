@@ -1,5 +1,5 @@
 package import Core
-package import Foundation
+import Foundation
 import Managers
 import Terminal
 
@@ -8,19 +8,18 @@ package enum LanguageConfigWorkflow {
   /// Resolves language configurations for project initialization, querying the user interactively if needed.
   package static func resolveConfigurations(
     explicitLanguages: [SupportedLanguage],
-    repoRootURL: URL,
     baseConfig: LanguagesConfig = LanguagesConfig()
   ) -> LanguagesConfig {
     guard explicitLanguages.isEmpty else {
-      return configure(languages: explicitLanguages, in: repoRootURL, baseConfig: baseConfig)
+      return configure(languages: explicitLanguages, baseConfig: baseConfig)
     }
 
-    let targetLanguages = resolveDiscoveredOrInteractiveLanguages(in: repoRootURL)
-    return configure(languages: targetLanguages, in: repoRootURL, baseConfig: baseConfig)
+    let targetLanguages = resolveDiscoveredOrInteractiveLanguages()
+    return configure(languages: targetLanguages, baseConfig: baseConfig)
   }
 
-  private static func resolveDiscoveredOrInteractiveLanguages(in repoRootURL: URL) -> [SupportedLanguage] {
-    let detected = LanguageConfigManager.detectLanguages(in: repoRootURL)
+  private static func resolveDiscoveredOrInteractiveLanguages() -> [SupportedLanguage] {
+    let detected = LanguageConfigManager.detectLanguages()
 
     guard !detected.isEmpty else {
       guard TerminalPrompt.isInteractive else { return [] }
@@ -52,12 +51,11 @@ package enum LanguageConfigWorkflow {
   /// Interactively configures a collection of languages and returns the updated project configuration.
   package static func configure(
     languages: [SupportedLanguage],
-    in repoRootURL: URL,
     baseConfig: LanguagesConfig = LanguagesConfig()
   ) -> LanguagesConfig {
     var languagesConfig = baseConfig
     for lang in languages {
-      configureLanguage(lang, repoRootURL: repoRootURL, into: &languagesConfig)
+      configureLanguage(lang, into: &languagesConfig)
     }
     return languagesConfig
   }
@@ -73,20 +71,18 @@ package enum LanguageConfigWorkflow {
 
   private static func configureLanguage(
     _ language: SupportedLanguage,
-    repoRootURL: URL,
     into languagesConfig: inout LanguagesConfig
   ) {
-    if let config = promptForConfig(for: language, repoRootURL: repoRootURL) {
+    if let config = promptForConfig(for: language) {
       LanguageConfigManager.applyConfig(config, for: language, into: &languagesConfig)
     }
   }
 
   private static func promptForConfig(
-    for language: SupportedLanguage,
-    repoRootURL: URL
+    for language: SupportedLanguage
   ) -> (any LanguageConfiguration)? {
     let spec = language.spec
-    let candidates = LanguageConfigManager.discoverCandidates(for: language, repoRootURL: repoRootURL)
+    let candidates = LanguageConfigManager.discoverCandidates(for: language)
     let descriptor = spec.configPromptDescriptor
 
     if candidates.isEmpty {

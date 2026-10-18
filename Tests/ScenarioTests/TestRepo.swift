@@ -34,7 +34,9 @@ final class TestRepo: @unchecked Sendable {
     let pubKeyData = try Data(contentsOf: pubKeyURL)
     let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
+    let signersURL = RepoLocator.withRepoRoot(repoURL) {
+      RegistryManager.allowedSignersURL()
+    }
     try fm.createDirectory(at: signersURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
     try Data(signersContent.utf8).write(to: signersURL)
@@ -132,37 +134,49 @@ final class TestRepo: @unchecked Sendable {
     defaultBranch: String = "main",
     languages: LanguagesConfig = TestRepo.defaultLanguages
   ) async throws -> TestRepo {
-    var ruleMap: [String: String] = [:]
+    try await RepoLocator.withRepoRoot(repoURL) {
+      var ruleMap: [String: String] = [:]
 
-    let rulesBaseDir = repoURL.appendingPathComponent("invariants/rules")
-    if let dirs = try? FileManager.default.contentsOfDirectory(atPath: rulesBaseDir.path) {
-      for dir in dirs where !dir.hasPrefix(".") {
-        let hash = try await FingerprintEngine.computeFingerprint(repoRoot: repoURL, ruleId: dir)
-        ruleMap[dir] = hash
+      let rulesBaseDir = repoURL.appendingPathComponent("invariants/rules")
+      if let dirs = try? FileManager.default.contentsOfDirectory(atPath: rulesBaseDir.path) {
+        for dir in dirs where !dir.hasPrefix(".") {
+          let hash = try await FingerprintEngine.computeFingerprint(ruleId: dir)
+          ruleMap[dir] = hash
+        }
       }
+
+      let reg = Registry(
+        version: version,
+        engine: "^1.0.0",
+        defaultBranch: defaultBranch,
+        languages: languages,
+        rules: ruleMap
+      )
+
+      try await RegistryManager.saveAndSign(
+        registry: reg,
+        keyURL: keyURL
+      )
+
+      try await GitClient.commit(
+        paths: ["."],
+        message: "Signed registry v\(version)"
+      )
     }
 
-    let reg = Registry(
-      version: version,
-      engine: "^1.0.0",
-      defaultBranch: defaultBranch,
-      languages: languages,
-      rules: ruleMap
-    )
-
-    try await RegistryManager.saveAndSign(
-      registry: reg,
-      repoRoot: repoURL,
-      keyURL: keyURL
-    )
-
-    try await GitClient.commit(
-      repoRoot: repoURL,
-      paths: ["."],
-      message: "Signed registry v\(version)"
-    )
-
     return self
+  }
+
+  /// Runs an async operation with this test repo set as the active RepoLocator.current.
+  @discardableResult
+  func run<T>(_ operation: () async throws -> T) async rethrows -> T {
+    try await RepoLocator.withRepoRoot(repoURL, operation: operation)
+  }
+
+  /// Runs a synchronous operation with this test repo set as the active RepoLocator.current.
+  @discardableResult
+  func run<T>(_ operation: () throws -> T) rethrows -> T {
+    try RepoLocator.withRepoRoot(repoURL, operation: operation)
   }
 }
 

@@ -9,13 +9,12 @@ package enum ConfigWorkflow {
     defaultBranch: String?,
     keyPath: String?
   ) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
     var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
       installedEngineVersion: EngineVersion.current
     )
 
@@ -32,7 +31,6 @@ package enum ConfigWorkflow {
     let oldLanguages = registry.languages
     let newLanguages = LanguageConfigWorkflow.configure(
       languages: targetLanguages,
-      in: repoRootURL,
       baseConfig: oldLanguages
     )
 
@@ -72,7 +70,6 @@ package enum ConfigWorkflow {
 
       try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
       try await GitClient.archiveExtract(
-        repoRoot: repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshot
       )
@@ -109,7 +106,7 @@ package enum ConfigWorkflow {
       for target in manifest.targets {
         guard let targetScope = manifest.scope[target] else { continue }
         let scopedFiles = ManifestValidator.resolveScopedFiles(
-          repoRoot: repoRootURL, scope: targetScope, target: target)
+          scope: targetScope, target: target)
 
         let reqOld = RuleRequest(
           mode: "repo",
@@ -176,12 +173,10 @@ package enum ConfigWorkflow {
     print("Updating language analysis configuration in registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",
         "invariants/registry.lock.sig",

@@ -5,13 +5,12 @@ import Terminal
 /// Interactive CLI workflow to lock and activate a draft rule into the signed registry.
 package enum AddRuleWorkflow {
   package static func execute(ruleId: String, keyPath: String?) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
 
     // 1. Load registry
     var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
       installedEngineVersion: EngineVersion.current
     )
 
@@ -30,7 +29,6 @@ package enum AddRuleWorkflow {
     try ManifestValidator.validateStructure(
       ruleDirectory: ruleDir,
       manifest: manifest,
-      repoRoot: repoRootURL,
       registry: registry,
       isFixtureMode: false
     )
@@ -84,7 +82,7 @@ package enum AddRuleWorkflow {
     var repoViolationsCount = 0
     for target in manifest.targets {
       guard let targetScope = manifest.scope[target] else { continue }
-      let files = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope, target: target)
+      let files = ManifestValidator.resolveScopedFiles(scope: targetScope, target: target)
       let req = RuleRequest(
         mode: "repo",
         repoRoot: repoRootURL.path,
@@ -115,7 +113,7 @@ package enum AddRuleWorkflow {
     }
 
     // 5. Compute tree hash
-    let treeHash = try await FingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: ruleId)
+    let treeHash = try await FingerprintEngine.computeFingerprint(ruleId: ruleId)
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
@@ -130,13 +128,11 @@ package enum AddRuleWorkflow {
     print("Signing registry v\(registry.version) with key \(keyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     // 8. Commit
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",
         "invariants/registry.lock.sig",

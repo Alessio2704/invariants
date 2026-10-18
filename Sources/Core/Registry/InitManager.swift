@@ -23,7 +23,8 @@ public struct InitOptions: Sendable {
 /// Service that initializes invariants structures, allowed signers, registry v1, and git commit.
 public enum InitManager: Sendable {
   /// Initializes invariants in a repository: .gitignore, registry v1, in-repo allowed_signers, signature, and git commit.
-  public static func initialize(repoRootURL: URL, options: InitOptions) async throws {
+  public static func initialize(options: InitOptions) async throws {
+    let repoRootURL = RepoLocator.current
     let fm = FileManager.default
 
     // 1. Update .gitignore
@@ -47,12 +48,11 @@ public enum InitManager: Sendable {
     )
 
     // 4. Write in-repo allowed_signers
-    try Self.writeInitialAllowedSigners(keyURL: options.keyURL, repoRootURL: repoRootURL)
+    try Self.writeInitialAllowedSigners(keyURL: options.keyURL)
 
     // 5. Sign registry v1
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: options.keyURL
     )
 
@@ -67,15 +67,14 @@ public enum InitManager: Sendable {
     }
 
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: paths,
       message: "Initialize invariants (v1)"
     )
   }
 
   /// Writes the public key from `keyURL` into `<repoRoot>/invariants/allowed_signers`.
-  public static func writeInitialAllowedSigners(keyURL: URL, repoRootURL: URL) throws {
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRootURL)
+  public static func writeInitialAllowedSigners(keyURL: URL) throws {
+    let signersURL = RegistryManager.allowedSignersURL()
     let pubURL = keyURL.pathExtension == "pub" ? keyURL : keyURL.appendingPathExtension("pub")
     func readTrimmed(at url: URL) -> String? {
       guard let str = try? String(contentsOf: url, encoding: .utf8) else { return nil }

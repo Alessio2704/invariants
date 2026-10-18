@@ -5,12 +5,11 @@ import Terminal
 /// Interactive CLI workflow to deactivate an invariant rule and remove it from the signed registry.
 package enum RemoveRuleWorkflow {
   package static func execute(ruleId: String, deleteFromDisk: Bool, keyPath: String?) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
     let fm = FileManager.default
 
     // 1. Load registry
     var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
       installedEngineVersion: EngineVersion.current
     )
 
@@ -55,13 +54,11 @@ package enum RemoveRuleWorkflow {
     print("Signing registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     // 4. Commit
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: pathsToCommit,
       message: "Remove invariant '\(ruleId)' (registry v\(registry.version))"
     )

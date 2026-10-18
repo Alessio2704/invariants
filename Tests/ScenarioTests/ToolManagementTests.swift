@@ -8,7 +8,7 @@ struct ToolManagementTests {
   @Test("Signers management: add, list, soft revoke, and hard revoke keys from in-repo allowed_signers")
   func signersAddListRevoke() async throws {
     let repo = try await TestRepo()
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
 
     // 1. Initial content from TestRepo contains owner public key
     let initial = try String(contentsOf: signersURL, encoding: .utf8)

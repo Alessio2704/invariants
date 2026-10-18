@@ -134,9 +134,11 @@ package enum HardwareKeyManager {
 
     var isAuthorized: Bool = false
     if let repoRoot = RepoLocator.findRepoRoot(), let pubKey {
-      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
-      if let signersFile = try? AllowedSignersFile.read(from: signersURL) {
-        isAuthorized = signersFile.entries.contains { $0.matches(keyString: pubKey) && $0.isActive() }
+      RepoLocator.withRepoRoot(repoRoot) {
+        let signersURL = RegistryManager.allowedSignersURL()
+        if let signersFile = try? AllowedSignersFile.read(from: signersURL) {
+          isAuthorized = signersFile.entries.contains { $0.matches(keyString: pubKey) && $0.isActive() }
+        }
       }
     }
 

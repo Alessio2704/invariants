@@ -3,27 +3,26 @@ public import Foundation
 
 /// Coordinates registry reading, writing, signature verification, and floor sync.
 public enum RegistryManager: Sendable {
-  public static func registryURL(repoRoot: URL) -> URL {
-    repoRoot.appendingPathComponent("invariants/registry.lock")
+  public static func registryURL() -> URL {
+    RepoLocator.current.appendingPathComponent("invariants/registry.lock")
   }
 
-  public static func signatureURL(repoRoot: URL) -> URL {
-    repoRoot.appendingPathComponent("invariants/registry.lock.sig")
+  public static func signatureURL() -> URL {
+    RepoLocator.current.appendingPathComponent("invariants/registry.lock.sig")
   }
 
-  public static func allowedSignersURL(repoRoot: URL) -> URL {
-    repoRoot.appendingPathComponent("invariants/allowed_signers")
+  public static func allowedSignersURL() -> URL {
+    RepoLocator.current.appendingPathComponent("invariants/allowed_signers")
   }
 
   /// Loads, parses, and cryptographically verifies `registry.lock`.
   public static func loadAndVerify(
-    repoRoot: URL,
     installedEngineVersion: String = "1.0.0",
     identity: String = "owner"
   ) async throws(RegistryError) -> Registry {
-    let lockURL = Self.registryURL(repoRoot: repoRoot)
-    let sigURL = Self.signatureURL(repoRoot: repoRoot)
-    let signersURL = Self.allowedSignersURL(repoRoot: repoRoot)
+    let lockURL = Self.registryURL()
+    let sigURL = Self.signatureURL()
+    let signersURL = Self.allowedSignersURL()
 
     guard FileManager.default.fileExists(atPath: lockURL.path) else {
       throw RegistryError.fileNotFound(lockURL)
@@ -92,9 +91,9 @@ public enum RegistryManager: Sendable {
   /// Writes registry in canonical JSON format, signs it, and records root floor.
   public static func saveAndSign(
     registry: Registry,
-    repoRoot: URL,
     keyURL: URL
   ) async throws(RegistryError) {
+    let repoRoot = RepoLocator.current
     let invariantsDir = repoRoot.appendingPathComponent("invariants")
     do {
       try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)
@@ -102,7 +101,7 @@ public enum RegistryManager: Sendable {
       throw RegistryError.encodingFailed("Could not create invariants directory: \(error.localizedDescription)")
     }
 
-    let signersURL = Self.allowedSignersURL(repoRoot: repoRoot)
+    let signersURL = Self.allowedSignersURL()
     var updatedRegistry = registry
     if FileManager.default.fileExists(atPath: signersURL.path) {
       if let signersData = try? Data(contentsOf: signersURL) {
@@ -111,7 +110,7 @@ public enum RegistryManager: Sendable {
       }
     }
 
-    let lockURL = Self.registryURL(repoRoot: repoRoot)
+    let lockURL = Self.registryURL()
     let canonicalContent = CanonicalJSON.serialize(updatedRegistry)
     guard let data = canonicalContent.data(using: .utf8) else {
       throw RegistryError.encodingFailed("Failed to encode canonical JSON as UTF-8")

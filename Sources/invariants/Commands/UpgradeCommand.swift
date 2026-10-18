@@ -13,11 +13,14 @@ struct UpgradeCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    do {
-      try await UpgradeWorkflow.execute(keyPath: key)
-    } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
-      throw ExitCode(1)
+    let repoRoot = try RepoLocator.discover()
+    try await RepoLocator.withRepoRoot(repoRoot) {
+      do {
+        try await UpgradeWorkflow.execute(keyPath: key)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 }

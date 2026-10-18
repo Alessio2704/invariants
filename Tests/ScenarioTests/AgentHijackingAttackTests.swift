@@ -12,7 +12,7 @@ struct AgentHijackingAttackTests {
     try repo.withRule("attack-rule-1")
     try await repo.signed(version: 1, defaultBranch: "main")
 
-    let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
+    let lockURL = repo.run { RegistryManager.registryURL() }
     let originalContent = try String(contentsOf: lockURL, encoding: .utf8)
     #expect(originalContent.contains("\"default_branch\": \"main\""))
 
@@ -25,7 +25,9 @@ struct AgentHijackingAttackTests {
 
     // Verification must fail with signatureInvalid because the signature was computed on "main"
     await #expect(throws: RegistryError.self) {
-      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+      try await repo.run {
+        _ = try await RegistryManager.loadAndVerify()
+      }
     }
   }
 
@@ -42,7 +44,7 @@ struct AgentHijackingAttackTests {
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Agent appends its key to allowed_signers
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
     var signers = try String(contentsOf: signersURL, encoding: .utf8)
     signers.append("* namespaces=\"invariants\" \(roguePub)\n")
     try signers.write(to: signersURL, atomically: true, encoding: .utf8)
@@ -53,19 +55,14 @@ struct AgentHijackingAttackTests {
       engine: "^1.0.0",
       defaultBranch: "unprotected"
     )
-    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
 
-    // FloorGuard ancestry check must reject because rogue key was not authorized in parent commit v1!
-    let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
-    let sigURL = RegistryManager.signatureURL(repoRoot: repo.repoURL)
+    try await repo.run {
+      try await RegistryManager.saveAndSign(registry: reg2, keyURL: rogueKeyURL)
 
-    await #expect(throws: FloorError.self) {
-      try await FloorGuard.checkSignerAncestry(
-        repoRoot: repo.repoURL,
-        currentRegistry: reg2,
-        lockURL: lockURL,
-        sigURL: sigURL
-      )
+      // FloorGuard ancestry check must reject because rogue key was not authorized in parent commit v1!
+      await #expect(throws: FloorError.self) {
+        try await FloorGuard.checkSignerAncestry(currentRegistry: reg2)
+      }
     }
   }
 
@@ -75,7 +72,9 @@ struct AgentHijackingAttackTests {
     try repo.withRule("attack-rule-3")
     try await repo.signed(version: 1, defaultBranch: "main")
 
-    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await repo.run {
+      try await RegistryManager.loadAndVerify()
+    }
     #expect(reg.defaultBranch == "main")
 
     // Simulate git pre-push hook input with non-fast-forward commits on default_branch
@@ -83,11 +82,12 @@ struct AgentHijackingAttackTests {
       "refs/heads/main 1111111111111111111111111111111111111111 refs/heads/main 2222222222222222222222222222222222222222\n"
 
     await #expect(throws: FloorError.nonFastForwardPush(branch: "main")) {
-      try await FloorGuard.checkNoRewrite(
-        repoRoot: repo.repoURL,
-        pushedRefsInput: nonFastForwardStdin,
-        defaultBranch: reg.defaultBranch
-      )
+      try await repo.run {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: nonFastForwardStdin,
+          defaultBranch: reg.defaultBranch
+        )
+      }
     }
   }
 
@@ -97,7 +97,9 @@ struct AgentHijackingAttackTests {
     try repo.withRule("attack-rule-4")
     try await repo.signed(version: 1, defaultBranch: "develop")
 
-    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await repo.run {
+      try await RegistryManager.loadAndVerify()
+    }
     #expect(reg.defaultBranch == "develop")
 
     // Force-push to "develop" must be rejected
@@ -105,11 +107,12 @@ struct AgentHijackingAttackTests {
       "refs/heads/develop 1111111111111111111111111111111111111111 refs/heads/develop 2222222222222222222222222222222222222222\n"
 
     await #expect(throws: FloorError.nonFastForwardPush(branch: "develop")) {
-      try await FloorGuard.checkNoRewrite(
-        repoRoot: repo.repoURL,
-        pushedRefsInput: nonFastForwardStdin,
-        defaultBranch: reg.defaultBranch
-      )
+      try await repo.run {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: nonFastForwardStdin,
+          defaultBranch: reg.defaultBranch
+        )
+      }
     }
   }
 
@@ -126,11 +129,12 @@ struct AgentHijackingAttackTests {
       """
 
     await #expect(throws: FloorError.nonFastForwardPush(branch: "main")) {
-      try await FloorGuard.checkNoRewrite(
-        repoRoot: repo.repoURL,
-        pushedRefsInput: batchedStdin,
-        defaultBranch: "main"
-      )
+      try await repo.run {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: batchedStdin,
+          defaultBranch: "main"
+        )
+      }
     }
   }
 
@@ -145,22 +149,24 @@ struct AgentHijackingAttackTests {
       "refs/heads/main 0000000000000000000000000000000000000000 refs/heads/main 1111111111111111111111111111111111111111\n"
 
     await #expect(throws: FloorError.branchDeletion(branch: "main")) {
-      try await FloorGuard.checkNoRewrite(
-        repoRoot: repo.repoURL,
-        pushedRefsInput: deleteStdin,
-        defaultBranch: "main"
-      )
+      try await repo.run {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: deleteStdin,
+          defaultBranch: "main"
+        )
+      }
     }
 
     // Literal "(delete)" marker also caught
     let literalDeleteStdin =
       "(delete) 0000000000000000000000000000000000000000 refs/heads/main 1111111111111111111111111111111111111111\n"
     await #expect(throws: FloorError.branchDeletion(branch: "main")) {
-      try await FloorGuard.checkNoRewrite(
-        repoRoot: repo.repoURL,
-        pushedRefsInput: literalDeleteStdin,
-        defaultBranch: "main"
-      )
+      try await repo.run {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: literalDeleteStdin,
+          defaultBranch: "main"
+        )
+      }
     }
   }
 
@@ -176,11 +182,12 @@ struct AgentHijackingAttackTests {
       + "refs/heads/feat/experiment 0000000000000000000000000000000000000000\n"
 
     // Must succeed without throwing
-    try await FloorGuard.checkNoRewrite(
-      repoRoot: repo.repoURL,
-      pushedRefsInput: newBranchStdin,
-      defaultBranch: "main"
-    )
+    try await repo.run {
+      try await FloorGuard.checkNoRewrite(
+        pushedRefsInput: newBranchStdin,
+        defaultBranch: "main"
+      )
+    }
   }
 
   @Test("Attack 8: Agent removes default_branch field completely from registry.lock")
@@ -189,7 +196,7 @@ struct AgentHijackingAttackTests {
     try repo.withRule("attack-rule-8")
     try await repo.signed(version: 1, defaultBranch: "custom")
 
-    let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
+    let lockURL = repo.run { RegistryManager.registryURL() }
     let original = try String(contentsOf: lockURL, encoding: .utf8)
 
     // Agent deletes the default_branch line
@@ -198,7 +205,9 @@ struct AgentHijackingAttackTests {
 
     // 1. Signature check fails immediately
     await #expect(throws: RegistryError.self) {
-      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+      try await repo.run {
+        _ = try await RegistryManager.loadAndVerify()
+      }
     }
 
     // 2. Direct parsing (simulating a legacy lockfile) falls back safely to "main" rather than nil/empty

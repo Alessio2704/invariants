@@ -13,7 +13,7 @@ struct SecurityAttackTests {
     try await repo.signed(version: 1)
 
     // Attacker injects a rogue key into invariants/allowed_signers
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
     let rogueKey =
       "* namespaces=\"invariants\" ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMockRogueKey rogue@attacker\n"
     var content = try String(contentsOf: signersURL, encoding: .utf8)
@@ -22,7 +22,9 @@ struct SecurityAttackTests {
 
     // loadAndVerify must immediately detect that signers_hash does not match
     await #expect(throws: RegistryError.self) {
-      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+      try await repo.run {
+        _ = try await RegistryManager.loadAndVerify()
+      }
     }
   }
 
@@ -40,26 +42,20 @@ struct SecurityAttackTests {
       .trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Attacker appends rogue key to allowed_signers
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
     var signersContent = try String(contentsOf: signersURL, encoding: .utf8)
     signersContent.append("* namespaces=\"invariants\" \(roguePub)\n")
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
     // Attacker creates version 2 registry and signs with rogueKey
     let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0")
-    try await RegistryManager.saveAndSign(registry: reg2, repoRoot: repo.repoURL, keyURL: rogueKeyURL)
+    try await repo.run {
+      try await RegistryManager.saveAndSign(registry: reg2, keyURL: rogueKeyURL)
 
-    // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers!
-    let lockURL = RegistryManager.registryURL(repoRoot: repo.repoURL)
-    let sigURL = RegistryManager.signatureURL(repoRoot: repo.repoURL)
-
-    await #expect(throws: FloorError.self) {
-      try await FloorGuard.checkSignerAncestry(
-        repoRoot: repo.repoURL,
-        currentRegistry: reg2,
-        lockURL: lockURL,
-        sigURL: sigURL
-      )
+      // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers!
+      await #expect(throws: FloorError.self) {
+        try await FloorGuard.checkSignerAncestry(currentRegistry: reg2)
+      }
     }
   }
 
@@ -72,11 +68,13 @@ struct SecurityAttackTests {
 
     // Attacker attempts to revert working tree registry.lock to version 1
     let reg1 = Registry.forTesting(version: 1, engine: "^1.0.0")
-    try await RegistryManager.saveAndSign(registry: reg1, repoRoot: repo.repoURL, keyURL: repo.keyURL)
+    try await repo.run {
+      try await RegistryManager.saveAndSign(registry: reg1, keyURL: repo.keyURL)
 
-    // FloorGuard history check must reject version 1 because history max is 2
-    await #expect(throws: FloorError.self) {
-      _ = try await FloorGuard.checkHistory(repoRoot: repo.repoURL, currentVersion: 1)
+      // FloorGuard history check must reject version 1 because history max is 2
+      await #expect(throws: FloorError.self) {
+        _ = try await FloorGuard.checkHistory(currentVersion: 1)
+      }
     }
   }
 
@@ -86,7 +84,9 @@ struct SecurityAttackTests {
     try repo.withRule("attack-rule-4")
     try await repo.signed(version: 1)
 
-    let reg = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+    let reg = try await repo.run {
+      try await RegistryManager.loadAndVerify()
+    }
     let signedHash = reg.rules["attack-rule-4"]
     #expect(signedHash != nil)
 
@@ -95,7 +95,9 @@ struct SecurityAttackTests {
     try "// tampered code\n".write(to: ruleSwiftURL, atomically: true, encoding: .utf8)
 
     // Fingerprint engine computes new hash that drifts from signedHash
-    let driftHash = try await FingerprintEngine.computeFingerprint(repoRoot: repo.repoURL, ruleId: "attack-rule-4")
+    let driftHash = try await repo.run {
+      try await FingerprintEngine.computeFingerprint(ruleId: "attack-rule-4")
+    }
     #expect(driftHash != signedHash)
   }
 
@@ -105,7 +107,7 @@ struct SecurityAttackTests {
     try repo.withRule("attack-rule-5")
 
     // Expire the key in allowed_signers with valid-before in the past
-    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repo.repoURL)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
     let pubKeyStr = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
       in: .whitespacesAndNewlines)
     let expiredSigners = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
@@ -113,11 +115,13 @@ struct SecurityAttackTests {
 
     // Save and sign with the expired key
     let reg = Registry.forTesting(version: 1, engine: "^1.0.0")
-    try await RegistryManager.saveAndSign(registry: reg, repoRoot: repo.repoURL, keyURL: repo.keyURL)
+    try await repo.run {
+      try await RegistryManager.saveAndSign(registry: reg, keyURL: repo.keyURL)
 
-    // loadAndVerify must reject with signatureInvalid (key expired)
-    await #expect(throws: RegistryError.self) {
-      _ = try await RegistryManager.loadAndVerify(repoRoot: repo.repoURL)
+      // loadAndVerify must reject with signatureInvalid (key expired)
+      await #expect(throws: RegistryError.self) {
+        _ = try await RegistryManager.loadAndVerify()
+      }
     }
   }
 }

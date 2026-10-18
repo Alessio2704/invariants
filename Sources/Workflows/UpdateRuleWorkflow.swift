@@ -19,12 +19,11 @@ package enum UpdateRuleWorkflow {
   }
 
   package static func execute(input: Input) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
     let env = SystemEnvironment.standard
     let fm = FileManager.default
 
     var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
       installedEngineVersion: EngineVersion.current
     )
 
@@ -42,7 +41,6 @@ package enum UpdateRuleWorkflow {
 
     try fm.createDirectory(at: tempOldSnapshot, withIntermediateDirectories: true)
     try await GitClient.archiveExtract(
-      repoRoot: repoRootURL,
       treeHash: oldSignedTreeHash,
       destinationURL: tempOldSnapshot
     )
@@ -59,7 +57,6 @@ package enum UpdateRuleWorkflow {
     try ManifestValidator.validateStructure(
       ruleDirectory: ruleDir,
       manifest: newManifest,
-      repoRoot: repoRootURL,
       registry: registry,
       isFixtureMode: false
     )
@@ -70,7 +67,6 @@ package enum UpdateRuleWorkflow {
       newManifest: newManifest,
       ruleDir: ruleDir,
       tempOldSnapshot: tempOldSnapshot,
-      repoRootURL: repoRootURL,
       registry: registry,
       oldSignedTreeHash: oldSignedTreeHash,
       env: env
@@ -91,7 +87,6 @@ package enum UpdateRuleWorkflow {
     // Save and commit
     try await saveAndCommitUpdate(
       input: input,
-      repoRootURL: repoRootURL,
       oldSignedTreeHash: oldSignedTreeHash,
       registry: &registry
     )
@@ -177,19 +172,18 @@ package enum UpdateRuleWorkflow {
 
     for target in context.newManifest.targets {
       guard let scope = context.newManifest.scope[target] else { continue }
-      let scopedFiles = ManifestValidator.resolveScopedFiles(
-        repoRoot: context.repoRootURL, scope: scope, target: target)
+      let scopedFiles = ManifestValidator.resolveScopedFiles(scope: scope, target: target)
 
       let oldReq = RuleRequest(
         mode: "repo",
-        repoRoot: context.repoRootURL.path,
+        repoRoot: RepoLocator.current.path,
         ruleDir: context.tempOldSnapshot.path,
         files: scopedFiles.map { $0.path },
         languages: context.registry.languages
       )
       let newReq = RuleRequest(
         mode: "repo",
-        repoRoot: context.repoRootURL.path,
+        repoRoot: RepoLocator.current.path,
         ruleDir: context.ruleDir.path,
         files: scopedFiles.map { $0.path },
         languages: context.registry.languages
@@ -270,11 +264,10 @@ package enum UpdateRuleWorkflow {
 
   private static func saveAndCommitUpdate(
     input: Input,
-    repoRootURL: URL,
     oldSignedTreeHash: String,
     registry: inout Registry
   ) async throws {
-    let newTreeHash = try await FingerprintEngine.computeFingerprint(repoRoot: repoRootURL, ruleId: input.id)
+    let newTreeHash = try await FingerprintEngine.computeFingerprint(ruleId: input.id)
     guard newTreeHash != oldSignedTreeHash else {
       print("Notice: No changes detected. Rule '\(input.id)' is already at tree \(newTreeHash).")
       return
@@ -290,12 +283,10 @@ package enum UpdateRuleWorkflow {
     print("Signing registry v\(registry.version) with \(keyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",
         "invariants/registry.lock.sig",
@@ -314,7 +305,6 @@ private struct WeakeningContext {
   let newManifest: RuleManifest
   let ruleDir: URL
   let tempOldSnapshot: URL
-  let repoRootURL: URL
   let registry: Registry
   let oldSignedTreeHash: String
   let env: SystemEnvironment

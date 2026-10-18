@@ -86,37 +86,39 @@ package enum HardwareKeyWorkflow {
 
     print("")
     if let repoRoot = RepoLocator.findRepoRoot() {
-      print("[Active Project: \(repoRoot.lastPathComponent)]")
-      let lockURL = RegistryManager.registryURL(repoRoot: repoRoot)
-      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
+      RepoLocator.withRepoRoot(repoRoot) {
+        print("[Active Project: \(repoRoot.lastPathComponent)]")
+        let lockURL = RegistryManager.registryURL()
+        let signersURL = RegistryManager.allowedSignersURL()
 
-      let hasLock = FileManager.default.fileExists(atPath: lockURL.path)
-      let hasSigners = FileManager.default.fileExists(atPath: signersURL.path)
-      if hasLock && hasSigners {
-        if let lockData = try? Data(contentsOf: lockURL), let reg = try? CanonicalJSON.parse(data: lockData) {
-          print("  Registry:    version \(reg.version) (\(reg.rules.count) active rule(s))")
-          print("  Trunk:       \(reg.defaultBranch)")
-        }
+        let hasLock = FileManager.default.fileExists(atPath: lockURL.path)
+        let hasSigners = FileManager.default.fileExists(atPath: signersURL.path)
+        if hasLock && hasSigners {
+          if let lockData = try? Data(contentsOf: lockURL), let reg = try? CanonicalJSON.parse(data: lockData) {
+            print("  Registry:    version \(reg.version) (\(reg.rules.count) active rule(s))")
+            print("  Trunk:       \(reg.defaultBranch)")
+          }
 
-        if let pubKey = inspection.pubKey {
-          let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
-          if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
-            if matchedEntry.isExpired() {
-              print("  Your Status: ❌ Revoked / Expired in this repository")
-              print("  Entry:       \(matchedEntry.serialize())")
+          if let pubKey = inspection.pubKey {
+            let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
+            if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
+              if matchedEntry.isExpired() {
+                print("  Your Status: ❌ Revoked / Expired in this repository")
+                print("  Entry:       \(matchedEntry.serialize())")
+              } else {
+                print("  Your Status: ✅ Authorized Active Signer")
+              }
             } else {
-              print("  Your Status: ✅ Authorized Active Signer")
+              print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
+              print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
             }
           } else {
-            print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
-            print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
+            print("  Your Status: ℹ️ Read-Only (No local key to check against allowed_signers)")
           }
         } else {
-          print("  Your Status: ℹ️ Read-Only (No local key to check against allowed_signers)")
+          print("  Invariants:  Not initialized in this repository.")
+          print("  To initialize, run: invariants init")
         }
-      } else {
-        print("  Invariants:  Not initialized in this repository.")
-        print("  To initialize, run: invariants init")
       }
     } else {
       print("[Active Project]")
@@ -228,18 +230,21 @@ package enum HardwareKeyWorkflow {
 
   private static func printContextualStatus(pubKey: String) {
     if let repoRoot = RepoLocator.findRepoRoot() {
-      let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoRoot)
-      if FileManager.default.fileExists(atPath: signersURL.path) {
-        let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
-        if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
-          print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
+      RepoLocator.withRepoRoot(repoRoot) {
+        let signersURL = RegistryManager.allowedSignersURL()
+        if FileManager.default.fileExists(atPath: signersURL.path) {
+          let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
+          if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
+            print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
+          } else {
+            print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
+            print("Share your public key above with a repository lead to be added via:")
+            print("    invariants signers add \"\(pubKey)\"")
+          }
         } else {
-          print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
-          print("Share your public key above with a repository lead to be added via:")
-          print("    invariants signers add \"\(pubKey)\"")
+          print(
+            "ℹ️  Invariants is not initialized in '\(repoRoot.lastPathComponent)'. Run 'invariants init' to seal it.")
         }
-      } else {
-        print("ℹ️  Invariants is not initialized in '\(repoRoot.lastPathComponent)'. Run 'invariants init' to seal it.")
       }
     } else {
       print("Share your public key above with your repository lead to be added as an authorized signer.")

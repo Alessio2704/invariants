@@ -20,7 +20,7 @@ package enum InitWorkflow {
   }
 
   package static func execute(input: Input) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
 
     print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
@@ -32,8 +32,7 @@ package enum InitWorkflow {
 
     // 2. Detect language inputs interactively or via flags
     let languagesConfig = LanguageConfigWorkflow.resolveConfigurations(
-      explicitLanguages: input.languages,
-      repoRootURL: repoRootURL
+      explicitLanguages: input.languages
     )
 
     guard !languagesConfig.isEmpty else {
@@ -46,8 +45,7 @@ package enum InitWorkflow {
 
     // 3. Select default trunk branch
     let defaultBranch = await BranchSelectionWorkflow.selectDefaultBranch(
-      explicitBranch: input.branch,
-      repoRootURL: repoRootURL
+      explicitBranch: input.branch
     )
 
     // 4. Initialize repository
@@ -59,7 +57,7 @@ package enum InitWorkflow {
     )
 
     print("Signing registry v1 with \(keyURL.lastPathComponent)...")
-    try await InitManager.initialize(repoRootURL: repoRootURL, options: options)
+    try await InitManager.initialize(options: options)
 
     print("✓ Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
     print("\n💡 To enforce invariants automatically on commit or push, add:")

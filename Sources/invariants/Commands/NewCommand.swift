@@ -15,118 +15,119 @@ struct NewCommand: AsyncParsableCommand {
   var targets: String = "swift"
 
   func run() async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRoot = try RepoLocator.discover()
+    try RepoLocator.withRepoRoot(repoRoot) {
+      let ruleDir = RepoLocator.current.appendingPathComponent("invariants/rules/\(id)")
+      let fm = FileManager.default
 
-    let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(id)")
-    let fm = FileManager.default
-
-    guard !fm.fileExists(atPath: ruleDir.path) else {
-      fputs("Error: Rule directory already exists at \(ruleDir.path)\n", stderr)
-      throw ExitCode(1)
-    }
-
-    let targetList = targets.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-    var declaredTargets: [TargetLanguage] = []
-    for t in targetList {
-      guard let lang = TargetLanguage(rawValue: t) else {
-        fputs("Error: Unknown target language '\(t)'. Supported: swift, ts\n", stderr)
+      guard !fm.fileExists(atPath: ruleDir.path) else {
+        fputs("Error: Rule directory already exists at \(ruleDir.path)\n", stderr)
         throw ExitCode(1)
       }
-      declaredTargets.append(lang)
-    }
 
-    guard !declaredTargets.isEmpty else {
-      fputs("Error: Must specify at least one target language.\n", stderr)
-      throw ExitCode(1)
-    }
-
-    do {
-      try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)
-
-      // 1. Generate manifest.json
-      var scopeDict: [String: Any] = [:]
-      for t in declaredTargets {
-        let defaultInclude = (t == .swift) ? ["**/*.swift"] : ["**/*.ts"]
-        scopeDict[t.rawValue] = ["include": defaultInclude]
-      }
-
-      let manifestObj: [String: Any] = [
-        "id": id,
-        "summary": "Draft invariant rule: \(id).",
-        "targets": declaredTargets.map { $0.rawValue },
-        "scope": scopeDict,
-        "codes": [
-          "SAMPLE-01": "Sample violation description"
-        ],
-      ]
-      let manifestData = try JSONSerialization.data(
-        withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
-      try manifestData.write(to: ruleDir.appendingPathComponent("manifest.json"), options: .atomic)
-
-      // 2. Generate target files and fixture folders
-      for t in declaredTargets {
-        let passDir = ruleDir.appendingPathComponent("should_pass/\(t.rawValue)")
-        let failDir = ruleDir.appendingPathComponent("should_fail/\(t.rawValue)")
-        try fm.createDirectory(at: passDir, withIntermediateDirectories: true)
-        try fm.createDirectory(at: failDir, withIntermediateDirectories: true)
-
-        if t == .swift {
-          let ruleSwift = """
-            import InvariantKit
-
-            @main
-            struct \(id.replacingOccurrences(of: "-", with: "_").capitalized)Rule: SwiftRule {
-                func check(_ ctx: RuleContext) throws(RuleError) -> [Violation] {
-                    // Implement invariant check here
-                    return []
-                }
-            }
-            """
-          try ruleSwift.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.swift"))
-
-          let passCase = "// Legitimate pattern\n"
-          try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.swift"))
-
-          let failCase = """
-            // Violating pattern
-            // expect: SAMPLE-01
-            let x = "violation"
-            """
-          try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.swift"))
-        } else if t == .ts {
-          let ruleTs = """
-            import { defineRule } from "@invariants/kit";
-
-            export default defineRule({
-              check(ctx) {
-                // Implement invariant check here
-                return [];
-              },
-            });
-            """
-          try ruleTs.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.ts"))
-
-          let passCase = "// Legitimate pattern\n"
-          try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.ts"))
-
-          let failCase = """
-            // Violating pattern
-            // expect: SAMPLE-01
-            const x = "violation";
-            """
-          try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.ts"))
+      let targetList = targets.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+      var declaredTargets: [TargetLanguage] = []
+      for t in targetList {
+        guard let lang = TargetLanguage(rawValue: t) else {
+          fputs("Error: Unknown target language '\(t)'. Supported: swift, ts\n", stderr)
+          throw ExitCode(1)
         }
+        declaredTargets.append(lang)
       }
 
-      print("✓ Scaffolded draft rule '\(id)' at invariants/rules/\(id)/")
-      print("Next steps:")
-      print("  1. Write fixtures first in should_fail and should_pass (they are the spec).")
-      print("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
-      print("  3. Run 'invariants test \(id)' until green.")
-      print("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
-    } catch {
-      fputs("Error scaffolding rule: \(error.localizedDescription)\n", stderr)
-      throw ExitCode(1)
+      guard !declaredTargets.isEmpty else {
+        fputs("Error: Must specify at least one target language.\n", stderr)
+        throw ExitCode(1)
+      }
+
+      do {
+        try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)
+
+        // 1. Generate manifest.json
+        var scopeDict: [String: Any] = [:]
+        for t in declaredTargets {
+          let defaultInclude = (t == .swift) ? ["**/*.swift"] : ["**/*.ts"]
+          scopeDict[t.rawValue] = ["include": defaultInclude]
+        }
+
+        let manifestObj: [String: Any] = [
+          "id": id,
+          "summary": "Draft invariant rule: \(id).",
+          "targets": declaredTargets.map { $0.rawValue },
+          "scope": scopeDict,
+          "codes": [
+            "SAMPLE-01": "Sample violation description"
+          ],
+        ]
+        let manifestData = try JSONSerialization.data(
+          withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
+        try manifestData.write(to: ruleDir.appendingPathComponent("manifest.json"), options: .atomic)
+
+        // 2. Generate target files and fixture folders
+        for t in declaredTargets {
+          let passDir = ruleDir.appendingPathComponent("should_pass/\(t.rawValue)")
+          let failDir = ruleDir.appendingPathComponent("should_fail/\(t.rawValue)")
+          try fm.createDirectory(at: passDir, withIntermediateDirectories: true)
+          try fm.createDirectory(at: failDir, withIntermediateDirectories: true)
+
+          if t == .swift {
+            let ruleSwift = """
+              import InvariantKit
+
+              @main
+              struct \(id.replacingOccurrences(of: "-", with: "_").capitalized)Rule: SwiftRule {
+                  func check(_ ctx: RuleContext) throws(RuleError) -> [Violation] {
+                      // Implement invariant check here
+                      return []
+                  }
+              }
+              """
+            try ruleSwift.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.swift"))
+
+            let passCase = "// Legitimate pattern\n"
+            try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.swift"))
+
+            let failCase = """
+              // Violating pattern
+              // expect: SAMPLE-01
+              let x = "violation"
+              """
+            try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.swift"))
+          } else if t == .ts {
+            let ruleTs = """
+              import { defineRule } from "@invariants/kit";
+
+              export default defineRule({
+                check(ctx) {
+                  // Implement invariant check here
+                  return [];
+                },
+              });
+              """
+            try ruleTs.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.ts"))
+
+            let passCase = "// Legitimate pattern\n"
+            try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.ts"))
+
+            let failCase = """
+              // Violating pattern
+              // expect: SAMPLE-01
+              const x = "violation";
+              """
+            try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.ts"))
+          }
+        }
+
+        print("✓ Scaffolded draft rule '\(id)' at invariants/rules/\(id)/")
+        print("Next steps:")
+        print("  1. Write fixtures first in should_fail and should_pass (they are the spec).")
+        print("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
+        print("  3. Run 'invariants test \(id)' until green.")
+        print("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
+      } catch {
+        fputs("Error scaffolding rule: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 }

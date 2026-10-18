@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 
 public enum FloorError: Error, Equatable, Sendable {
   case versionBelowHistory(current: Int, maxHistoryVersion: Int)
@@ -10,11 +10,10 @@ public enum FloorError: Error, Equatable, Sendable {
 
 public enum FloorGuard: Sendable {
   /// Verifies that currentVersion is >= the maximum registry version in the git commit ancestry.
-  public static func checkHistory(repoRoot: URL, currentVersion: Int) async throws(FloorError) -> Int {
+  public static func checkHistory(currentVersion: Int) async throws(FloorError) -> Int {
     let commits: [String]
     do {
       commits = try await GitClient.commitHistoryTouching(
-        repoRoot: repoRoot,
         relativePath: "invariants/registry.lock"
       )
     } catch {
@@ -26,7 +25,6 @@ public enum FloorGuard: Sendable {
       let content: String
       do {
         content = try await GitClient.showFile(
-          repoRoot: repoRoot,
           commit: commit,
           relativePath: "invariants/registry.lock"
         )
@@ -53,7 +51,6 @@ public enum FloorGuard: Sendable {
 
   /// Pre-push hook guard: Rejects force-pushes or deletions of the default branch.
   public static func checkNoRewrite(
-    repoRoot: URL,
     pushedRefsInput: String,
     defaultBranch: String = "main"
   ) async throws(FloorError) {
@@ -82,7 +79,6 @@ public enum FloorGuard: Sendable {
           let isAncestor: Bool
           do {
             isAncestor = try await GitClient.isAncestor(
-              repoRoot: repoRoot,
               ancestor: remoteSha,
               descendant: localSha
             )
@@ -101,15 +97,13 @@ public enum FloorGuard: Sendable {
   /// Verifies that if registry.lock or allowed_signers was changed from HEAD,
   /// the new signature is valid against the parent commit's allowed_signers.
   public static func checkSignerAncestry(
-    repoRoot: URL,
-    currentRegistry: Registry,
-    lockURL: URL,
-    sigURL: URL
+    currentRegistry: Registry
   ) async throws(FloorError) {
+    let lockURL = RegistryManager.registryURL()
+    let sigURL = RegistryManager.signatureURL()
     let headLock: String
     do {
       headLock = try await GitClient.showFile(
-        repoRoot: repoRoot,
         commit: "HEAD",
         relativePath: "invariants/registry.lock"
       )
@@ -134,7 +128,6 @@ public enum FloorGuard: Sendable {
       let parentSignersContent: String
       do {
         parentSignersContent = try await GitClient.showFile(
-          repoRoot: repoRoot,
           commit: "HEAD",
           relativePath: "invariants/allowed_signers"
         )

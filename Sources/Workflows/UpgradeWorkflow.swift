@@ -5,13 +5,12 @@ import Terminal
 /// Interactive CLI workflow to re-verify rules and upgrade engine range in registry.
 package enum UpgradeWorkflow {
   package static func execute(keyPath: String?) async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
+    let repoRootURL = RepoLocator.current
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
     var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
       installedEngineVersion: EngineVersion.current
     )
 
@@ -24,7 +23,6 @@ package enum UpgradeWorkflow {
 
       try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
       try await GitClient.archiveExtract(
-        repoRoot: repoRootURL,
         treeHash: signedTreeHash,
         destinationURL: tempSnapshot
       )
@@ -60,7 +58,7 @@ package enum UpgradeWorkflow {
       // Check repo scope
       for target in manifest.targets {
         guard let scope = manifest.scope[target] else { continue }
-        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: scope, target: target)
+        let scopedFiles = ManifestValidator.resolveScopedFiles(scope: scope, target: target)
         let req = RuleRequest(
           mode: "repo",
           repoRoot: repoRootURL.path,
@@ -100,12 +98,10 @@ package enum UpgradeWorkflow {
 
     try await RegistryManager.saveAndSign(
       registry: registry,
-      repoRoot: repoRootURL,
       keyURL: keyURL
     )
 
     try await GitClient.commit(
-      repoRoot: repoRootURL,
       paths: [
         "invariants/registry.lock",
         "invariants/registry.lock.sig",
