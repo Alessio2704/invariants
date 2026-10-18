@@ -1,6 +1,6 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
 
 private struct CheckContext {
   let repoRootURL: URL

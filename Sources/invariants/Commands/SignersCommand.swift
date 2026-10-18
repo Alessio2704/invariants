@@ -1,6 +1,7 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
+import Workflows
 
 struct SignersCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -222,7 +223,7 @@ struct SignersCommand: AsyncParsableCommand {
     }
 
     registry.version += 1
-    guard let keyURL = await SigningKeyManager.resolveOrPrompt(customPath: customSigningKey) else {
+    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: customSigningKey) else {
       fputs("Error: No Invariants signing key resolved to sign registry update.\n", stderr)
       throw ExitCode(1)
     }

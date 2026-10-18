@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 @testable import InvariantKit
 
 @Suite("Rule Enforcement End-to-End Simulation Tests", .tags(.integration), .tags(.scenario))

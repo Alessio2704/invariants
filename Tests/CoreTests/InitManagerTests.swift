@@ -1,0 +1,123 @@
+import Foundation
+import Testing
+
+@testable import Core
+
+@Suite("InitManager Repository Initialization Tests", .tags(.unit))
+struct InitManagerTests {
+  @Test(
+    "Initializes clean repository with registry v1, allowed_signers, gitignore, and commit without touching git hooks")
+  func initializeCleanRepository() async throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_test_\(UUID().uuidString)")
+    let repoURL = tmpDir.appendingPathComponent("test-project")
+    let keyURL = tmpDir.appendingPathComponent("id_p256")
+
+    try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    // Setup git repo
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Init Tester"])
+    _ = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", repoURL.path, "config", "user.email", "tester@invariants.local"])
+
+    // Generate throwaway key
+    try SigningClient.generateThrowawayKey(at: keyURL)
+
+    var project = ProjectConfig()
+    project[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    project[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+
+    let options = InitOptions(
+      engineVersion: "1.0.0",
+      projectConfig: project,
+      keyURL: keyURL
+    )
+
+    try await InitManager.initialize(repoRootURL: repoURL, options: options)
+
+    // 1. Verify in-repo allowed_signers
+    let signersURL = RegistryManager.allowedSignersURL(repoRoot: repoURL)
+    #expect(fm.fileExists(atPath: signersURL.path))
+    let signersContent = try String(contentsOf: signersURL, encoding: .utf8)
+    let pubKey = try String(contentsOf: keyURL.appendingPathExtension("pub"), encoding: .utf8)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    #expect(signersContent.contains(pubKey))
+    #expect(signersContent.contains("namespaces=\"invariants\""))
+
+    // 2. Verify registry.lock and registry.lock.sig
+    let lockURL = RegistryManager.registryURL(repoRoot: repoURL)
+    let sigURL = RegistryManager.signatureURL(repoRoot: repoURL)
+    #expect(fm.fileExists(atPath: lockURL.path))
+    #expect(fm.fileExists(atPath: sigURL.path))
+
+    // 3. Verify registry can be loaded and cryptographically verified
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
+    #expect(loaded.version == 1)
+    #expect(loaded.defaultBranch == "main")
+    #expect(loaded.project?[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
+    #expect(loaded.project?[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+
+    // 4. Verify .gitignore updated with invariants/.dev/
+    let gitignoreURL = repoURL.appendingPathComponent(".gitignore")
+    #expect(fm.fileExists(atPath: gitignoreURL.path))
+    let gitignoreContent = try String(contentsOf: gitignoreURL, encoding: .utf8)
+    #expect(gitignoreContent.contains("invariants/.dev/"))
+
+    // 5. Verify NO git hooks hijacked
+    let githooksDir = repoURL.appendingPathComponent(".githooks")
+    #expect(!fm.fileExists(atPath: githooksDir.path))
+    let hooksCheck = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", repoURL.path, "config", "--get", "core.hooksPath"]
+    )
+    #expect(hooksCheck.exitCode != 0 || hooksCheck.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+    // 6. Verify git commit exists with initial commit
+    let logOutput = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", repoURL.path, "log", "--oneline"]
+    )
+    #expect(logOutput.exitCode == 0)
+    #expect(logOutput.stdoutString.contains("Initialize invariants (v1)"))
+  }
+
+  @Test("Initializes with custom default branch")
+  func initializeWithCustomBranch() async throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_custom_branch_\(UUID().uuidString)")
+    let repoURL = tmpDir.appendingPathComponent("test-project")
+    let keyURL = tmpDir.appendingPathComponent("id_p256")
+
+    try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "develop"])
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Branch Tester"])
+    _ = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", repoURL.path, "config", "user.email", "branch@invariants.local"])
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+
+    let detected = (await GitClient.discoverBranches(repoRoot: repoURL)).first
+    #expect(detected == "develop")
+
+    let options = InitOptions(
+      engineVersion: "1.0.0",
+      defaultBranch: "develop",
+      keyURL: keyURL
+    )
+
+    try await InitManager.initialize(repoRootURL: repoURL, options: options)
+
+    let loaded = try await RegistryManager.loadAndVerify(repoRoot: repoURL, installedEngineVersion: "1.0.0")
+    #expect(loaded.defaultBranch == "develop")
+  }
+}

@@ -1,6 +1,7 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
+import Workflows
 
 struct InitCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -24,8 +25,12 @@ struct InitCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    try await InitWorkflowManager.execute(
-      input: .init(branch: branch, languages: languages, keyPath: key)
-    )
+    do {
+      try await InitWorkflow.execute(
+        input: .init(branch: branch, languages: languages, keyPath: key)
+      )
+    } catch is InitWorkflowError {
+      throw ExitCode(1)
+    }
   }
 }

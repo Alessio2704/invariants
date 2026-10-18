@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 @testable import InvariantKit
 
 @Suite("End-to-End Rule Execution Integration Tests", .tags(.integration), .tags(.scenario))

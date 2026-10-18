@@ -1,6 +1,6 @@
 import Foundation
 
-@testable import InvariantCore
+@testable import Core
 
 /// Fluent test repository builder for Scenario and Security tests.
 final class TestRepo: @unchecked Sendable {

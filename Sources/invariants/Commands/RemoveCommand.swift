@@ -1,6 +1,7 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
+import Workflows
 
 struct RemoveCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -18,73 +19,11 @@ struct RemoveCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRootURL = try RepoLocator.requireRepoRoot()
-
-    let fm = FileManager.default
-
-    // 1. Load registry
-    var registry = try await RegistryManager.loadAndVerify(
-      repoRoot: repoRootURL,
-      installedEngineVersion: EngineVersion.current
-    )
-
-    guard registry.rules[id] != nil else {
-      fputs("Error: Rule '\(id)' is not in registry.\n", stderr)
+    do {
+      try await RemoveRuleWorkflow.execute(ruleId: id, deleteFromDisk: delete, keyPath: key)
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
       throw ExitCode(1)
-    }
-
-    let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(id)")
-
-    // 2. Remove rule
-    registry.rules.removeValue(forKey: id)
-    registry.version += 1
-
-    var pathsToCommit = [
-      "invariants/registry.lock",
-      "invariants/registry.lock.sig",
-    ]
-
-    if delete {
-      if fm.fileExists(atPath: ruleDir.path) {
-        try fm.removeItem(at: ruleDir)
-        pathsToCommit.append("invariants/rules/\(id)")
-      }
-    }
-
-    if TerminalPrompt.isInteractive {
-      let confirm = TerminalPrompt.promptConfirmation(
-        question: "Deactivate and remove invariant '\(id)' from registry v\(registry.version + 1)?",
-        default: true
-      )
-      if !confirm {
-        print("Aborted.")
-        return
-      }
-    }
-
-    // 3. Resolve key and sign
-    guard let keyURL = await SigningKeyManager.resolveOrPrompt(customPath: key) else {
-      fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
-      throw ExitCode(1)
-    }
-
-    print("Signing registry v\(registry.version)...")
-    try await RegistryManager.saveAndSign(
-      registry: registry,
-      repoRoot: repoRootURL,
-      keyURL: keyURL
-    )
-
-    // 4. Commit
-    try await GitClient.commit(
-      repoRoot: repoRootURL,
-      paths: pathsToCommit,
-      message: "Remove invariant '\(id)' (registry v\(registry.version))"
-    )
-
-    print("✓ Rule '\(id)' removed from registry v\(registry.version).")
-    if !delete {
-      print("Notice: Directory kept as draft at invariants/rules/\(id)/.")
     }
   }
 }

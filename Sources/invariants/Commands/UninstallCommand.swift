@@ -1,6 +1,7 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
+import Workflows
 
 struct UninstallCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -12,48 +13,10 @@ struct UninstallCommand: AsyncParsableCommand {
   var yes: Bool = false
 
   func run() async throws {
-    let env = SystemEnvironment.standard
-
-    print("Invariants Uninstaller")
-    print("──────────────────────")
-    print("Target root: \(env.rootURL.path)")
-    print("Target bin:  \(env.binURL.path)")
-    print("")
-
-    if !yes && TerminalPrompt.isInteractive {
-      let confirmed = TerminalPrompt.promptConfirmation(
-        question: "Are you sure you want to completely uninstall invariants from your machine?",
-        default: false
-      )
-      guard confirmed else {
-        print("Uninstall aborted.")
-        return
-      }
-    }
-
-    let needsElevation =
-      SubprocessRunner.requiresElevation(for: env.rootURL)
-      || SubprocessRunner.requiresElevation(for: env.binURL)
-
-    let token: ElevationToken?
-    if needsElevation {
-      do {
-        token = try await Authorizer.authorizeElevation(
-          reason: "Authorizing invariants uninstallation from \(env.rootURL.path)"
-        )
-      } catch {
-        fputs("Error: Could not authorize elevation: \(error)\n", stderr)
-        throw ExitCode(1)
-      }
-    } else {
-      token = nil
-    }
-
     do {
-      try await InstallationManager.uninstall(environment: env, token: token)
-      print("✓ Invariants successfully uninstalled from \(env.rootURL.path).")
+      try await UninstallWorkflow.execute(yes: yes)
     } catch {
-      fputs("Error: Uninstall failed: \(error)\n", stderr)
+      fputs("Error: Uninstall failed: \(error.localizedDescription)\n", stderr)
       throw ExitCode(1)
     }
   }

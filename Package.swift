@@ -14,7 +14,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "invariants", targets: ["invariants"]),
-        .library(name: "InvariantCore", targets: ["InvariantCore"]),
+        .library(name: "Core", targets: ["Core"]),
         .library(name: "InvariantKit", targets: ["InvariantKit"]),
     ],
     dependencies: [
@@ -34,7 +34,7 @@ let package = Package(
             dependencies: ["VersionGenTool"]
         ),
         .target(
-            name: "InvariantCore",
+            name: "Core",
             dependencies: [
                 .product(name: "IndexStoreDB", package: "indexstore-db"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -52,18 +52,40 @@ let package = Package(
             ],
             swiftSettings: swiftSettings
         ),
+        .target(
+            name: "Terminal",
+            dependencies: [],
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "Managers",
+            dependencies: [
+                "Core",
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "Workflows",
+            dependencies: [
+                "Core",
+                "Managers",
+                "Terminal",
+            ],
+            swiftSettings: swiftSettings
+        ),
         .executableTarget(
             name: "invariants",
             dependencies: [
-                "InvariantCore",
+                "Core",
                 "InvariantKit",
+                "Workflows",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "InvariantCoreTests",
-            dependencies: ["InvariantCore"],
+            name: "CoreTests",
+            dependencies: ["Core"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
@@ -73,7 +95,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ScenarioTests",
-            dependencies: ["InvariantCore", "InvariantKit"],
+            dependencies: ["Core", "InvariantKit", "Managers", "Workflows"],
             swiftSettings: swiftSettings
         ),
     ]

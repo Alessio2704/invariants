@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 
 @Suite("Team Collaboration & Key Lifecycle Scenarios", .tags(.scenario))
 struct TeamCollaborationScenarioTests {

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 
 @Suite("Engine Security & Attack Scenarios", .tags(.scenario), .tags(.security))
 struct SecurityAttackTests {

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 
 @Suite("Autonomous Agent Hijacking & Trunk Protection Attacks", .tags(.scenario), .tags(.security))
 struct AgentHijackingAttackTests {

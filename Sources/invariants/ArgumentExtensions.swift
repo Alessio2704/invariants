@@ -1,5 +1,5 @@
 public import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
 
 extension SupportedLanguage: ExpressibleByArgument {}

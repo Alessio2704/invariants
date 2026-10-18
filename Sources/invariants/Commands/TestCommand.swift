@@ -1,6 +1,6 @@
 import ArgumentParser
+import Core
 import Foundation
-import InvariantCore
 
 struct TestCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(

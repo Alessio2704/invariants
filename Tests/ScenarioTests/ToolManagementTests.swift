@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InvariantCore
+@testable import Core
 
 @Suite("Engine Tool Management: Signers, Self-Update & Uninstall", .tags(.scenario))
 struct ToolManagementTests {
