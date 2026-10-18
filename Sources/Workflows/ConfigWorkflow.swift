@@ -40,10 +40,11 @@ package enum ConfigWorkflow {
     }
 
     let oldProject = registry.project ?? ProjectConfig()
-    var newProject = oldProject
-    for lang in targetLanguages {
-      LanguageConfigWorkflow.configureLanguage(lang, repoRootURL: repoRootURL, into: &newProject)
-    }
+    let newProject = LanguageConfigWorkflow.configure(
+      languages: targetLanguages,
+      in: repoRootURL,
+      baseConfig: oldProject
+    )
 
     if newProject == oldProject && defaultBranch == nil {
       print("No configuration changes made.")

@@ -31,11 +31,9 @@ package enum InitWorkflow {
     }
 
     // 2. Detect project inputs interactively or via flags
-    var projectConfig = ProjectConfig()
-    LanguageConfigWorkflow.resolveConfigurations(
+    let projectConfig = LanguageConfigWorkflow.resolveConfigurations(
       explicitLanguages: input.languages,
-      repoRootURL: repoRootURL,
-      into: &projectConfig
+      repoRootURL: repoRootURL
     )
 
     // 3. Select default trunk branch

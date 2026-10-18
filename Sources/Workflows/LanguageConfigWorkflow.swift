@@ -9,8 +9,8 @@ package enum LanguageConfigWorkflow {
   package static func resolveConfigurations(
     explicitLanguages: [SupportedLanguage],
     repoRootURL: URL,
-    into projectConfig: inout ProjectConfig
-  ) {
+    baseConfig: ProjectConfig = ProjectConfig()
+  ) -> ProjectConfig {
     let targetLanguages: [SupportedLanguage]
 
     if !explicitLanguages.isEmpty {
@@ -46,9 +46,20 @@ package enum LanguageConfigWorkflow {
       }
     }
 
-    for lang in targetLanguages {
+    return configure(languages: targetLanguages, in: repoRootURL, baseConfig: baseConfig)
+  }
+
+  /// Interactively configures a collection of languages and returns the updated project configuration.
+  package static func configure(
+    languages: [SupportedLanguage],
+    in repoRootURL: URL,
+    baseConfig: ProjectConfig = ProjectConfig()
+  ) -> ProjectConfig {
+    var projectConfig = baseConfig
+    for lang in languages {
       configureLanguage(lang, repoRootURL: repoRootURL, into: &projectConfig)
     }
+    return projectConfig
   }
 
   /// Prompts the user to select from available languages.
@@ -60,8 +71,7 @@ package enum LanguageConfigWorkflow {
     return TerminalPrompt.promptMultiSelection(title: title, options: options)
   }
 
-  /// Interactively configures a single language and stores it in the project configuration.
-  package static func configureLanguage(
+  private static func configureLanguage(
     _ language: SupportedLanguage,
     repoRootURL: URL,
     into projectConfig: inout ProjectConfig
