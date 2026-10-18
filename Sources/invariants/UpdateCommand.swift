@@ -325,7 +325,7 @@ extension UpdateCommand {
       return
     }
 
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

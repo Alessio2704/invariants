@@ -12,14 +12,14 @@ struct InitCommand: AsyncParsableCommand {
   var branch: String?
 
   @Option(
-    name: [.short, .customLong("language"), .customLong("lang")],
+    name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
       "Language input in <lang>.<field>=<value> format.",
       discussion: LanguageCLIParser.helpDiscussion
     )
   )
-  var language: [String] = []
+  var languages: [String] = []
 
   @Option(name: .long, help: "Custom SSH key path for signing.")
   var key: String?
@@ -33,10 +33,16 @@ struct InitCommand: AsyncParsableCommand {
 
     print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
-    // 1. Detect project inputs interactively or via flags
+    // 1. Resolve signing key first (mandatory prerequisite for init)
+    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
+      fputs("Error: No signing key selected. Run 'invariants key generate' or specify --key <path>.\n", stderr)
+      throw ExitCode(1)
+    }
+
+    // 2. Detect project inputs interactively or via flags
     var projectConfig = ProjectConfig()
-    if !language.isEmpty {
-      for entry in language {
+    if !languages.isEmpty {
+      for entry in languages {
         do {
           try LanguageCLIParser.apply(entry: entry, into: &projectConfig)
         } catch {
@@ -45,12 +51,6 @@ struct InitCommand: AsyncParsableCommand {
       }
     } else {
       selectLanguageConfigurations(repoRootURL: repoRootURL, into: &projectConfig)
-    }
-
-    // 2. Resolve signing key
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
-      fputs("Error: No signing key selected. Run 'invariants key generate' or specify --key <path>.\n", stderr)
-      throw ExitCode(1)
     }
 
     // 3. Select default trunk branch
@@ -119,46 +119,10 @@ struct InitCommand: AsyncParsableCommand {
   }
 
   private func selectLanguageConfigurations(repoRootURL: URL, into projectConfig: inout ProjectConfig) {
+    let prompter: (any InteractivePrompter)? = CLIHelpers.isInteractive ? CLIInteractivePrompter() : nil
     for lang in SupportedLanguage.allCases {
       guard lang.spec.hasSources(in: repoRootURL) else { continue }
-      switch lang {
-      case .swift:
-        let candidates = SwiftLanguage.discoverCandidates(repoRootURL: repoRootURL)
-        guard !candidates.isEmpty else { continue }
-        if CLIHelpers.isInteractive {
-          print("\nDiscovered Swift Index candidates:")
-          for (idx, cand) in candidates.enumerated() {
-            print("  [\(idx + 1)] \(cand)")
-          }
-          let choice = CLIHelpers.prompt(
-            question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)")
-          if let num = Int(choice), num >= 1, num <= candidates.count {
-            projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: candidates[num - 1])
-          } else if !choice.isEmpty {
-            projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: choice)
-          }
-        } else {
-          projectConfig[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: candidates[0])
-        }
-      case .ts:
-        let candidates = TypeScriptLanguage.discoverCandidates(repoRootURL: repoRootURL)
-        guard !candidates.isEmpty else { continue }
-        if CLIHelpers.isInteractive {
-          let joined = candidates.joined(separator: ", ")
-          let confirm = CLIHelpers.promptConfirmation(
-            question: "Use discovered tsconfig paths (\(joined))?", default: true)
-          if confirm {
-            projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: candidates)
-          } else {
-            let custom = CLIHelpers.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
-            if !custom.isEmpty {
-              projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: [custom])
-            }
-          }
-        } else {
-          projectConfig[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: candidates)
-        }
-      }
+      lang.spec.configureInteractively(repoRootURL: repoRootURL, prompter: prompter, into: &projectConfig)
     }
   }
 }

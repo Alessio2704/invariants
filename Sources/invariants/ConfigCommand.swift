@@ -9,14 +9,14 @@ struct ConfigCommand: AsyncParsableCommand {
   )
 
   @Option(
-    name: [.short, .customLong("language"), .customLong("lang")],
+    name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
       "Language input in <lang>.<field>=<value> format.",
       discussion: LanguageCLIParser.helpDiscussion
     )
   )
-  var language: [String] = []
+  var languages: [String] = []
 
   @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
   var defaultBranch: String?
@@ -40,14 +40,14 @@ struct ConfigCommand: AsyncParsableCommand {
       installedEngineVersion: CLIHelpers.engineVersion
     )
 
-    if language.isEmpty && defaultBranch == nil {
-      print("No configuration changes specified. Use --lang <language>.<field>=<value> or --default-branch.")
+    if languages.isEmpty && defaultBranch == nil {
+      print("No configuration changes specified. Use --languages <language>.<field>=<value> or --default-branch.")
       return
     }
 
     let oldProject = registry.project ?? ProjectConfig()
     var newProject = oldProject
-    for entry in language {
+    for entry in languages {
       do {
         try LanguageCLIParser.apply(entry: entry, into: &newProject)
       } catch {
@@ -176,7 +176,7 @@ struct ConfigCommand: AsyncParsableCommand {
     registry.project = newProject
     registry.version += 1
 
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
       fputs("Error: No SSH signing key found.\n", stderr)
       throw ExitCode(1)
     }

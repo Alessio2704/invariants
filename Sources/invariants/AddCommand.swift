@@ -136,7 +136,7 @@ struct AddCommand: AsyncParsableCommand {
     print("Fingerprint: \(treeHash)")
 
     // 6. Resolve signing key
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: key) else {
+    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: key) else {
       fputs("Error: No signing key found. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw ExitCode(1)
     }

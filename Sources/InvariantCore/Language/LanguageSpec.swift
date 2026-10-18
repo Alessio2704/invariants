@@ -54,6 +54,20 @@ public struct DevWorkspaceFile: Sendable, Equatable {
   }
 }
 
+/// Interactive prompter interface for user input during CLI commands.
+public protocol InteractivePrompter: Sendable {
+  func prompt(question: String) -> String
+  func prompt(question: String, default defaultValue: String?) -> String
+  func promptConfirmation(question: String, default defaultYes: Bool) -> Bool
+  func printLine(_ message: String)
+}
+
+extension InteractivePrompter {
+  public func prompt(question: String) -> String {
+    prompt(question: question, default: nil)
+  }
+}
+
 /// Dynamic contract for language specifications supporting discovery, interactive configuration, and CLI parsing.
 public protocol AnyLanguageSpec: Sendable {
   static var language: SupportedLanguage { get }
@@ -73,6 +87,13 @@ public protocol AnyLanguageSpec: Sendable {
 
   /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
   static func devWorkspaceFiles(repoRootURL: URL, environment: SystemEnvironment) -> [DevWorkspaceFile]
+
+  /// Interactively configures project inputs for this language if sources are detected.
+  static func configureInteractively(
+    repoRootURL: URL,
+    prompter: (any InteractivePrompter)?,
+    into projectConfig: inout ProjectConfig
+  )
 }
 
 /// Contract for a supported language specification, binding language identity to its compile-time configuration schema.
@@ -213,6 +234,43 @@ public struct SwiftLanguage: LanguageSpec {
       """
     return [DevWorkspaceFile(relativePath: "Package.swift", content: devPackage)]
   }
+
+  public static func configureInteractively(
+    repoRootURL: URL,
+    prompter: (any InteractivePrompter)?,
+    into projectConfig: inout ProjectConfig
+  ) {
+    let candidates = discoverCandidates(repoRootURL: repoRootURL)
+    if let prompter {
+      if candidates.isEmpty {
+        prompter.printLine(
+          "\nSwift sources detected, but no index store candidate was found "
+            + "(e.g. build/Index.noindex/DataStore or .build/debug/index/store)."
+        )
+        let choice = prompter.prompt(question: "Enter index store path (press Enter to skip / configure later)")
+        if !choice.isEmpty {
+          projectConfig[Self.self] = Config(indexStore: choice)
+        }
+      } else {
+        prompter.printLine("\nDiscovered Swift Index candidates:")
+        for (idx, cand) in candidates.enumerated() {
+          prompter.printLine("  [\(idx + 1)] \(cand)")
+        }
+        let choice = prompter.prompt(
+          question: "Select candidate [1-\(candidates.count)] or enter path (press Enter to skip)"
+        )
+        if let num = Int(choice), num >= 1, num <= candidates.count {
+          projectConfig[Self.self] = Config(indexStore: candidates[num - 1])
+        } else if !choice.isEmpty {
+          projectConfig[Self.self] = Config(indexStore: choice)
+        }
+      }
+    } else {
+      if let first = candidates.first {
+        projectConfig[Self.self] = Config(indexStore: first)
+      }
+    }
+  }
 }
 
 /// TypeScript language specification requiring one or more tsconfig.json configurations.
@@ -322,6 +380,41 @@ public struct TypeScriptLanguage: LanguageSpec {
       }
       """
     return [DevWorkspaceFile(relativePath: "tsconfig.json", content: devTsconfig)]
+  }
+
+  public static func configureInteractively(
+    repoRootURL: URL,
+    prompter: (any InteractivePrompter)?,
+    into projectConfig: inout ProjectConfig
+  ) {
+    let candidates = discoverCandidates(repoRootURL: repoRootURL)
+    if let prompter {
+      if candidates.isEmpty {
+        prompter.printLine("\nTypeScript sources detected, but no tsconfig.json candidate was found.")
+        let custom = prompter.prompt(question: "Enter tsconfig relative path (press Enter to skip / configure later)")
+        if !custom.isEmpty {
+          projectConfig[Self.self] = Config(tsconfig: [custom])
+        }
+      } else {
+        let joined = candidates.joined(separator: ", ")
+        let confirm = prompter.promptConfirmation(
+          question: "Use discovered tsconfig paths (\(joined))?",
+          default: true
+        )
+        if confirm {
+          projectConfig[Self.self] = Config(tsconfig: candidates)
+        } else {
+          let custom = prompter.prompt(question: "Enter tsconfig relative path (press Enter to skip)")
+          if !custom.isEmpty {
+            projectConfig[Self.self] = Config(tsconfig: [custom])
+          }
+        }
+      }
+    } else {
+      if !candidates.isEmpty {
+        projectConfig[Self.self] = Config(tsconfig: candidates)
+      }
+    }
   }
 }
 

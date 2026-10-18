@@ -91,15 +91,31 @@ enum CLIHelpers {
   }
 
   /// Prompts user to select or provide a signing key during interactive init/commands.
-  static func promptForSigningKey(customPath: String? = nil) -> URL? {
+  static func promptForSigningKey(customPath: String? = nil) async -> URL? {
     if let resolved = resolveSigningKey(customPath: customPath) {
       return resolved
     }
 
     if isInteractive {
+      let defaultKey = SystemEnvironment.defaultSigningKeyURL
+      let shouldGenerate = promptConfirmation(
+        question: "Signing key not found at ~/.ssh/invariants_p256. Generate a Touch ID hardware key now?",
+        default: true
+      )
+      if shouldGenerate {
+        print("Touch your Touch ID sensor to enroll your hardware signing key...")
+        let signingClient = SigningClient()
+        do {
+          try await signingClient.generateSigningKey(at: defaultKey)
+          print("✓ Created hardware signing key at \(defaultKey.path)")
+          return defaultKey
+        } catch {
+          fputs("Warning: Could not generate Secure Enclave key: \(error)\n", stderr)
+        }
+      }
+
       let custom = prompt(
-        question:
-          "Signing key not found at ~/.ssh/invariants_p256. Enter path to key (or run 'invariants key generate')"
+        question: "Enter path to an existing SSH private key (or press Enter to cancel)"
       )
       if !custom.isEmpty {
         let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
@@ -114,4 +130,22 @@ enum CLIHelpers {
 
   /// Installed engine version.
   static var engineVersion: String { EngineVersion.current }
+}
+
+struct CLIInteractivePrompter: InteractivePrompter {
+  func prompt(question: String) -> String {
+    CLIHelpers.prompt(question: question, default: nil)
+  }
+
+  func prompt(question: String, default defaultValue: String?) -> String {
+    CLIHelpers.prompt(question: question, default: defaultValue)
+  }
+
+  func promptConfirmation(question: String, default defaultYes: Bool) -> Bool {
+    CLIHelpers.promptConfirmation(question: question, default: defaultYes)
+  }
+
+  func printLine(_ message: String) {
+    print(message)
+  }
 }

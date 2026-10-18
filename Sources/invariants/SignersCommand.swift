@@ -220,7 +220,7 @@ struct SignersCommand: AsyncParsableCommand {
     }
 
     registry.version += 1
-    guard let keyURL = CLIHelpers.promptForSigningKey(customPath: customSigningKey) else {
+    guard let keyURL = await CLIHelpers.promptForSigningKey(customPath: customSigningKey) else {
       fputs("Error: No Invariants signing key resolved to sign registry update.\n", stderr)
       throw ExitCode(1)
     }
