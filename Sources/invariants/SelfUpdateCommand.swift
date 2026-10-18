@@ -23,6 +23,24 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     print("Invariants Self-Update: \(tag)")
     print("───────────────────────────────")
 
+    let needsElevation =
+      SubprocessRunner.requiresElevation(for: env.rootURL)
+      || SubprocessRunner.requiresElevation(for: env.binURL)
+
+    let token: ElevationToken?
+    if needsElevation {
+      do {
+        token = try await Authorizer.authorizeElevation(
+          reason: "Authorizing invariants self-update to \(env.rootURL.path)"
+        )
+      } catch {
+        fputs("Error: Could not authorize elevation: \(error)\n", stderr)
+        throw ExitCode(1)
+      }
+    } else {
+      token = nil
+    }
+
     if let stagePath {
       let stageURL = URL(fileURLWithPath: stagePath)
       guard fm.fileExists(atPath: stageURL.path) else {
@@ -32,7 +50,8 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
       print("Installing from stage directory \(stageURL.path)...")
       do {
-        try await InstallationManager.installVersion(version: version, stageDir: stageURL, environment: env)
+        try await InstallationManager.installVersion(
+          version: version, stageDir: stageURL, environment: env, token: token)
         print("✓ Successfully installed invariants \(version) to \(env.rootURL.path)")
         return
       } catch {
@@ -121,7 +140,8 @@ struct SelfUpdateCommand: AsyncParsableCommand {
     // 5. Installation via InstallationManager
     print("Installing version \(version) to \(env.rootURL.path)...")
     do {
-      try await InstallationManager.installVersion(version: version, stageDir: stageDir, environment: env)
+      try await InstallationManager.installVersion(
+        version: version, stageDir: stageDir, environment: env, token: token)
       print("✓ Successfully self-updated invariants to \(tag)!")
     } catch {
       fputs("Error: Installation failed: \(error)\n", stderr)

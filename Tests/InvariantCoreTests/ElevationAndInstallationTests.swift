@@ -163,4 +163,72 @@ struct ElevationAndInstallationTests {
     try await InstallationManager.removeItem(at: nonExistent)
     #expect(!FileManager.default.fileExists(atPath: nonExistent.path))
   }
+
+  @Test("SubprocessRunner throws cryptographicError when elevation is required but token is missing")
+  func elevationRequiredWithoutTokenThrows() async {
+    guard !Authorizer.isRunningAsRoot else { return }
+
+    let protectedURL = SystemPaths.defaultPrefixURL.appendingPathComponent("test-file")
+    let request = ProcessRequest(
+      binary: .mkdir,
+      arguments: ["-p", protectedURL.path],
+      targetURL: protectedURL
+    )
+
+    await #expect(throws: SystemError.self) {
+      try await SubprocessRunner.run(request)
+    }
+  }
+
+  @Test("SubprocessRunner throws cryptographicError when expired ElevationToken is provided")
+  func expiredElevationTokenThrows() async {
+    guard !Authorizer.isRunningAsRoot else { return }
+
+    let protectedURL = SystemPaths.defaultPrefixURL.appendingPathComponent("test-file")
+    let expiredToken = ElevationToken.forTesting(
+      authorizedAt: Date().addingTimeInterval(-400.0),
+      expirationInterval: 300.0
+    )
+    let request = ProcessRequest(
+      binary: .mkdir,
+      arguments: ["-p", protectedURL.path],
+      targetURL: protectedURL,
+      elevationToken: expiredToken
+    )
+
+    await #expect(throws: SystemError.self) {
+      try await SubprocessRunner.run(request)
+    }
+  }
+
+  @Test("SubprocessRunner executes SystemBinary commands directly")
+  func systemBinaryDirectExecution() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let targetDir = tmpDir.appendingPathComponent("subfolder")
+    let output = try await SubprocessRunner.run(
+      binary: .mkdir,
+      arguments: ["-p", targetDir.path],
+      targetURL: targetDir,
+      checkExitCode: true
+    )
+    #expect(output.exitCode == 0)
+    #expect(FileManager.default.fileExists(atPath: targetDir.path))
+  }
+
+  @Test("InstallationManager operations accept optional ElevationToken seamlessly")
+  func installationManagerWithToken() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let token = ElevationToken.forTesting()
+    let file = tmpDir.appendingPathComponent("token_test.txt")
+    try "hello".write(to: file, atomically: true, encoding: .utf8)
+
+    try await InstallationManager.removeItem(at: file, token: token)
+    #expect(!FileManager.default.fileExists(atPath: file.path))
+  }
 }

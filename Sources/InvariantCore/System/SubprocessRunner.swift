@@ -46,13 +46,22 @@ public enum SubprocessRunner: Sendable {
   public static func run(_ request: ProcessRequest) async throws(SystemError) -> ProcessOutput {
     let needsElevation: Bool
     if let targetURL = request.targetURL {
-      needsElevation = requiresElevation(for: targetURL)
+      needsElevation = requiresElevation(for: targetURL) && !Authorizer.isRunningAsRoot
     } else {
       needsElevation = false
     }
 
+    if needsElevation {
+      guard let token = request.elevationToken else {
+        throw SystemError.cryptographicError(
+          "Root elevation is required for \(request.targetURL?.path ?? request.executableURL.path) but no ElevationToken was provided."
+        )
+      }
+      try token.validateFreshness()
+    }
+
     let executable = needsElevation ? SystemBinary.sudo.url : request.executableURL
-    let arguments = needsElevation ? [request.executableURL.path] + request.arguments : request.arguments
+    let arguments = needsElevation ? ["-n", request.executableURL.path] + request.arguments : request.arguments
 
     guard FileManager.default.fileExists(atPath: executable.path) else {
       throw SystemError.executableNotFound(executable.path)
@@ -157,7 +166,8 @@ public enum SubprocessRunner: Sendable {
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
     timeoutSeconds: Double = defaultTimeoutSeconds,
-    checkExitCode: Bool = false
+    checkExitCode: Bool = false,
+    elevationToken: ElevationToken? = nil
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       ProcessRequest(
@@ -168,7 +178,8 @@ public enum SubprocessRunner: Sendable {
         environment: environment,
         stdinData: stdinData,
         timeoutSeconds: timeoutSeconds,
-        checkExitCode: checkExitCode
+        checkExitCode: checkExitCode,
+        elevationToken: elevationToken
       )
     )
   }
@@ -183,7 +194,8 @@ public enum SubprocessRunner: Sendable {
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
     timeoutSeconds: Double = defaultTimeoutSeconds,
-    checkExitCode: Bool = false
+    checkExitCode: Bool = false,
+    elevationToken: ElevationToken? = nil
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       executableURL: binary.url,
@@ -193,7 +205,8 @@ public enum SubprocessRunner: Sendable {
       environment: environment,
       stdinData: stdinData,
       timeoutSeconds: timeoutSeconds,
-      checkExitCode: checkExitCode
+      checkExitCode: checkExitCode,
+      elevationToken: elevationToken
     )
   }
 
@@ -206,7 +219,8 @@ public enum SubprocessRunner: Sendable {
     environment: [String: String]? = nil,
     stdinData: Data? = nil,
     timeoutSeconds: Double = defaultTimeoutSeconds,
-    checkExitCode: Bool = false
+    checkExitCode: Bool = false,
+    elevationToken: ElevationToken? = nil
   ) async throws(SystemError) -> ProcessOutput {
     try await run(
       executableURL: SystemBinary.sh.url,
@@ -216,7 +230,8 @@ public enum SubprocessRunner: Sendable {
       environment: environment,
       stdinData: stdinData,
       timeoutSeconds: timeoutSeconds,
-      checkExitCode: checkExitCode
+      checkExitCode: checkExitCode,
+      elevationToken: elevationToken
     )
   }
 }

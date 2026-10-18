@@ -16,3 +16,15 @@ extension BiometricAuthToken {
     )
   }
 }
+
+extension ElevationToken {
+  static func forTesting(
+    authorizedAt: Date = Date(),
+    expirationInterval: TimeInterval = 300.0
+  ) -> ElevationToken {
+    ElevationToken(
+      authorizedAt: authorizedAt,
+      expirationInterval: expirationInterval
+    )
+  }
+}

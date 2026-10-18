@@ -56,4 +56,61 @@ public enum Authorizer: Sendable {
       expirationInterval: expirationInterval
     )
   }
+
+  /// Checks if the current process is already executing with root privileges (UID 0).
+  public static var isRunningAsRoot: Bool {
+    geteuid() == 0
+  }
+
+  /// Authorizes root elevation by pre-warming sudo credentials on the host system.
+  /// If the process is already root, returns immediately.
+  /// Returns an unforgeable `ElevationToken`.
+  public static func authorizeElevation(
+    reason: String = "Root privileges required",
+    expirationInterval: TimeInterval = 300.0,
+    elevationValidator: (@Sendable () async throws(SystemError) -> Void)? = nil
+  ) async throws(SystemError) -> ElevationToken {
+    if isRunningAsRoot {
+      return ElevationToken(authorizedAt: Date(), expirationInterval: expirationInterval)
+    }
+
+    if let elevationValidator {
+      try await elevationValidator()
+    } else {
+      try await prewarmSudo(reason: reason)
+    }
+
+    return ElevationToken(authorizedAt: Date(), expirationInterval: expirationInterval)
+  }
+
+  /// Pre-warms the sudo timestamp cache via `/usr/bin/sudo -v`.
+  private static func prewarmSudo(reason: String) async throws(SystemError) {
+    let process = Process()
+    process.executableURL = SystemBinary.sudo.url
+    process.arguments = ["-p", "[invariants] \(reason) — Password: ", "-v"]
+
+    // Allow interactive password prompt directly on terminal TTY
+    if let tty = FileHandle(forUpdatingAtPath: "/dev/tty") {
+      process.standardInput = tty
+      process.standardOutput = tty
+      process.standardError = tty
+    }
+
+    do {
+      try process.run()
+      process.waitUntilExit()
+      guard process.terminationStatus == 0 else {
+        throw SystemError.processFailed(
+          executable: SystemBinary.sudo.path,
+          arguments: ["-v"],
+          exitCode: process.terminationStatus,
+          stderr: "Sudo elevation validation failed or was cancelled."
+        )
+      }
+    } catch let error as SystemError {
+      throw error
+    } catch {
+      throw SystemError.fileIOError("Failed to launch sudo: \(error.localizedDescription)")
+    }
+  }
 }

@@ -31,8 +31,26 @@ struct UninstallCommand: AsyncParsableCommand {
       }
     }
 
+    let needsElevation =
+      SubprocessRunner.requiresElevation(for: env.rootURL)
+      || SubprocessRunner.requiresElevation(for: env.binURL)
+
+    let token: ElevationToken?
+    if needsElevation {
+      do {
+        token = try await Authorizer.authorizeElevation(
+          reason: "Authorizing invariants uninstallation from \(env.rootURL.path)"
+        )
+      } catch {
+        fputs("Error: Could not authorize elevation: \(error)\n", stderr)
+        throw ExitCode(1)
+      }
+    } else {
+      token = nil
+    }
+
     do {
-      try await InstallationManager.uninstall(environment: env)
+      try await InstallationManager.uninstall(environment: env, token: token)
       print("✓ Invariants successfully uninstalled from \(env.rootURL.path).")
     } catch {
       fputs("Error: Uninstall failed: \(error)\n", stderr)

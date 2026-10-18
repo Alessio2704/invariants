@@ -16,11 +16,16 @@ struct SubprocessRunnerTests {
     #expect(req1.workingDirectory == nil)
     #expect(req1.environment == nil)
     #expect(req1.stdinData == nil)
+    #expect(req1.elevationToken == nil)
     #expect(req1.timeoutSeconds == SubprocessRunner.defaultTimeoutSeconds)
 
     var req3 = req1
     req3.arguments = ["world"]
     #expect(req1 != req3)
+
+    var req4 = req1
+    req4.elevationToken = ElevationToken.forTesting()
+    #expect(req1 != req4)
   }
 
   @Test("SubprocessRunner executes ProcessRequest directly")

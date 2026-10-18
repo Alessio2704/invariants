@@ -7,7 +7,7 @@ import Testing
 struct SystemBinaryTests {
   @Test("All system binaries map to canonical paths and exist on macOS host")
   func systemBinaryCanonicalPaths() {
-    #expect(SystemBinary.allCases.count == 6)
+    #expect(SystemBinary.allCases.count == 12)
 
     #expect(SystemBinary.git.path == "/usr/bin/git")
     #expect(SystemBinary.sshKeygen.path == "/usr/bin/ssh-keygen")
@@ -15,6 +15,12 @@ struct SystemBinaryTests {
     #expect(SystemBinary.sudo.path == "/usr/bin/sudo")
     #expect(SystemBinary.tar.path == "/usr/bin/tar")
     #expect(SystemBinary.sh.path == "/bin/sh")
+    #expect(SystemBinary.ln.path == "/bin/ln")
+    #expect(SystemBinary.rm.path == "/bin/rm")
+    #expect(SystemBinary.mkdir.path == "/bin/mkdir")
+    #expect(SystemBinary.cp.path == "/bin/cp")
+    #expect(SystemBinary.chmod.path == "/bin/chmod")
+    #expect(SystemBinary.chown.path == "/usr/sbin/chown")
 
     let fm = FileManager.default
     for binary in SystemBinary.allCases {

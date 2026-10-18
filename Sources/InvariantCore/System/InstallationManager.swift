@@ -3,52 +3,104 @@ public import Foundation
 /// Manages installation, updates, and uninstallation of the Invariants engine on the host system.
 public enum InstallationManager: Sendable {
   /// Creates a symbolic link, automatically elevating if the destination requires root privileges.
-  public static func createSymlink(from sourceURL: URL, to destinationURL: URL) async throws(SystemError) {
+  public static func createSymlink(
+    from sourceURL: URL,
+    to destinationURL: URL,
+    token: ElevationToken? = nil
+  ) async throws(SystemError) {
     let parent = destinationURL.deletingLastPathComponent()
-    let command = "mkdir -p '\(parent.path)' && ln -sfn '\(sourceURL.path)' '\(destinationURL.path)'"
-    _ = try await SubprocessRunner.runShell(command, targetURL: destinationURL, checkExitCode: true)
+
+    _ = try await SubprocessRunner.run(
+      binary: .mkdir,
+      arguments: ["-p", parent.path],
+      targetURL: destinationURL,
+      checkExitCode: true,
+      elevationToken: token
+    )
+
+    _ = try await SubprocessRunner.run(
+      binary: .ln,
+      arguments: ["-sfn", sourceURL.path, destinationURL.path],
+      targetURL: destinationURL,
+      checkExitCode: true,
+      elevationToken: token
+    )
   }
 
   /// Removes a file, symbolic link, or directory at the specified target URL.
-  public static func removeItem(at targetURL: URL) async throws(SystemError) {
+  public static func removeItem(
+    at targetURL: URL,
+    token: ElevationToken? = nil
+  ) async throws(SystemError) {
     let exists =
       FileManager.default.fileExists(atPath: targetURL.path)
       || (try? targetURL.checkResourceIsReachable()) == true
     guard exists else { return }
 
-    let command = "rm -rf '\(targetURL.path)'"
-    _ = try await SubprocessRunner.runShell(command, targetURL: targetURL, checkExitCode: true)
+    _ = try await SubprocessRunner.run(
+      binary: .rm,
+      arguments: ["-rf", targetURL.path],
+      targetURL: targetURL,
+      checkExitCode: true,
+      elevationToken: token
+    )
   }
 
   /// Installs an engine version payload from a staging directory into the system environment.
   public static func installVersion(
     version: String,
     stageDir: URL,
-    environment: SystemEnvironment
+    environment: SystemEnvironment,
+    token: ElevationToken? = nil
   ) async throws(SystemError) {
     let targetVersionDir = environment.versionsDirectoryURL.appendingPathComponent(version)
-    let copyCommand = """
-      set -e
-      mkdir -p '\(targetVersionDir.path)'
-      cp -R '\(stageDir.path)/.' '\(targetVersionDir.path)/'
-      """
-    _ = try await SubprocessRunner.runShell(copyCommand, targetURL: environment.rootURL, checkExitCode: true)
 
-    try await createSymlink(from: targetVersionDir, to: environment.currentVersionURL)
+    _ = try await SubprocessRunner.run(
+      binary: .mkdir,
+      arguments: ["-p", targetVersionDir.path],
+      targetURL: environment.rootURL,
+      checkExitCode: true,
+      elevationToken: token
+    )
+
+    _ = try await SubprocessRunner.run(
+      binary: .cp,
+      arguments: ["-R", stageDir.appendingPathComponent(".").path, targetVersionDir.path],
+      targetURL: environment.rootURL,
+      checkExitCode: true,
+      elevationToken: token
+    )
+
+    try await createSymlink(from: targetVersionDir, to: environment.currentVersionURL, token: token)
 
     let currentBinary = environment.currentVersionURL.appendingPathComponent("invariants")
-    try await createSymlink(from: currentBinary, to: environment.binURL)
+    try await createSymlink(from: currentBinary, to: environment.binURL, token: token)
 
-    let permsCommand = """
-      chown -R root:wheel '\(environment.rootURL.path)' 2>/dev/null || true
-      chmod -R go-w '\(environment.rootURL.path)' 2>/dev/null || true
-      """
-    _ = try await SubprocessRunner.runShell(permsCommand, targetURL: environment.rootURL, checkExitCode: true)
+    if SubprocessRunner.requiresElevation(for: environment.rootURL) {
+      _ = try? await SubprocessRunner.run(
+        binary: .chown,
+        arguments: ["-R", "root:wheel", environment.rootURL.path],
+        targetURL: environment.rootURL,
+        checkExitCode: false,
+        elevationToken: token
+      )
+
+      _ = try? await SubprocessRunner.run(
+        binary: .chmod,
+        arguments: ["-R", "go-w", environment.rootURL.path],
+        targetURL: environment.rootURL,
+        checkExitCode: false,
+        elevationToken: token
+      )
+    }
   }
 
   /// Completely uninstalls the invariants engine from the system environment.
-  public static func uninstall(environment: SystemEnvironment) async throws(SystemError) {
-    try await removeItem(at: environment.binURL)
-    try await removeItem(at: environment.rootURL)
+  public static func uninstall(
+    environment: SystemEnvironment,
+    token: ElevationToken? = nil
+  ) async throws(SystemError) {
+    try await removeItem(at: environment.binURL, token: token)
+    try await removeItem(at: environment.rootURL, token: token)
   }
 }
