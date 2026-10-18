@@ -108,7 +108,8 @@ package enum ConfigWorkflow {
       // 2. Repo check: compare old vs new files and violations
       for target in manifest.targets {
         guard let targetScope = manifest.scope[target] else { continue }
-        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
+        let scopedFiles = ManifestValidator.resolveScopedFiles(
+          repoRoot: repoRootURL, scope: targetScope, target: target)
 
         let reqOld = RuleRequest(
           mode: "repo",

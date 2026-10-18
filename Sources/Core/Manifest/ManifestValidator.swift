@@ -62,7 +62,7 @@ public enum ManifestValidator: Sendable {
         guard let targetScope = manifest.scope[target] else {
           throw ManifestError.missingTargetScope(target)
         }
-        let matchingFiles = resolveScopedFiles(repoRoot: repoRoot, scope: targetScope)
+        let matchingFiles = resolveScopedFiles(repoRoot: repoRoot, scope: targetScope, target: target)
         if matchingFiles.isEmpty {
           throw ManifestError.scopeMatchesNoFiles(target, targetScope.include)
         }
@@ -71,7 +71,11 @@ public enum ManifestValidator: Sendable {
   }
 
   /// Resolves all files in repoRoot matching the include patterns and not excluded.
-  public static func resolveScopedFiles(repoRoot: URL, scope: TargetScope) -> [URL] {
+  public static func resolveScopedFiles(
+    repoRoot: URL,
+    scope: TargetScope,
+    target: TargetLanguage? = nil
+  ) -> [URL] {
     let fm = FileManager.default
     guard
       let enumerator = fm.enumerator(
@@ -103,8 +107,16 @@ public enum ManifestValidator: Sendable {
         relPath = String(relPath.dropFirst())
       }
 
-      // Exclude git and .build directories
-      if relPath.hasPrefix(".git/") || relPath.hasPrefix(".build/") || relPath.hasPrefix("node_modules/") {
+      // Exclude skipped paths and extensions based on target language or all supported languages
+      let isSkipped: Bool
+      if let target {
+        isSkipped =
+          target.spec.shouldSkip(relativePath: relPath)
+          || SupportedLanguage.shouldSkipAny(relativePath: relPath)
+      } else {
+        isSkipped = SupportedLanguage.shouldSkipAny(relativePath: relPath)
+      }
+      if isSkipped {
         continue
       }
 

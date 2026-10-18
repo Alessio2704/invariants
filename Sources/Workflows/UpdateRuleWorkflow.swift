@@ -177,7 +177,8 @@ package enum UpdateRuleWorkflow {
 
     for target in context.newManifest.targets {
       guard let scope = context.newManifest.scope[target] else { continue }
-      let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: context.repoRootURL, scope: scope)
+      let scopedFiles = ManifestValidator.resolveScopedFiles(
+        repoRoot: context.repoRootURL, scope: scope, target: target)
 
       let oldReq = RuleRequest(
         mode: "repo",

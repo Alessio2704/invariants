@@ -84,7 +84,7 @@ package enum AddRuleWorkflow {
     var repoViolationsCount = 0
     for target in manifest.targets {
       guard let targetScope = manifest.scope[target] else { continue }
-      let files = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope)
+      let files = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: targetScope, target: target)
       let req = RuleRequest(
         mode: "repo",
         repoRoot: repoRootURL.path,

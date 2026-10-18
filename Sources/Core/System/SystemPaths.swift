@@ -41,6 +41,15 @@ public enum SystemPaths: Sendable {
 
   /// Prefix for archived key backups (`invariants_p256.bak-`).
   public static let keyBackupPrefix: String = "invariants_p256.bak-"
+
+  /// Relative subpath for developer workspace scaffolding (`invariants/.dev`).
+  public static let devWorkspaceSubpath: String = "invariants/.dev"
+
+  /// Universal directories and subpaths ignored across all file discovery and static analysis scans.
+  public static let universalIgnoredPaths: [String] = [
+    ".git",
+    devWorkspaceSubpath,
+  ]
 }
 
 extension SystemEnvironment {

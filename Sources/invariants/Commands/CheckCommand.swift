@@ -300,7 +300,8 @@ extension CheckCommand {
       guard let targetScope = ruleCtx.manifest.scope[target] else { continue }
       let scopedFiles = ManifestValidator.resolveScopedFiles(
         repoRoot: context.repoRootURL,
-        scope: targetScope
+        scope: targetScope,
+        target: target
       )
 
       let req = RuleRequest(

@@ -11,7 +11,7 @@ struct DevCommand: AsyncParsableCommand {
   func run() async throws {
     let repoRootURL = try RepoLocator.requireRepoRoot()
 
-    let devDir = repoRootURL.appendingPathComponent("invariants/.dev")
+    let devDir = repoRootURL.appendingPathComponent(SystemPaths.devWorkspaceSubpath)
     let fm = FileManager.default
     try fm.createDirectory(at: devDir, withIntermediateDirectories: true)
 

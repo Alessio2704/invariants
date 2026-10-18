@@ -92,6 +92,21 @@ public protocol AnyLanguageSpec: Sendable {
   static var ruleFileName: String { get }
   static var executionSpec: RuleExecutionSpec { get }
 
+  /// Subpaths or directory names to skip during file discovery and scans for this language.
+  static var defaultIgnoredPaths: [String] { get }
+
+  /// File extensions (e.g. `["d.ts", "map"]`) to skip during file discovery and scans for this language.
+  static var defaultIgnoredExtensions: [String] { get }
+
+  /// Matches whether a relative path matches an ignored directory or file pattern.
+  static func matchesIgnoredPath(relativePath: String, ignoredPattern: String) -> Bool
+
+  /// Checks if a relative path should be skipped for this language.
+  static func shouldSkip(relativePath: String) -> Bool
+
+  /// Checks if a file URL should be skipped for this language.
+  static func shouldSkip(url: URL, repoRoot: URL) -> Bool
+
   /// Decodes this language's configuration polymorphically from a decoder.
   static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)?
 
@@ -121,8 +136,74 @@ public protocol AnyLanguageSpec: Sendable {
 }
 
 extension AnyLanguageSpec {
+  public static var defaultIgnoredPaths: [String] { [] }
+  public static var defaultIgnoredExtensions: [String] { [] }
+
+  public static func matchesIgnoredPath(relativePath: String, ignoredPattern: String) -> Bool {
+    let normalized = relativePath.hasPrefix("/") ? String(relativePath.dropFirst()) : relativePath
+    guard !normalized.isEmpty, !ignoredPattern.isEmpty else { return false }
+    if normalized == ignoredPattern { return true }
+    if normalized.hasPrefix(ignoredPattern + "/") { return true }
+    if normalized.contains("/" + ignoredPattern + "/") { return true }
+    if normalized.hasSuffix("/" + ignoredPattern) { return true }
+    return false
+  }
+
+  public static func shouldSkip(relativePath: String) -> Bool {
+    let normalized = relativePath.hasPrefix("/") ? String(relativePath.dropFirst()) : relativePath
+    guard !normalized.isEmpty else { return false }
+
+    for universal in SystemPaths.universalIgnoredPaths
+    where matchesIgnoredPath(relativePath: normalized, ignoredPattern: universal) {
+      return true
+    }
+
+    for path in defaultIgnoredPaths
+    where matchesIgnoredPath(relativePath: normalized, ignoredPattern: path) {
+      return true
+    }
+
+    let fileName = URL(fileURLWithPath: normalized).lastPathComponent
+    for ext in defaultIgnoredExtensions where fileName.hasSuffix(ext.hasPrefix(".") ? ext : "." + ext) {
+      return true
+    }
+
+    return false
+  }
+
+  public static func shouldSkip(url: URL, repoRoot: URL) -> Bool {
+    let rootPath = repoRoot.standardizedFileURL.path
+    let filePath = url.standardizedFileURL.path
+    if filePath.hasPrefix(rootPath) {
+      var rel = String(filePath.dropFirst(rootPath.count))
+      if rel.hasPrefix("/") { rel = String(rel.dropFirst()) }
+      return shouldSkip(relativePath: rel)
+    }
+    return shouldSkip(relativePath: url.lastPathComponent)
+  }
+
   public static func hasSources(in repoRoot: URL) -> Bool {
-    hasFiles(in: repoRoot, matchingExtensions: sourceExtensions)
+    let fm = FileManager.default
+    let rootURL = repoRoot.standardizedFileURL
+    guard
+      let enumerator = fm.enumerator(
+        at: rootURL,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+    else { return false }
+
+    let exts = Set(sourceExtensions)
+    while let fileURL = enumerator.nextObject() as? URL {
+      if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
+        enumerator.skipDescendants()
+        continue
+      }
+      if exts.contains(fileURL.pathExtension) {
+        return true
+      }
+    }
+    return false
   }
 
   public static func autoDiscover(repoRoot: URL) async -> (any LanguageConfiguration)? {
@@ -135,6 +216,33 @@ extension AnyLanguageSpec {
     case .multiple:
       return makeConfig(from: candidates)
     }
+  }
+}
+
+extension SupportedLanguage {
+  /// Aggregates all default ignored paths across all supported languages and universal system paths.
+  public static var allDefaultIgnoredPaths: [String] {
+    let languagePaths = allCases.flatMap { $0.spec.defaultIgnoredPaths }
+    return Array(Set(SystemPaths.universalIgnoredPaths + languagePaths)).sorted()
+  }
+
+  /// Aggregates all default ignored extensions across all supported languages.
+  public static var allDefaultIgnoredExtensions: [String] {
+    Array(Set(allCases.flatMap { $0.spec.defaultIgnoredExtensions })).sorted()
+  }
+
+  /// Checks if a relative path should be skipped across any supported language or universal system path.
+  public static func shouldSkipAny(relativePath: String) -> Bool {
+    for universal in SystemPaths.universalIgnoredPaths
+    where SwiftLanguage.matchesIgnoredPath(relativePath: relativePath, ignoredPattern: universal) {
+      return true
+    }
+    return allCases.contains { $0.spec.shouldSkip(relativePath: relativePath) }
+  }
+
+  /// Checks if a file URL should be skipped across any supported language or universal system path.
+  public static func shouldSkipAny(url: URL, repoRoot: URL) -> Bool {
+    allCases.contains { $0.spec.shouldSkip(url: url, repoRoot: repoRoot) }
   }
 }
 
@@ -176,6 +284,8 @@ public enum SwiftLanguage: LanguageSpec {
   public static let displayName = "Swift"
   public static let sourceExtensions = ["swift"]
   public static let ruleFileName = "rule.swift"
+  public static let defaultIgnoredPaths = [".build", "build"]
+  public static let defaultIgnoredExtensions: [String] = []
   public static let executionSpec = RuleExecutionSpec(
     model: .compiled(
       CompiledSpec(
@@ -230,9 +340,13 @@ public enum SwiftLanguage: LanguageSpec {
     ) {
       while let fileURL = enumerator.nextObject() as? URL {
         let path = fileURL.resolvingSymlinksInPath().path
-        if path.contains("/node_modules/") || path.contains("/.build/") || path.contains("/invariants/.dev/") {
-          enumerator.skipDescendants()
-          continue
+        if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
+          if fileURL.lastPathComponent == "build" {
+            // Allow searching within build directory for Index.noindex/DataStore
+          } else {
+            enumerator.skipDescendants()
+            continue
+          }
         }
         if path.hasSuffix("Index.noindex/DataStore") {
           guard path.hasPrefix(rootPath) else { continue }
@@ -249,6 +363,10 @@ public enum SwiftLanguage: LanguageSpec {
     let spmOut = rootURL.appendingPathComponent(".build/out")
     if fm.fileExists(atPath: spmOut.path) {
       candidates.append(".build/out")
+    }
+    let xcodeStore = rootURL.appendingPathComponent("build/Index.noindex/DataStore")
+    if fm.fileExists(atPath: xcodeStore.path) {
+      candidates.append("build/Index.noindex/DataStore")
     }
     return Array(Set(candidates)).sorted()
   }
@@ -303,6 +421,8 @@ public enum TypeScriptLanguage: LanguageSpec {
   public static let displayName = "TypeScript"
   public static let ruleFileName = "rule.ts"
   public static let sourceExtensions = ["ts", "tsx", "js", "jsx"]
+  public static let defaultIgnoredPaths = ["node_modules", "dist"]
+  public static let defaultIgnoredExtensions = ["d.ts", "map"]
   public static let executionSpec = RuleExecutionSpec(
     model: .interpreted(
       InterpretedSpec(
@@ -351,13 +471,13 @@ public enum TypeScriptLanguage: LanguageSpec {
       options: [.skipsHiddenFiles]
     ) {
       while let fileURL = enumerator.nextObject() as? URL {
-        let path = fileURL.resolvingSymlinksInPath().path
-        if path.contains("/node_modules/") || path.contains("/.build/") || path.contains("/invariants/.dev/") {
+        if SupportedLanguage.shouldSkipAny(url: fileURL, repoRoot: rootURL) {
           enumerator.skipDescendants()
           continue
         }
         let fileName = fileURL.lastPathComponent
         if fileName.hasPrefix("tsconfig") && fileName.hasSuffix(".json") {
+          let path = fileURL.resolvingSymlinksInPath().path
           guard path.hasPrefix(rootPath) else { continue }
           var rel = String(path.dropFirst(rootPath.count))
           if rel.hasPrefix("/") { rel = String(rel.dropFirst()) }
@@ -395,31 +515,4 @@ public enum TypeScriptLanguage: LanguageSpec {
       """
     return [DevWorkspaceFile(relativePath: "tsconfig.json", content: devTsconfig)]
   }
-}
-
-private func hasFiles(in rootURL: URL, matchingExtensions: [String]) -> Bool {
-  let fm = FileManager.default
-  guard
-    let enumerator = fm.enumerator(
-      at: rootURL,
-      includingPropertiesForKeys: [.isRegularFileKey],
-      options: [.skipsHiddenFiles]
-    )
-  else { return false }
-
-  let exts = Set(matchingExtensions)
-  while let fileURL = enumerator.nextObject() as? URL {
-    let path = fileURL.path
-    let isIgnored =
-      path.contains("/node_modules/") || path.contains("/.build/") || path.contains("/build/")
-      || path.contains("/invariants/.dev/")
-    if isIgnored {
-      enumerator.skipDescendants()
-      continue
-    }
-    if exts.contains(fileURL.pathExtension) {
-      return true
-    }
-  }
-  return false
 }

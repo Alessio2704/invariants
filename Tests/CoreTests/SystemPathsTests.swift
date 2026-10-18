@@ -19,6 +19,8 @@ struct SystemPathsTests {
     #expect(SystemPaths.defaultKeyFileName == "invariants_p256")
     #expect(SystemPaths.defaultKeySubpath == ".ssh/invariants_p256")
     #expect(SystemPaths.keyBackupPrefix == "invariants_p256.bak-")
+    #expect(SystemPaths.devWorkspaceSubpath == "invariants/.dev")
+    #expect(SystemPaths.universalIgnoredPaths == [".git", "invariants/.dev"])
   }
 
   @Test("SystemEnvironment.Paths is synonymous with SystemPaths")

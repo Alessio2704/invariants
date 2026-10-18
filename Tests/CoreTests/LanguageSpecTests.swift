@@ -291,4 +291,107 @@ struct LanguageSpecTests {
     #expect(tsConfig != nil)
     #expect((tsConfig as? TypeScriptLanguage.Config)?.tsconfig.contains("tsconfig.json") == true)
   }
+
+  @Test("Language specifications declare default ignored paths and extensions under OCP")
+  func defaultIgnoredPathsAndExtensions() {
+    #expect(SwiftLanguage.defaultIgnoredPaths.contains(".build"))
+    #expect(SwiftLanguage.defaultIgnoredPaths.contains("build"))
+    #expect(SwiftLanguage.defaultIgnoredExtensions.isEmpty)
+
+    #expect(TypeScriptLanguage.defaultIgnoredPaths.contains("node_modules"))
+    #expect(TypeScriptLanguage.defaultIgnoredPaths.contains("dist"))
+    #expect(TypeScriptLanguage.defaultIgnoredExtensions.contains("d.ts"))
+    #expect(TypeScriptLanguage.defaultIgnoredExtensions.contains("map"))
+
+    let allPaths = SupportedLanguage.allDefaultIgnoredPaths
+    #expect(allPaths.contains(".git"))
+    #expect(allPaths.contains("invariants/.dev"))
+    #expect(allPaths.contains(".build"))
+    #expect(allPaths.contains("build"))
+    #expect(allPaths.contains("node_modules"))
+    #expect(allPaths.contains("dist"))
+
+    let allExts = SupportedLanguage.allDefaultIgnoredExtensions
+    #expect(allExts.contains("d.ts"))
+    #expect(allExts.contains("map"))
+  }
+
+  @Test("AnyLanguageSpec shouldSkip correctly filters ignored paths and extensions")
+  func shouldSkipFiltering() {
+    // Universal ignored paths
+    #expect(SwiftLanguage.shouldSkip(relativePath: ".git/HEAD"))
+    #expect(SwiftLanguage.shouldSkip(relativePath: "invariants/.dev/Package.swift"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: ".git/config"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "invariants/.dev/rule.ts"))
+
+    // Swift specific
+    #expect(SwiftLanguage.shouldSkip(relativePath: ".build/debug/foo.o"))
+    #expect(SwiftLanguage.shouldSkip(relativePath: "build/foo.swift"))
+    #expect(!SwiftLanguage.shouldSkip(relativePath: "Sources/App.swift"))
+
+    // TypeScript specific
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "node_modules/pkg/index.js"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "dist/bundle.js"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "src/types.d.ts"))
+    #expect(TypeScriptLanguage.shouldSkip(relativePath: "src/bundle.js.map"))
+    #expect(!TypeScriptLanguage.shouldSkip(relativePath: "src/index.ts"))
+
+    // Aggregated skipping
+    #expect(SupportedLanguage.shouldSkipAny(relativePath: "node_modules/pkg/index.js"))
+    #expect(SupportedLanguage.shouldSkipAny(relativePath: ".build/out"))
+    #expect(SupportedLanguage.shouldSkipAny(relativePath: "invariants/.dev/test"))
+    #expect(!SupportedLanguage.shouldSkipAny(relativePath: "Sources/Core/Engine.swift"))
+  }
+
+  @Test("hasSources accurately ignores build directories, node_modules, and ignored extensions")
+  func hasSourcesIgnoresBuildAndDependencies() throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    // Initially empty
+    #expect(!SwiftLanguage.hasSources(in: tmpDir))
+    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+
+    // Swift file inside node_modules or .build should NOT count as sources
+    let nodeModulesSwift = tmpDir.appendingPathComponent("node_modules/fake-pod/File.swift")
+    try fm.createDirectory(at: nodeModulesSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// swift".utf8).write(to: nodeModulesSwift)
+
+    let buildSwift = tmpDir.appendingPathComponent(".build/Generated.swift")
+    try fm.createDirectory(at: buildSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// swift".utf8).write(to: buildSwift)
+
+    let devSwift = tmpDir.appendingPathComponent("invariants/.dev/Dev.swift")
+    try fm.createDirectory(at: devSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// swift".utf8).write(to: devSwift)
+
+    #expect(!SwiftLanguage.hasSources(in: tmpDir))
+
+    // Real Swift file in Sources
+    let realSwift = tmpDir.appendingPathComponent("Sources/Real.swift")
+    try fm.createDirectory(at: realSwift.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// swift".utf8).write(to: realSwift)
+
+    #expect(SwiftLanguage.hasSources(in: tmpDir))
+
+    // TypeScript file in node_modules or .d.ts should NOT count as sources
+    let nodeModulesTs = tmpDir.appendingPathComponent("node_modules/react/index.ts")
+    try fm.createDirectory(at: nodeModulesTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// ts".utf8).write(to: nodeModulesTs)
+
+    let dtsFile = tmpDir.appendingPathComponent("types/globals.d.ts")
+    try fm.createDirectory(at: dtsFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// dts".utf8).write(to: dtsFile)
+
+    #expect(!TypeScriptLanguage.hasSources(in: tmpDir))
+
+    // Real TS file
+    let realTs = tmpDir.appendingPathComponent("src/app.ts")
+    try fm.createDirectory(at: realTs.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("// ts".utf8).write(to: realTs)
+
+    #expect(TypeScriptLanguage.hasSources(in: tmpDir))
+  }
 }

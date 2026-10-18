@@ -60,7 +60,7 @@ package enum UpgradeWorkflow {
       // Check repo scope
       for target in manifest.targets {
         guard let scope = manifest.scope[target] else { continue }
-        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: scope)
+        let scopedFiles = ManifestValidator.resolveScopedFiles(repoRoot: repoRootURL, scope: scope, target: target)
         let req = RuleRequest(
           mode: "repo",
           repoRoot: repoRootURL.path,
