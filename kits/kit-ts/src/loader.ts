@@ -33,7 +33,10 @@ export async function resolve(
   nextResolve: NextResolve,
 ): Promise<ResolveResult> {
   if (specifier === "@invariants/kit") {
-    const indexPath = new URL("./index.js", import.meta.url).href;
+    const indexName = fs.existsSync(new URL("./index.ts", import.meta.url))
+      ? "./index.ts"
+      : "./index.js";
+    const indexPath = new URL(indexName, import.meta.url).href;
     return {
       url: indexPath,
       format: "module",

@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("TS Rule Runner process contract", () => {
   let tmpDir: string;
-  const runnerPath = path.resolve(__dirname, "../dist/runner.js");
+  const runnerPath = fs.existsSync(path.resolve(__dirname, "../src/runner.ts"))
+    ? path.resolve(__dirname, "../src/runner.ts")
+    : path.resolve(__dirname, "../dist/runner.js");
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "runner_test_"));

@@ -13,7 +13,7 @@ public enum TypeScriptLanguage: LanguageSpec {
       InterpretedSpec(
         runtimeCommand: "node",
         kitDirectoryName: "kit-ts",
-        kitRunnerRelativePath: "dist/runner.js",
+        kitRunnerRelativePath: "src/runner.ts",
         devRunnerRelativePath: "src/runner.ts"
       )
     ),

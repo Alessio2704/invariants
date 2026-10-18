@@ -82,7 +82,10 @@ async function main(): Promise<void> {
     };
 
     // Register bundled TS loader so that rule.ts can be loaded directly and resolve @invariants/kit
-    const loaderURL = new URL("./loader.js", import.meta.url);
+    const loaderName = fs.existsSync(new URL("./loader.ts", import.meta.url))
+      ? "./loader.ts"
+      : "./loader.js";
+    const loaderURL = new URL(loaderName, import.meta.url);
     const { register } = await import("node:module");
     const { pathToFileURL } = await import("node:url");
     register(loaderURL, import.meta.url);
