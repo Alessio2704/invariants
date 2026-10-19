@@ -14,9 +14,11 @@ package enum HardwareKeyWorkflow {
 
     if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
       print("Local signing key already exists at \(defaultKey.path).")
-      let pub = try? defaultPub.readTrimmedUTF8()
-      if let pub, !pub.isEmpty {
-        print("\nPublic Key:\n  \(pub)\n")
+      if FileManager.default.fileExists(atPath: defaultPub.path) {
+        let pub = try defaultPub.readTrimmedUTF8()
+        if !pub.isEmpty {
+          print("\nPublic Key:\n  \(pub)\n")
+        }
       }
       print("Use 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
       return defaultKey
@@ -25,9 +27,7 @@ package enum HardwareKeyWorkflow {
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     let generatedKey = try await HardwareKeyManager.generateHardwareKey(at: defaultKey, force: force)
 
-    guard let pubKey = try? defaultPub.readTrimmedUTF8() else {
-      throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
-    }
+    let pubKey = try defaultPub.readTrimmedUTF8()
 
     print("✓ Created Apple Secure Enclave P-256 signing key: \(generatedKey.path)")
     print("✓ Protected by Touch ID biometric hardware authorization")
@@ -41,9 +41,8 @@ package enum HardwareKeyWorkflow {
   package static func generateInRepo(force: Bool = false) async throws -> URL {
     let generatedKey = try await generate(force: force)
     let defaultPub = generatedKey.appendingPathExtension("pub")
-    if let pubKey = try? defaultPub.readTrimmedUTF8() {
-      printProjectEnrollment(pubKey: pubKey)
-    }
+    let pubKey = try defaultPub.readTrimmedUTF8()
+    printProjectEnrollment(pubKey: pubKey)
     return generatedKey
   }
 
@@ -56,10 +55,11 @@ package enum HardwareKeyWorkflow {
 
   package static func show() throws {
     let defaultPub = SystemEnvironment.defaultSigningKeyURL.appendingPathExtension("pub")
-    guard FileManager.default.fileExists(atPath: defaultPub.path),
-      let pubKey = try? defaultPub.readTrimmedUTF8(),
-      !pubKey.isEmpty
-    else {
+    guard FileManager.default.fileExists(atPath: defaultPub.path) else {
+      throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
+    }
+    let pubKey = try defaultPub.readTrimmedUTF8()
+    guard !pubKey.isEmpty else {
       throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
     }
     print(pubKey)
@@ -113,23 +113,31 @@ package enum HardwareKeyWorkflow {
     let hasLock = FileManager.default.fileExists(atPath: lockURL.path)
     let hasSigners = FileManager.default.fileExists(atPath: signersURL.path)
     if hasLock && hasSigners {
-      if let lockData = try? Data(contentsOf: lockURL), let reg = try? CanonicalJSON.parse(data: lockData) {
+      do {
+        let lockData = try Data(contentsOf: lockURL)
+        let reg = try CanonicalJSON.parse(data: lockData)
         print("  Registry:    version \(reg.version) (\(reg.rules.count) active rule(s))")
         print("  Trunk:       \(reg.defaultBranch)")
+      } catch {
+        print("  Registry:    Error reading registry.lock: \(error.localizedDescription)")
       }
 
       if let pubKey {
-        let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
-        if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
-          if matchedEntry.isExpired() {
-            print("  Your Status: ❌ Revoked / Expired in this repository")
-            print("  Entry:       \(matchedEntry.serialize())")
+        do {
+          let signersFile = try AllowedSignersFile.read(from: signersURL)
+          if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
+            if matchedEntry.isExpired() {
+              print("  Your Status: ❌ Revoked / Expired in this repository")
+              print("  Entry:       \(matchedEntry.serialize())")
+            } else {
+              print("  Your Status: ✅ Authorized Active Signer")
+            }
           } else {
-            print("  Your Status: ✅ Authorized Active Signer")
+            print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
+            print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
           }
-        } else {
-          print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
-          print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
+        } catch {
+          print("  Your Status: ⚠️ Error reading invariants/allowed_signers: \(error.localizedDescription)")
         }
       } else {
         print("  Your Status: ℹ️ Read-Only (No local key to check against allowed_signers)")
@@ -221,8 +229,8 @@ package enum HardwareKeyWorkflow {
 
     print("✓ Local key rotated successfully.")
     print("Old key archived to: \(backupKey.path)")
-    let newPub = try? pubURL.readTrimmedUTF8()
-    if let newPub, !newPub.isEmpty {
+    let newPub = try pubURL.readTrimmedUTF8()
+    if !newPub.isEmpty {
       print("\nNew Public Key:\n  \(newPub)\n")
     }
   }
@@ -315,13 +323,17 @@ package enum HardwareKeyWorkflow {
     let repoRoot = RepoLocator.current
     let signersURL = RegistryManager.allowedSignersURL()
     if FileManager.default.fileExists(atPath: signersURL.path) {
-      let signersFile = (try? AllowedSignersFile.read(from: signersURL)) ?? AllowedSignersFile()
-      if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
-        print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
-      } else {
-        print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
-        print("Share your public key above with a repository lead to be added via:")
-        print("    invariants signers add \"\(pubKey)\"")
+      do {
+        let signersFile = try AllowedSignersFile.read(from: signersURL)
+        if signersFile.entries.contains(where: { $0.matches(keyString: pubKey) && $0.isActive() }) {
+          print("✓ This key is already authorized in '\(repoRoot.lastPathComponent)'.")
+        } else {
+          print("ℹ️  This key is not yet enrolled in '\(repoRoot.lastPathComponent)'.")
+          print("Share your public key above with a repository lead to be added via:")
+          print("    invariants signers add \"\(pubKey)\"")
+        }
+      } catch {
+        print("⚠️  Failed to read allowed_signers: \(error.localizedDescription)")
       }
     } else {
       print(

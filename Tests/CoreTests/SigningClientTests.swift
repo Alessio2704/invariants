@@ -19,9 +19,8 @@ struct SigningClientTests {
     try pubLine.write(to: tmpPub, atomically: true, encoding: .utf8)
     defer { try? FileManager.default.removeItem(at: tmpPub) }
 
-    let fp = await SigningClient.fingerprint(pubKeyURL: tmpPub)
-    #expect(fp != nil)
-    #expect(fp?.hasPrefix("SHA256:") == true)
+    let fp = try SigningClient.fingerprint(pubKeyURL: tmpPub)
+    #expect(fp.hasPrefix("SHA256:"))
   }
 
   @Test("CryptoKit P-256 sign and OpenSSH ssh-keygen -Y verify round-trip")

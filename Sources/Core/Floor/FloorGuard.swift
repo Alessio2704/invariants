@@ -118,8 +118,10 @@ public enum FloorGuard: Sendable {
 
     let isWorkingTreeRegistryModified: Bool
     do {
-      let currentLockContent = (try? lockURL.readUTF8()) ?? ""
+      let currentLockContent = try lockURL.readUTF8()
       isWorkingTreeRegistryModified = (headLock != currentLockContent)
+    } catch {
+      isWorkingTreeRegistryModified = true
     }
 
     if currentRegistry.version > parentRegistry.version || isWorkingTreeRegistryModified {

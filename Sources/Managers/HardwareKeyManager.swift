@@ -114,7 +114,18 @@ package enum HardwareKeyManager {
     at keyURL: URL = SystemEnvironment.defaultSigningKeyURL
   ) async -> KeyInspectionResult {
     let pubURL = keyURL.appendingPathExtension("pub")
-    let pubKey = try? pubURL.readTrimmedUTF8()
+    let (pubKey, fingerprint): (String?, String?)
+    if FileManager.default.fileExists(atPath: pubURL.path) {
+      do {
+        let content = try pubURL.readTrimmedUTF8()
+        let fp = try SigningClient.fingerprint(pubKeyURL: pubURL)
+        (pubKey, fingerprint) = (content, fp)
+      } catch {
+        (pubKey, fingerprint) = (nil, nil)
+      }
+    } else {
+      (pubKey, fingerprint) = (nil, nil)
+    }
 
     let keyType: String?
     if let pubKey {
@@ -122,8 +133,6 @@ package enum HardwareKeyManager {
     } else {
       keyType = nil
     }
-
-    let fingerprint = await SigningClient.fingerprint(pubKeyURL: pubURL)
 
     let sshDir = keyURL.deletingLastPathComponent()
     let items = (try? FileManager.default.contentsOfDirectory(atPath: sshDir.path)) ?? []

@@ -6,8 +6,8 @@ import Testing
 @Suite("Key Lifecycle & Fingerprint Tests", .tags(.unit))
 struct KeyLifecycleTests {
 
-  @Test("SigningClient computes fingerprint for existing public key and returns nil for missing key")
-  func fingerprintComputation() async throws {
+  @Test("SigningClient computes fingerprint for existing public key and throws for missing key")
+  func fingerprintComputation() throws {
     let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("fp_test_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
@@ -15,18 +15,18 @@ struct KeyLifecycleTests {
     let keyURL = tmpDir.appendingPathComponent("id_test")
     let pubURL = tmpDir.appendingPathComponent("id_test.pub")
 
-    // Missing key returns nil
-    let missingFp = await SigningClient.fingerprint(pubKeyURL: pubURL)
-    #expect(missingFp == nil)
+    // Missing key throws SystemError
+    #expect(throws: SystemError.self) {
+      _ = try SigningClient.fingerprint(pubKeyURL: pubURL)
+    }
 
     // Generate throwaway key
     try SigningClient.generateThrowawayKey(at: keyURL)
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
 
     // Valid fingerprint contains SHA256:
-    let validFp = await SigningClient.fingerprint(pubKeyURL: pubURL)
-    #expect(validFp != nil)
-    #expect(validFp?.contains("SHA256:") == true)
+    let validFp = try SigningClient.fingerprint(pubKeyURL: pubURL)
+    #expect(validFp.contains("SHA256:"))
   }
 
   @Test("Clean rotation backups identifies and removes timestamped backup files")

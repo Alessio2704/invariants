@@ -29,7 +29,10 @@ public enum InitManager: Sendable {
 
     // 1. Update .gitignore
     let gitignoreURL = repoRootURL.appendingPathComponent(".gitignore")
-    var gitignoreContent = (try? gitignoreURL.readUTF8()) ?? ""
+    var gitignoreContent = ""
+    if fm.fileExists(atPath: gitignoreURL.path) {
+      gitignoreContent = try gitignoreURL.readUTF8()
+    }
     if !gitignoreContent.contains("invariants/.dev/") {
       if !gitignoreContent.isEmpty && !gitignoreContent.hasSuffix("\n") {
         gitignoreContent.append("\n")
@@ -74,16 +77,17 @@ public enum InitManager: Sendable {
 
   /// Writes the public key from `keyURL` into `<repoRoot>/invariants/allowed_signers`.
   public static func writeInitialAllowedSigners(keyURL: URL) throws {
+    let fm = FileManager.default
     let signersURL = RegistryManager.allowedSignersURL()
     let pubURL = keyURL.pathExtension == "pub" ? keyURL : keyURL.appendingPathExtension("pub")
 
     let pubContent: String
-    if let content = try? pubURL.readTrimmedUTF8(), !content.isEmpty {
-      pubContent = content
-    } else if let content = try? keyURL.readTrimmedUTF8(), !content.isEmpty {
-      pubContent = content
+    if fm.fileExists(atPath: pubURL.path) {
+      pubContent = try pubURL.readTrimmedUTF8()
+    } else if fm.fileExists(atPath: keyURL.path) {
+      pubContent = try keyURL.readTrimmedUTF8()
     } else {
-      throw SystemError.fileIOError("Could not read public key from \(pubURL.path) or \(keyURL.path)")
+      throw SystemError.fileIOError("Could not find public key at \(pubURL.path) or \(keyURL.path)")
     }
 
     var signersFile = AllowedSignersFile()

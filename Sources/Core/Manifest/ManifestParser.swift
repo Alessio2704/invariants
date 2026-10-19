@@ -4,7 +4,13 @@ public import Foundation
 public enum ManifestParser {
   /// Loads and parses a `manifest.json` file from a URL.
   public static func load(from url: URL, expectedId: String? = nil) throws(ManifestError) -> RuleManifest {
-    guard let data = try? Data(contentsOf: url) else {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw ManifestError.fileNotFound(url)
+    }
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch {
       throw ManifestError.fileNotFound(url)
     }
     return try parse(data: data, expectedId: expectedId)
