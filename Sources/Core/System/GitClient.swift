@@ -208,36 +208,41 @@ public enum GitClient: Sendable {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  /// Discovers all available branches in the repository, prioritizing remote trunk and canonical branches first.
-  public static func discoverBranches() async -> [String] {
-    let repoRoot = RepoLocator.current
-    var branches: [String] = []
+  /// Information about repository branches, current active branch, and remote trunk.
+  public struct BranchInfo: Sendable, Equatable {
+    public let branches: [String]
+    public let currentBranch: String?
+    public let remoteTrunk: String?
 
-    if let out = try? await SubprocessRunner.run(
-      binary: .git,
-      arguments: ["-C", repoRoot.path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
-      workingDirectory: repoRoot
-    ), out.exitCode == 0 {
-      branches = out.stdoutString
-        .split(separator: "\n")
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
+    public init(branches: [String], currentBranch: String?, remoteTrunk: String?) {
+      self.branches = branches
+      self.currentBranch = currentBranch
+      self.remoteTrunk = remoteTrunk
     }
+  }
 
+  /// Discovers comprehensive branch information in a single concurrent pass without redundant subprocesses.
+  public static func discoverBranchInfo() async -> BranchInfo {
+    let repoRoot = RepoLocator.current
+    async let headsTask = localBranchHeads(repoRoot: repoRoot)
+    async let currentTask = currentBranch()
+    async let trunkTask = detectRemoteTrunk()
+
+    let (heads, current, trunk) = await (headsTask, currentTask, trunkTask)
+    var branches = heads
     if branches.isEmpty {
-      if let curr = await currentBranch() {
-        branches = [curr]
+      if let current {
+        branches = [current]
       } else {
         branches = ["main"]
       }
     }
 
     // Sort order: remote trunk first, or 'main' first, or 'master' first
-    let remoteTrunk = await detectRemoteTrunk()
     var sorted = branches
-    if let remoteTrunk, let idx = sorted.firstIndex(of: remoteTrunk) {
-      let trunk = sorted.remove(at: idx)
-      sorted.insert(trunk, at: 0)
+    if let trunk, let idx = sorted.firstIndex(of: trunk) {
+      let t = sorted.remove(at: idx)
+      sorted.insert(t, at: 0)
     } else if let mainIdx = sorted.firstIndex(of: "main") {
       let main = sorted.remove(at: mainIdx)
       sorted.insert(main, at: 0)
@@ -246,6 +251,27 @@ public enum GitClient: Sendable {
       sorted.insert(legacyTrunk, at: 0)
     }
 
-    return sorted
+    return BranchInfo(branches: sorted, currentBranch: current, remoteTrunk: trunk)
+  }
+
+  /// Discovers all available branches in the repository, prioritizing remote trunk and canonical branches first.
+  public static func discoverBranches() async -> [String] {
+    await discoverBranchInfo().branches
+  }
+
+  private static func localBranchHeads(repoRoot: URL) async -> [String] {
+    guard
+      let out = try? await SubprocessRunner.run(
+        binary: .git,
+        arguments: ["-C", repoRoot.path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+        workingDirectory: repoRoot
+      ), out.exitCode == 0
+    else {
+      return []
+    }
+    return out.stdoutString
+      .split(separator: "\n")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
   }
 }
