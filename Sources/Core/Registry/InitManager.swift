@@ -86,7 +86,7 @@ public enum InitManager: Sendable {
       throw SystemError.fileIOError("Could not read public key from \(pubURL.path) or \(keyURL.path)")
     }
 
-    var signersFile = try AllowedSignersFile.read(from: signersURL)
+    var signersFile = AllowedSignersFile()
     try signersFile.addPublicKey(pubContent, principal: "*", namespaces: ["invariants"])
     try signersFile.write(to: signersURL)
   }
