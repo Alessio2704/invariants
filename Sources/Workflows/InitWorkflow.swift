@@ -44,9 +44,15 @@ package enum InitWorkflow {
     }
 
     // 3. Select default trunk branch
-    let defaultBranch = await BranchSelectionWorkflow.selectDefaultBranch(
-      explicitBranch: input.branch
-    )
+    let defaultBranch: String
+    do {
+      defaultBranch = try await BranchSelectionWorkflow.selectDefaultBranch(
+        explicitBranch: input.branch
+      )
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw InitWorkflowError.noBranchesFound
+    }
 
     // 4. Initialize repository
     let options = InitOptions(
@@ -69,6 +75,7 @@ package enum InitWorkflow {
 package enum InitWorkflowError: LocalizedError, Sendable {
   case noSigningKey
   case noLanguagesConfigured
+  case noBranchesFound
 
   package var errorDescription: String? {
     switch self {
@@ -76,6 +83,8 @@ package enum InitWorkflowError: LocalizedError, Sendable {
       return "No signing key selected."
     case .noLanguagesConfigured:
       return "Repository initialization failed: at least one supported language must be configured."
+    case .noBranchesFound:
+      return "Repository initialization failed: no git branches found in this repository."
     }
   }
 }

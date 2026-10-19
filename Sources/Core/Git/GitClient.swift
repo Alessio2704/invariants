@@ -217,12 +217,8 @@ public enum GitClient: Sendable {
 
     let (heads, current, trunk) = await (headsTask, currentTask, trunkTask)
     var names = heads
-    if names.isEmpty {
-      if let current {
-        names = [current]
-      } else {
-        names = ["main"]
-      }
+    if names.isEmpty, let current {
+      names = [current]
     }
 
     // Sort order: remote trunk first, or 'main' first, or 'master' first
