@@ -33,18 +33,7 @@ extension GitClient {
 
     /// Human-readable annotation describing this branch's role for terminal display.
     public var annotation: String? {
-      switch role {
-      case .activeTrunk:
-        return "remote trunk, current"
-      case .remoteTrunk:
-        return "remote trunk"
-      case .active:
-        return "current"
-      case .recommended:
-        return "recommended"
-      case .standard:
-        return nil
-      }
+      role.annotation
     }
   }
 }

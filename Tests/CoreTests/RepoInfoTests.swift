@@ -5,13 +5,13 @@ import Testing
 
 @Suite("Git Branch & Repository Models", .tags(.unit))
 struct RepoInfoTests {
-  @Test("GitClient.BranchRole raw values and mutual exclusivity")
+  @Test("GitClient.BranchRole annotations and mutual exclusivity")
   func branchRoles() {
-    #expect(GitClient.BranchRole.activeTrunk.rawValue == "active trunk")
-    #expect(GitClient.BranchRole.remoteTrunk.rawValue == "remote trunk")
-    #expect(GitClient.BranchRole.active.rawValue == "active")
-    #expect(GitClient.BranchRole.recommended.rawValue == "recommended")
-    #expect(GitClient.BranchRole.standard.rawValue == "standard")
+    #expect(GitClient.BranchRole.activeTrunk.annotation == "remote trunk, current")
+    #expect(GitClient.BranchRole.remoteTrunk.annotation == "remote trunk")
+    #expect(GitClient.BranchRole.active.annotation == "current")
+    #expect(GitClient.BranchRole.recommended.annotation == "recommended")
+    #expect(GitClient.BranchRole.standard.annotation == nil)
     #expect(GitClient.BranchRole.allCases.count == 5)
   }
 
