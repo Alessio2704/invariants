@@ -42,7 +42,7 @@ public struct AllowedSignerEntry: Equatable, Sendable {
 
   /// Parses an OpenSSH allowed_signers entry line. Returns nil for empty lines or comments.
   public static func parse(line: String) -> Self? {
-    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = line.trimmed
     guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { return nil }
 
     var tokens: [String] = []
@@ -168,7 +168,7 @@ public struct AllowedSignerEntry: Equatable, Sendable {
 
   /// Matches against a raw public key string or key data.
   public func matches(keyString: String) -> Bool {
-    let trimmed = keyString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = keyString.trimmed
     return trimmed.contains(keyData) || trimmed.contains(keyType) && trimmed.contains(keyData)
   }
 
@@ -199,7 +199,7 @@ public struct AllowedSignerEntry: Equatable, Sendable {
   }
 
   private static func unquote(_ str: String) -> String {
-    var res = str.trimmingCharacters(in: .whitespacesAndNewlines)
+    var res = str.trimmed
     if res.hasPrefix("\"") && res.hasSuffix("\"") && res.count >= 2 {
       res = String(res.dropFirst().dropLast())
     }

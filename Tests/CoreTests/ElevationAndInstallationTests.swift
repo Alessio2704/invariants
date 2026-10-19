@@ -55,11 +55,11 @@ struct ElevationAndInstallationTests {
 
     // Link to target 1
     try await InstallationManager.createSymlink(from: target1, to: link)
-    #expect(try String(contentsOf: link, encoding: .utf8) == "T1")
+    #expect(try link.readUTF8() == "T1")
 
     // Flip link to target 2
     try await InstallationManager.createSymlink(from: target2, to: link)
-    #expect(try String(contentsOf: link, encoding: .utf8) == "T2")
+    #expect(try link.readUTF8() == "T2")
   }
 
   @Test("installVersion packages version and sets symlinks, uninstall removes them")
@@ -87,7 +87,7 @@ struct ElevationAndInstallationTests {
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
     #expect(FileManager.default.fileExists(atPath: env.currentVersionURL.path))
     #expect(FileManager.default.fileExists(atPath: env.binURL.path))
-    #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "dummy binary")
+    #expect(try env.binURL.readUTF8() == "dummy binary")
 
     // 2. Upgrade to version 1.1.0 and verify atomic symlink flip
     let stageDir2 = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -101,7 +101,7 @@ struct ElevationAndInstallationTests {
     let installedBin2 = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
     #expect(FileManager.default.fileExists(atPath: installedBin1.path))
     #expect(FileManager.default.fileExists(atPath: installedBin2.path))
-    #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "v1.1.0 binary")
+    #expect(try env.binURL.readUTF8() == "v1.1.0 binary")
 
     // 3. Uninstall (first call)
     try await InstallationManager.uninstall(environment: env)

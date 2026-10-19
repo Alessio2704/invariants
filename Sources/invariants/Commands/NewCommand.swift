@@ -25,7 +25,7 @@ struct NewCommand: AsyncParsableCommand {
         throw ExitCode(1)
       }
 
-      let targetList = targets.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+      let targetList = targets.split(separator: ",").map(\.trimmed)
       var declaredTargets: [TargetLanguage] = []
       for t in targetList {
         guard let lang = TargetLanguage(rawValue: t) else {

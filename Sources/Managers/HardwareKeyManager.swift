@@ -114,7 +114,7 @@ package enum HardwareKeyManager {
     at keyURL: URL = SystemEnvironment.defaultSigningKeyURL
   ) async -> KeyInspectionResult {
     let pubURL = keyURL.appendingPathExtension("pub")
-    let pubKey = (try? String(contentsOf: pubURL, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKey = try? pubURL.readTrimmedUTF8()
 
     let keyType: String?
     if let pubKey {

@@ -37,6 +37,6 @@ struct SystemBinaryTests {
       arguments: ["-c", "echo 'system_binary_invocation'"]
     )
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "system_binary_invocation")
+    #expect(output.trimmedStdout == "system_binary_invocation")
   }
 }

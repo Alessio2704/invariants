@@ -42,13 +42,12 @@ struct TeamCollaborationScenarioTests {
     let juniorKeyURL = repo.repoURL.appendingPathComponent("id_junior")
     try SigningClient.generateThrowawayKey(at: juniorKeyURL)
 
-    let juniorPub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_junior.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let juniorPub = try repo.repoURL.appendingPathComponent("id_junior.pub").readTrimmedUTF8()
 
     try await repo.run {
       // Senior adds Junior's key to invariants/allowed_signers
       let signersURL = RegistryManager.allowedSignersURL()
-      var signersContent = try String(contentsOf: signersURL, encoding: .utf8)
+      var signersContent = try signersURL.readUTF8()
       signersContent.append("* namespaces=\"invariants\" \(juniorPub)\n")
       try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -83,10 +82,8 @@ struct TeamCollaborationScenarioTests {
     let seniorKeyV2 = repo.repoURL.appendingPathComponent("id_senior_v2")
     try SigningClient.generateThrowawayKey(at: seniorKeyV2)
 
-    let oldPub = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    let newPub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_senior_v2.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let oldPub = try repo.pubKeyURL.readTrimmedUTF8()
+    let newPub = try repo.repoURL.appendingPathComponent("id_senior_v2.pub").readTrimmedUTF8()
 
     // Senior rotates: marks old valid-before in 24 hours, adds new valid-after
     let formatter = DateFormatter()
@@ -136,10 +133,8 @@ struct TeamCollaborationScenarioTests {
     let seniorBKey = repo.repoURL.appendingPathComponent("id_senior_b")
     try SigningClient.generateThrowawayKey(at: seniorBKey)
 
-    let pubA = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    let pubB = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_senior_b.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubA = try repo.pubKeyURL.readTrimmedUTF8()
+    let pubB = try repo.repoURL.appendingPathComponent("id_senior_b.pub").readTrimmedUTF8()
 
     try await repo.run {
       // Initial signers has both Senior A and Senior B

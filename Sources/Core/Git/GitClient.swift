@@ -40,7 +40,7 @@ public enum GitClient: Sendable {
       )
     }
 
-    let hash = writeOutput.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hash = writeOutput.trimmedStdout
     return hash
   }
 
@@ -95,9 +95,7 @@ public enum GitClient: Sendable {
       // If repository has no commits yet, git log returns error 128
       return []
     }
-    let lines = output.stdoutString.split(separator: "\n").map {
-      String($0).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    let lines = output.stdoutString.split(separator: "\n").map(\.trimmed)
     return lines.filter { !$0.isEmpty }
   }
 
@@ -186,7 +184,7 @@ public enum GitClient: Sendable {
     else {
       return nil
     }
-    let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = out.trimmedStdout
     guard !trimmed.isEmpty else { return nil }
     let parts = trimmed.split(separator: "/")
     return parts.count >= 2 ? String(parts.dropFirst().joined(separator: "/")) : trimmed
@@ -204,7 +202,7 @@ public enum GitClient: Sendable {
     else {
       return nil
     }
-    let trimmed = out.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = out.trimmedStdout
     return trimmed.isEmpty ? nil : trimmed
   }
 
@@ -271,7 +269,7 @@ public enum GitClient: Sendable {
     }
     return out.stdoutString
       .split(separator: "\n")
-      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .map(\.trimmed)
       .filter { !$0.isEmpty }
   }
 }

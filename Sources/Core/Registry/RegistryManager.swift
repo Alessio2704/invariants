@@ -104,10 +104,14 @@ public enum RegistryManager: Sendable {
     let signersURL = Self.allowedSignersURL()
     var updatedRegistry = registry
     if FileManager.default.fileExists(atPath: signersURL.path) {
-      if let signersData = try? Data(contentsOf: signersURL) {
-        let hash = SHA256.hash(data: signersData)
-        updatedRegistry.signersHash = hash.map { String(format: "%02x", $0) }.joined()
+      let signersData: Data
+      do {
+        signersData = try Data(contentsOf: signersURL)
+      } catch {
+        throw RegistryError.encodingFailed("Failed to read repository allowed_signers: \(error.localizedDescription)")
       }
+      let hash = SHA256.hash(data: signersData)
+      updatedRegistry.signersHash = hash.map { String(format: "%02x", $0) }.joined()
     }
 
     let lockURL = Self.registryURL()

@@ -107,8 +107,7 @@ struct KeyLifecycleTests {
 
     try SigningClient.generateThrowawayKey(at: defaultKey)
 
-    let originalPub = try String(contentsOf: defaultPub, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let originalPub = try defaultPub.readTrimmedUTF8()
 
     // Perform reset: archive old to backup
     let formatter = DateFormatter()
@@ -124,8 +123,7 @@ struct KeyLifecycleTests {
 
     // Generate fresh key
     try SigningClient.generateThrowawayKey(at: defaultKey)
-    let freshPub = try String(contentsOf: defaultPub, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let freshPub = try defaultPub.readTrimmedUTF8()
 
     // Both backup and fresh key exist, and their public keys differ
     #expect(FileManager.default.fileExists(atPath: backupKey.path))

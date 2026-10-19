@@ -14,8 +14,7 @@ package enum HardwareKeyWorkflow {
 
     if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
       print("Local signing key already exists at \(defaultKey.path).")
-      let pub = (try? String(contentsOf: defaultPub, encoding: .utf8))?.trimmingCharacters(
-        in: .whitespacesAndNewlines)
+      let pub = try? defaultPub.readTrimmedUTF8()
       if let pub, !pub.isEmpty {
         print("\nPublic Key:\n  \(pub)\n")
       }
@@ -26,10 +25,7 @@ package enum HardwareKeyWorkflow {
     print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     let generatedKey = try await HardwareKeyManager.generateHardwareKey(at: defaultKey, force: force)
 
-    guard
-      let pubKey = (try? String(contentsOf: defaultPub, encoding: .utf8))?.trimmingCharacters(
-        in: .whitespacesAndNewlines)
-    else {
+    guard let pubKey = try? defaultPub.readTrimmedUTF8() else {
       throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
     }
 
@@ -45,8 +41,7 @@ package enum HardwareKeyWorkflow {
   package static func generateInRepo(force: Bool = false) async throws -> URL {
     let generatedKey = try await generate(force: force)
     let defaultPub = generatedKey.appendingPathExtension("pub")
-    let rawPub = try? String(contentsOf: defaultPub, encoding: .utf8)
-    if let pubKey = rawPub?.trimmingCharacters(in: .whitespacesAndNewlines) {
+    if let pubKey = try? defaultPub.readTrimmedUTF8() {
       printProjectEnrollment(pubKey: pubKey)
     }
     return generatedKey
@@ -62,8 +57,7 @@ package enum HardwareKeyWorkflow {
   package static func show() throws {
     let defaultPub = SystemEnvironment.defaultSigningKeyURL.appendingPathExtension("pub")
     guard FileManager.default.fileExists(atPath: defaultPub.path),
-      let pubKey = (try? String(contentsOf: defaultPub, encoding: .utf8))?.trimmingCharacters(
-        in: .whitespacesAndNewlines),
+      let pubKey = try? defaultPub.readTrimmedUTF8(),
       !pubKey.isEmpty
     else {
       throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
@@ -159,22 +153,26 @@ package enum HardwareKeyWorkflow {
     }
 
     let oldPubURL = defaultKey.appendingPathExtension("pub")
-    guard
-      let oldPubContent = (try? String(contentsOf: oldPubURL, encoding: .utf8))?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      !oldPubContent.isEmpty
-    else {
+    let oldPubContent: String
+    do {
+      oldPubContent = try oldPubURL.readTrimmedUTF8()
+    } catch {
+      throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
+    }
+    guard !oldPubContent.isEmpty else {
       throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
     }
 
     print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
     let (backupKey, _) = try await HardwareKeyManager.rotateHardwareKey(at: defaultKey)
 
-    guard
-      let newPubContent = (try? String(contentsOf: oldPubURL, encoding: .utf8))?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      !newPubContent.isEmpty
-    else {
+    let newPubContent: String
+    do {
+      newPubContent = try oldPubURL.readTrimmedUTF8()
+    } catch {
+      throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
+    }
+    guard !newPubContent.isEmpty else {
       throw KeyLifecycleError.publicKeyNotFound(oldPubURL.path)
     }
 
@@ -188,12 +186,16 @@ package enum HardwareKeyWorkflow {
     try signersFile.write(to: signersURL)
 
     let lockURL = RegistryManager.registryURL()
-    guard FileManager.default.fileExists(atPath: lockURL.path),
-      let data = try? Data(contentsOf: lockURL),
-      var registry = try? CanonicalJSON.parse(data: data)
-    else {
+    guard FileManager.default.fileExists(atPath: lockURL.path) else {
       throw RegistryError.fileNotFound(lockURL)
     }
+    let data: Data
+    do {
+      data = try Data(contentsOf: lockURL)
+    } catch {
+      throw RegistryError.decodingFailed("Failed to read registry.lock: \(error.localizedDescription)")
+    }
+    var registry = try CanonicalJSON.parse(data: data)
 
     registry.version += 1
     try await RegistryManager.saveAndSign(registry: registry, keyURL: backupKey)
@@ -219,7 +221,7 @@ package enum HardwareKeyWorkflow {
 
     print("✓ Local key rotated successfully.")
     print("Old key archived to: \(backupKey.path)")
-    let newPub = (try? String(contentsOf: pubURL, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let newPub = try? pubURL.readTrimmedUTF8()
     if let newPub, !newPub.isEmpty {
       print("\nNew Public Key:\n  \(newPub)\n")
     }

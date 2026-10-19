@@ -41,7 +41,7 @@ struct SigningClientTests {
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
 
-    let pubKeyContent = try String(contentsOf: pubURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyContent = try pubURL.readTrimmedUTF8()
     let signersContent = "* namespaces=\"invariants\" \(pubKeyContent)\n"
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -51,7 +51,7 @@ struct SigningClientTests {
     let sigURL = messageURL.appendingPathExtension("sig")
     #expect(FileManager.default.fileExists(atPath: sigURL.path))
 
-    let sigContent = try String(contentsOf: sigURL, encoding: .utf8)
+    let sigContent = try sigURL.readUTF8()
     #expect(sigContent.contains("-----BEGIN SSH SIGNATURE-----"))
     #expect(sigContent.contains("-----END SSH SIGNATURE-----"))
 
@@ -83,7 +83,7 @@ struct SigningClientTests {
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
 
-    let pubKeyContent = try String(contentsOf: pubURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyContent = try pubURL.readTrimmedUTF8()
     let signersContent = "* namespaces=\"invariants\" \(pubKeyContent)\n"
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -120,7 +120,7 @@ struct SigningClientTests {
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
 
-    let pubKeyContent = try String(contentsOf: pubURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyContent = try pubURL.readTrimmedUTF8()
     let signersContent = "* namespaces=\"invariants\" \(pubKeyContent)\n"
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 

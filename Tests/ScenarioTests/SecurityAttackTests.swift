@@ -16,7 +16,7 @@ struct SecurityAttackTests {
     let signersURL = repo.run { RegistryManager.allowedSignersURL() }
     let rogueKey =
       "* namespaces=\"invariants\" ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMockRogueKey rogue@attacker\n"
-    var content = try String(contentsOf: signersURL, encoding: .utf8)
+    var content = try signersURL.readUTF8()
     content.append(rogueKey)
     try content.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -38,12 +38,11 @@ struct SecurityAttackTests {
     let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue")
     try SigningClient.generateThrowawayKey(at: rogueKeyURL)
 
-    let roguePub = (try String(contentsOf: repo.repoURL.appendingPathComponent("id_rogue.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let roguePub = try repo.repoURL.appendingPathComponent("id_rogue.pub").readTrimmedUTF8()
 
     // Attacker appends rogue key to allowed_signers
     let signersURL = repo.run { RegistryManager.allowedSignersURL() }
-    var signersContent = try String(contentsOf: signersURL, encoding: .utf8)
+    var signersContent = try signersURL.readUTF8()
     signersContent.append("* namespaces=\"invariants\" \(roguePub)\n")
     try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -108,8 +107,7 @@ struct SecurityAttackTests {
 
     // Expire the key in allowed_signers with valid-before in the past
     let signersURL = repo.run { RegistryManager.allowedSignersURL() }
-    let pubKeyStr = (try String(contentsOf: repo.pubKeyURL, encoding: .utf8)).trimmingCharacters(
-      in: .whitespacesAndNewlines)
+    let pubKeyStr = try repo.pubKeyURL.readTrimmedUTF8()
     let expiredSigners = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyStr)\n"
     try expiredSigners.write(to: signersURL, atomically: true, encoding: .utf8)
 

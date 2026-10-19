@@ -19,7 +19,7 @@ public struct AllowedSignersFile: Equatable, Sendable {
     guard FileManager.default.fileExists(atPath: url.path) else {
       return Self()
     }
-    let content = try String(contentsOf: url, encoding: .utf8)
+    let content = try url.readUTF8()
     return Self(content: content)
   }
 
@@ -41,7 +41,7 @@ public struct AllowedSignersFile: Equatable, Sendable {
     principal: String = "*",
     namespaces: [String] = ["invariants"]
   ) throws -> AllowedSignerEntry {
-    let parts = keyString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parts = keyString.trimmed
       .split(separator: " ", omittingEmptySubsequences: true)
       .map(String.init)
     guard parts.count >= 2 else {
@@ -101,7 +101,7 @@ public struct AllowedSignersFile: Equatable, Sendable {
       throw SystemError.fileIOError("Old signing key not found in allowed_signers.")
     }
 
-    let parts = newPublicKeyString.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parts = newPublicKeyString.trimmed
       .split(separator: " ", omittingEmptySubsequences: true)
       .map(String.init)
     guard parts.count >= 2 else {

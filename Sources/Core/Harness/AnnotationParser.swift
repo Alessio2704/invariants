@@ -9,7 +9,7 @@ public enum AnnotationParser: Sendable {
   ) throws(HarnessError) -> [ExpectedViolation] {
     let content: String
     do {
-      content = try String(contentsOf: fileURL, encoding: .utf8)
+      content = try fileURL.readUTF8()
     } catch {
       throw HarnessError.ioError("Failed to read file \(fileURL.path): \(error.localizedDescription)")
     }
@@ -21,11 +21,9 @@ public enum AnnotationParser: Sendable {
       let lineNum = zeroIdx + 1
       // Match "// expect:" or "/* expect:" or "# expect:"
       if let range = line.range(of: "expect:", options: .caseInsensitive) {
-        let rest = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
-        let clean = rest.replacingOccurrences(of: "*/", with: "").trimmingCharacters(in: .whitespaces)
-        let codes = clean.split(separator: ",").map {
-          $0.trimmingCharacters(in: .whitespacesAndNewlines)
-        }.filter { !$0.isEmpty }
+        let rest = line[range.upperBound...].trimmed
+        let clean = rest.replacingOccurrences(of: "*/", with: "").trimmed
+        let codes = clean.split(separator: ",").map(\.trimmed).filter { !$0.isEmpty }
 
         for code in codes {
           results.append(
@@ -47,7 +45,7 @@ public enum AnnotationParser: Sendable {
     guard FileManager.default.fileExists(atPath: sidecarURL.path) else { return [] }
     let content: String
     do {
-      content = try String(contentsOf: sidecarURL, encoding: .utf8)
+      content = try sidecarURL.readUTF8()
     } catch {
       throw HarnessError.ioError("Failed to read sidecar file \(sidecarURL.path): \(error.localizedDescription)")
     }
@@ -56,10 +54,10 @@ public enum AnnotationParser: Sendable {
     let lines = content.components(separatedBy: .newlines)
 
     for line in lines {
-      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmed = line.trimmed
       if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix("//") { continue }
 
-      let parts = trimmed.split(separator: "@").map { $0.trimmingCharacters(in: .whitespaces) }
+      let parts = trimmed.split(separator: "@").map(\.trimmed)
       guard parts.count == 2, let lineNum = Int(parts[1]) else { continue }
       let code = parts[0]
       results.append(ExpectedViolation(relativePath: targetRelativePath, line: lineNum, code: code))
@@ -72,7 +70,7 @@ public enum AnnotationParser: Sendable {
     guard FileManager.default.fileExists(atPath: expectFileURL.path) else { return [] }
     let content: String
     do {
-      content = try String(contentsOf: expectFileURL, encoding: .utf8)
+      content = try expectFileURL.readUTF8()
     } catch {
       throw HarnessError.ioError(
         "Failed to read folder expect file \(expectFileURL.path): \(error.localizedDescription)")
@@ -82,13 +80,13 @@ public enum AnnotationParser: Sendable {
     let lines = content.components(separatedBy: .newlines)
 
     for line in lines {
-      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmed = line.trimmed
       if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix("//") { continue }
 
       let parts = trimmed.split(separator: " ", maxSplits: 1).map { String($0) }
       guard parts.count == 2 else { continue }
       let pathAndLine = parts[0]
-      let code = parts[1].trimmingCharacters(in: .whitespaces)
+      let code = parts[1].trimmed
 
       let locParts = pathAndLine.split(separator: ":").map { String($0) }
       guard locParts.count == 2, let lineNum = Int(locParts[1]) else { continue }

@@ -36,14 +36,14 @@ struct SubprocessRunnerTests {
     )
     let output = try await SubprocessRunner.run(request)
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "process_running_test")
+    #expect(output.trimmedStdout == "process_running_test")
   }
 
   @Test("SubprocessRunner executes runShell convenience method")
   func subprocessRunnerRunShell() async throws {
     let output = try await SubprocessRunner.runShell("echo 'shell_test'")
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "shell_test")
+    #expect(output.trimmedStdout == "shell_test")
   }
 
   @Test("SubprocessRunner executes ProcessRequest directly in sandbox with targetURL")
@@ -59,7 +59,7 @@ struct SubprocessRunnerTests {
     )
     let output = try await SubprocessRunner.run(request)
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "runner_direct_test")
+    #expect(output.trimmedStdout == "runner_direct_test")
   }
 
   @Test("SubprocessRunner executes runShell convenience method in sandbox with targetURL")
@@ -70,7 +70,7 @@ struct SubprocessRunnerTests {
 
     let output = try await SubprocessRunner.runShell("echo 'runner_shell_test'", targetURL: tmpDir)
     #expect(output.exitCode == 0)
-    #expect(output.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) == "runner_shell_test")
+    #expect(output.trimmedStdout == "runner_shell_test")
   }
 
   @Test("SubprocessRunner executes SystemBinary directly")

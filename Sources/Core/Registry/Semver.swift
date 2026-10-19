@@ -13,7 +13,7 @@ public struct Semver: Sendable, Equatable, Comparable, CustomStringConvertible {
   }
 
   public init?(string: String) {
-    let clean = string.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clean = string.trimmed
       .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
     let parts = clean.split(separator: ".")
     guard parts.count >= 2,
@@ -54,7 +54,7 @@ public struct SemverRange: Sendable, Equatable {
   public let raw: String
 
   public init(_ raw: String) {
-    self.raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.raw = raw.trimmed
   }
 
   public func satisfies(_ version: Semver) -> Bool {

@@ -250,10 +250,10 @@ public enum SigningClient: Sendable {
 
   /// Calculates the SHA-256 fingerprint of a public key file.
   public static func fingerprint(pubKeyURL: URL) async -> String? {
-    guard let content = try? String(contentsOf: pubKeyURL, encoding: .utf8) else { return nil }
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let entry = AllowedSignerEntry.parse(line: "* \(trimmed)") else { return nil }
-    guard let keyBytes = Data(base64Encoded: entry.keyData) else { return nil }
+    guard let trimmed = try? pubKeyURL.readTrimmedUTF8(),
+      let entry = AllowedSignerEntry.parse(line: "* \(trimmed)"),
+      let keyBytes = Data(base64Encoded: entry.keyData)
+    else { return nil }
     let hash = SHA256.hash(data: keyBytes)
     var b64 = Data(hash).base64EncodedString()
     while b64.hasSuffix("=") { b64.removeLast() }

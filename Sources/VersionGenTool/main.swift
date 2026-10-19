@@ -17,7 +17,7 @@ try? process.run()
 process.waitUntilExit()
 
 let data = pipe.fileHandleForReading.readDataToEndOfFile()
-var version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+var version = String(data: data, encoding: .utf8)?.trimmed ?? ""
 if version.hasPrefix("v") {
   version = String(version.dropFirst())
 }
@@ -31,7 +31,7 @@ if version.isEmpty {
   try? revProcess.run()
   revProcess.waitUntilExit()
   let revData = revPipe.fileHandleForReading.readDataToEndOfFile()
-  version = String(data: revData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+  version = String(data: revData, encoding: .utf8)?.trimmed ?? ""
 }
 
 if !version.contains(".") {
@@ -56,3 +56,9 @@ let content = """
   """
 
 try content.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+
+extension String {
+  fileprivate var trimmed: String {
+    trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}

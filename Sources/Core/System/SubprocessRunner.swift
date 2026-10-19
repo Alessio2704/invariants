@@ -14,6 +14,10 @@ public struct ProcessOutput: Sendable, Equatable {
     String(bytes: stderrData, encoding: .utf8) ?? ""
   }
 
+  public var trimmedStdout: String {
+    stdoutString.trimmed
+  }
+
   public init(exitCode: Int32, stdoutData: Data, stderrData: Data) {
     self.exitCode = exitCode
     self.stdoutData = stdoutData

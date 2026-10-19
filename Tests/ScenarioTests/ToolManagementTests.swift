@@ -11,7 +11,7 @@ struct ToolManagementTests {
     let signersURL = repo.run { RegistryManager.allowedSignersURL() }
 
     // 1. Initial content from TestRepo contains owner public key
-    let initial = try String(contentsOf: signersURL, encoding: .utf8)
+    let initial = try signersURL.readUTF8()
     #expect(!initial.isEmpty)
 
     // 2. Add coworker key directly (in-repo, no sudo)
@@ -22,7 +22,7 @@ struct ToolManagementTests {
     content.append(newEntry)
     try content.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let updated = try String(contentsOf: signersURL, encoding: .utf8)
+    let updated = try signersURL.readUTF8()
     #expect(updated.contains("ExampleCoworkerKey"))
     #expect(updated.contains("coworker@plans"))
 
@@ -37,14 +37,14 @@ struct ToolManagementTests {
       }.joined(separator: "\n") + "\n"
     try softRevoked.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let afterSoft = try String(contentsOf: signersURL, encoding: .utf8)
+    let afterSoft = try signersURL.readUTF8()
     #expect(afterSoft.contains("valid-before=\"20261016T000000Z\""))
 
     // 4. Hard revoke coworker key (completely removed from allowed_signers)
     let hardRevoked = lines.filter { !$0.contains("coworker@plans") }.joined(separator: "\n") + "\n"
     try hardRevoked.write(to: signersURL, atomically: true, encoding: .utf8)
 
-    let afterHard = try String(contentsOf: signersURL, encoding: .utf8)
+    let afterHard = try signersURL.readUTF8()
     #expect(!afterHard.contains("coworker@plans"))
   }
 
@@ -71,14 +71,14 @@ struct ToolManagementTests {
     // Verify version 1.1.0 is in versions/
     let installedBin = env.versionsDirectoryURL.appendingPathComponent("1.1.0/invariants")
     #expect(fm.fileExists(atPath: installedBin.path))
-    #expect(try String(contentsOf: installedBin, encoding: .utf8) == "executable-binary-v1.1.0")
+    #expect(try installedBin.readUTF8() == "executable-binary-v1.1.0")
 
     // Verify current symlink points to 1.1.0
     #expect(fm.fileExists(atPath: env.currentVersionURL.path))
 
     // Verify bin symlink points to current/invariants
     #expect(fm.fileExists(atPath: env.binURL.path))
-    #expect(try String(contentsOf: env.binURL, encoding: .utf8) == "executable-binary-v1.1.0")
+    #expect(try env.binURL.readUTF8() == "executable-binary-v1.1.0")
   }
 
   @Test("Uninstall: completely wipes root directory and binary symlink")

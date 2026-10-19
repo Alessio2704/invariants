@@ -71,10 +71,9 @@ struct SignersCommand: AsyncParsableCommand {
         let keyContent: String
         let expanded = (key as NSString).expandingTildeInPath
         if FileManager.default.fileExists(atPath: expanded) {
-          let raw = try String(contentsOfFile: expanded, encoding: .utf8)
-          keyContent = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+          keyContent = try URL(fileURLWithPath: expanded).readTrimmedUTF8()
         } else {
-          keyContent = key.trimmingCharacters(in: .whitespacesAndNewlines)
+          keyContent = key.trimmed
         }
 
         guard keyContent.hasPrefix("ssh-") || keyContent.hasPrefix("ecdsa-") || keyContent.hasPrefix("sk-") else {
@@ -164,13 +163,13 @@ struct SignersCommand: AsyncParsableCommand {
   private static func bumpAndSignRegistry(customSigningKey: String?) async throws {
     let lockURL = RegistryManager.registryURL()
 
-    guard FileManager.default.fileExists(atPath: lockURL.path),
-      let data = try? Data(contentsOf: lockURL),
-      var registry = try? CanonicalJSON.parse(data: data)
-    else {
+    guard FileManager.default.fileExists(atPath: lockURL.path) else {
       fputs("Error: registry.lock not found in \(RepoLocator.current.path).\n", stderr)
       throw ExitCode(1)
     }
+
+    let data = try Data(contentsOf: lockURL)
+    var registry = try CanonicalJSON.parse(data: data)
 
     registry.version += 1
     guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: customSigningKey) else {

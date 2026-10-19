@@ -113,8 +113,7 @@ struct RegistryTests {
     try SigningClient.generateThrowawayKey(at: keyURL)
 
     // Read public key
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_test_p256.pub"))
-    let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyStr = try tmpDir.appendingPathComponent("id_test_p256.pub").readTrimmedUTF8()
 
     let repoDir = tmpDir.appendingPathComponent("repo")
     let invariantsDir = repoDir.appendingPathComponent("invariants")

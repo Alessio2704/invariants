@@ -5,7 +5,7 @@ public struct GlobMatcher: Sendable {
   private let regex: NSRegularExpression
 
   public init?(pattern: String) {
-    var p = pattern.trimmingCharacters(in: .whitespacesAndNewlines)
+    var p = pattern.trimmed
     if p.hasPrefix("./") {
       p = String(p.dropFirst(2))
     }

@@ -57,9 +57,7 @@ public enum FloorGuard: Sendable {
     let zeroSha = "0000000000000000000000000000000000000000"
     let targetRef = "refs/heads/\(defaultBranch)"
 
-    let lines = pushedRefsInput.split(separator: "\n").map {
-      String($0).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    let lines = pushedRefsInput.split(separator: "\n").map(\.trimmed)
     for line in lines where !line.isEmpty {
       let parts = line.split(separator: " ").map { String($0) }
       guard parts.count >= 4 else { continue }
@@ -120,7 +118,7 @@ public enum FloorGuard: Sendable {
 
     let isWorkingTreeRegistryModified: Bool
     do {
-      let currentLockContent = (try? String(contentsOf: lockURL, encoding: .utf8)) ?? ""
+      let currentLockContent = (try? lockURL.readUTF8()) ?? ""
       isWorkingTreeRegistryModified = (headLock != currentLockContent)
     }
 

@@ -64,7 +64,7 @@ struct ScenarioTests {
     try await repo.run {
       try await GitClient.archiveExtract(treeHash: originalHash, destinationURL: tempSnapshot)
     }
-    let extractedContent = try String(contentsOf: tempSnapshot.appendingPathComponent("rule.swift"))
+    let extractedContent = try tempSnapshot.appendingPathComponent("rule.swift").readUTF8()
     #expect(!extractedContent.contains("mutated working tree"))
   }
 

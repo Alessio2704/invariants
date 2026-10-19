@@ -57,7 +57,7 @@ struct StatusCommand: AsyncParsableCommand {
       ]
       let activeHooks = candidateHooks.filter { rel in
         let url = RepoLocator.current.appendingPathComponent(rel)
-        return (try? String(contentsOf: url, encoding: .utf8))?.contains("invariants check") ?? false
+        return (try? url.readUTF8())?.contains("invariants check") ?? false
       }
 
       if !activeHooks.isEmpty {

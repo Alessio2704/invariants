@@ -29,7 +29,7 @@ public enum InitManager: Sendable {
 
     // 1. Update .gitignore
     let gitignoreURL = repoRootURL.appendingPathComponent(".gitignore")
-    var gitignoreContent = (try? String(contentsOf: gitignoreURL, encoding: .utf8)) ?? ""
+    var gitignoreContent = (try? gitignoreURL.readUTF8()) ?? ""
     if !gitignoreContent.contains("invariants/.dev/") {
       if !gitignoreContent.isEmpty && !gitignoreContent.hasSuffix("\n") {
         gitignoreContent.append("\n")
@@ -76,13 +76,13 @@ public enum InitManager: Sendable {
   public static func writeInitialAllowedSigners(keyURL: URL) throws {
     let signersURL = RegistryManager.allowedSignersURL()
     let pubURL = keyURL.pathExtension == "pub" ? keyURL : keyURL.appendingPathExtension("pub")
-    func readTrimmed(at url: URL) -> String? {
-      guard let str = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-      let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
-      return trimmed.isEmpty ? nil : trimmed
-    }
 
-    guard let pubContent = readTrimmed(at: pubURL) ?? readTrimmed(at: keyURL) else {
+    let pubContent: String
+    if let content = try? pubURL.readTrimmedUTF8(), !content.isEmpty {
+      pubContent = content
+    } else if let content = try? keyURL.readTrimmedUTF8(), !content.isEmpty {
+      pubContent = content
+    } else {
       throw SystemError.fileIOError("Could not read public key from \(pubURL.path) or \(keyURL.path)")
     }
 

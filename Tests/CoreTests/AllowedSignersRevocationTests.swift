@@ -15,8 +15,7 @@ struct AllowedSignersRevocationTests {
     let keyURL = tmpDir.appendingPathComponent("id_rev_p256")
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_rev_p256.pub"))
-    let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyStr = try tmpDir.appendingPathComponent("id_rev_p256.pub").readTrimmedUTF8()
 
     let repoDir = tmpDir.appendingPathComponent("repo")
     let invariantsDir = repoDir.appendingPathComponent("invariants")
@@ -47,8 +46,7 @@ struct AllowedSignersRevocationTests {
     let keyURL = tmpDir.appendingPathComponent("id_pre_p256")
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_pre_p256.pub"))
-    let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyStr = try tmpDir.appendingPathComponent("id_pre_p256.pub").readTrimmedUTF8()
 
     let repoDir = tmpDir.appendingPathComponent("repo")
     let invariantsDir = repoDir.appendingPathComponent("invariants")
@@ -79,8 +77,7 @@ struct AllowedSignersRevocationTests {
     let keyURL = tmpDir.appendingPathComponent("id_valid_p256")
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: tmpDir.appendingPathComponent("id_valid_p256.pub"))
-    let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyStr = try tmpDir.appendingPathComponent("id_valid_p256.pub").readTrimmedUTF8()
 
     let repoDir = tmpDir.appendingPathComponent("repo")
     let invariantsDir = repoDir.appendingPathComponent("invariants")
@@ -124,10 +121,8 @@ struct AllowedSignersRevocationTests {
     try SigningClient.generateThrowawayKey(at: keyA)
     try SigningClient.generateThrowawayKey(at: keyB)
 
-    let pubA = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let pubB = (try String(contentsOf: tmpDir.appendingPathComponent("id_revoked.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubA = try tmpDir.appendingPathComponent("id_senior.pub").readTrimmedUTF8()
+    let pubB = try tmpDir.appendingPathComponent("id_revoked.pub").readTrimmedUTF8()
 
     let repoDir = tmpDir.appendingPathComponent("repo")
     let invariantsDir = repoDir.appendingPathComponent("invariants")
@@ -195,10 +190,8 @@ struct AllowedSignersRevocationTests {
     try SigningClient.generateThrowawayKey(at: seniorKey)
     try SigningClient.generateThrowawayKey(at: rogueKey)
 
-    let seniorPub = (try String(contentsOf: tmpDir.appendingPathComponent("id_senior.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let roguePub = (try String(contentsOf: tmpDir.appendingPathComponent("id_rogue.pub"), encoding: .utf8))
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let seniorPub = try tmpDir.appendingPathComponent("id_senior.pub").readTrimmedUTF8()
+    let roguePub = try tmpDir.appendingPathComponent("id_rogue.pub").readTrimmedUTF8()
 
     let invariantsDir = repoURL.appendingPathComponent("invariants")
     try FileManager.default.createDirectory(at: invariantsDir, withIntermediateDirectories: true)

@@ -13,7 +13,7 @@ struct AgentHijackingAttackTests {
     try await repo.signed(version: 1, defaultBranch: "main")
 
     let lockURL = repo.run { RegistryManager.registryURL() }
-    let originalContent = try String(contentsOf: lockURL, encoding: .utf8)
+    let originalContent = try lockURL.readUTF8()
     #expect(originalContent.contains("\"default_branch\": \"main\""))
 
     // Agent attempts to change default_branch from "main" to "rogue-branch" to divert protection
@@ -40,12 +40,11 @@ struct AgentHijackingAttackTests {
     // Agent generates throwaway key
     let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue_agent")
     try SigningClient.generateThrowawayKey(at: rogueKeyURL)
-    let roguePub = try String(contentsOf: repo.repoURL.appendingPathComponent("id_rogue_agent.pub"), encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let roguePub = try repo.repoURL.appendingPathComponent("id_rogue_agent.pub").readTrimmedUTF8()
 
     // Agent appends its key to allowed_signers
     let signersURL = repo.run { RegistryManager.allowedSignersURL() }
-    var signers = try String(contentsOf: signersURL, encoding: .utf8)
+    var signers = try signersURL.readUTF8()
     signers.append("* namespaces=\"invariants\" \(roguePub)\n")
     try signers.write(to: signersURL, atomically: true, encoding: .utf8)
 
@@ -197,7 +196,7 @@ struct AgentHijackingAttackTests {
     try await repo.signed(version: 1, defaultBranch: "custom")
 
     let lockURL = repo.run { RegistryManager.registryURL() }
-    let original = try String(contentsOf: lockURL, encoding: .utf8)
+    let original = try lockURL.readUTF8()
 
     // Agent deletes the default_branch line
     let lines = original.split(separator: "\n").filter { !$0.contains("default_branch") }.joined(separator: "\n") + "\n"

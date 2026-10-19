@@ -44,9 +44,8 @@ struct InitManagerTests {
       // 1. Verify in-repo allowed_signers
       let signersURL = RegistryManager.allowedSignersURL()
       #expect(fm.fileExists(atPath: signersURL.path))
-      let signersContent = try String(contentsOf: signersURL, encoding: .utf8)
-      let pubKey = try String(contentsOf: keyURL.appendingPathExtension("pub"), encoding: .utf8)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+      let signersContent = try signersURL.readUTF8()
+      let pubKey = try keyURL.appendingPathExtension("pub").readTrimmedUTF8()
       #expect(signersContent.contains(pubKey))
       #expect(signersContent.contains("namespaces=\"invariants\""))
 
@@ -67,7 +66,7 @@ struct InitManagerTests {
     // 4. Verify .gitignore updated with invariants/.dev/
     let gitignoreURL = repoURL.appendingPathComponent(".gitignore")
     #expect(fm.fileExists(atPath: gitignoreURL.path))
-    let gitignoreContent = try String(contentsOf: gitignoreURL, encoding: .utf8)
+    let gitignoreContent = try gitignoreURL.readUTF8()
     #expect(gitignoreContent.contains("invariants/.dev/"))
 
     // 5. Verify NO git hooks hijacked
@@ -77,7 +76,7 @@ struct InitManagerTests {
       binary: .git,
       arguments: ["-C", repoURL.path, "config", "--get", "core.hooksPath"]
     )
-    #expect(hooksCheck.exitCode != 0 || hooksCheck.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(hooksCheck.exitCode != 0 || hooksCheck.trimmedStdout.isEmpty)
 
     // 6. Verify git commit exists with initial commit
     let logOutput = try await SubprocessRunner.run(

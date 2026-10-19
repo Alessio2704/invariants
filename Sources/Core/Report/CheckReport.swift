@@ -112,7 +112,7 @@ public enum ReportFormatter {
       lines.append("")
     }
 
-    return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    return lines.joined(separator: "\n").trimmed + "\n"
   }
 
   public static func formatJSON(_ report: CheckReport) -> String {

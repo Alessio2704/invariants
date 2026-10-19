@@ -16,7 +16,7 @@ package enum TerminalPrompt {
       print("\(question): ", terminator: "")
     }
     fflush(stdout)
-    guard let line = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty else {
+    guard let line = readLine()?.trimmed, !line.isEmpty else {
       return defaultValue ?? ""
     }
     return line
@@ -28,7 +28,7 @@ package enum TerminalPrompt {
     let hint = defaultYes ? "[Y/n]" : "[y/N]"
     print("\(question) \(hint): ", terminator: "")
     fflush(stdout)
-    guard let line = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+    guard let line = readLine()?.trimmed.lowercased() else {
       return defaultYes
     }
     if line.isEmpty { return defaultYes }
@@ -101,10 +101,22 @@ package enum TerminalPrompt {
       default: nil
     )
     guard !choice.isEmpty else { return [] }
-    let numbers = choice.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+    let numbers = choice.split(separator: ",").compactMap { Int($0.trimmed) }
     return numbers.compactMap { num in
       guard num >= 1, num <= options.count else { return nil }
       return options[num - 1].value
     }
+  }
+}
+
+extension String {
+  fileprivate var trimmed: String {
+    trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
+
+extension Substring {
+  fileprivate var trimmed: String {
+    trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

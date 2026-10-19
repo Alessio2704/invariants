@@ -169,7 +169,7 @@ extension RuleRunner {
       whichProcess.waitUntilExit()
       if whichProcess.terminationStatus == 0 {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let path = String(bytes: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+        if let path = String(bytes: data, encoding: .utf8)?.trimmed {
           if !path.isEmpty && fm.fileExists(atPath: path) {
             return URL(fileURLWithPath: path)
           }

@@ -31,8 +31,7 @@ final class TestRepo: @unchecked Sendable {
 
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    let pubKeyData = try Data(contentsOf: pubKeyURL)
-    let pubKeyStr = (String(bytes: pubKeyData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let pubKeyStr = try pubKeyURL.readTrimmedUTF8()
 
     let signersURL = RepoLocator.withRepoRoot(repoURL) {
       RegistryManager.allowedSignersURL()
