@@ -1,3 +1,4 @@
+import Extensions
 import Foundation
 
 guard CommandLine.arguments.count >= 3 else {
@@ -56,9 +57,3 @@ let content = """
   """
 
 try content.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-
-extension String {
-  fileprivate var trimmed: String {
-    trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}

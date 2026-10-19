@@ -15,6 +15,7 @@ let package = Package(
     products: [
         .executable(name: "invariants", targets: ["invariants"]),
         .library(name: "Core", targets: ["Core"]),
+        .library(name: "Extensions", targets: ["Extensions"]),
         .library(name: "InvariantKit", targets: ["InvariantKit"]),
     ],
     dependencies: [
@@ -23,8 +24,16 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
     ],
     targets: [
+        .target(
+            name: "Extensions",
+            dependencies: [],
+            swiftSettings: swiftSettings
+        ),
         .executableTarget(
             name: "VersionGenTool",
+            dependencies: [
+                "Extensions",
+            ],
             path: "Sources/VersionGenTool",
             swiftSettings: swiftSettings
         ),
@@ -36,6 +45,7 @@ let package = Package(
         .target(
             name: "Core",
             dependencies: [
+                "Extensions",
                 .product(name: "IndexStoreDB", package: "indexstore-db"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
@@ -55,7 +65,9 @@ let package = Package(
         ),
         .target(
             name: "Terminal",
-            dependencies: [],
+            dependencies: [
+                "Extensions",
+            ],
             swiftSettings: swiftSettings
         ),
         .target(
@@ -86,7 +98,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CoreTests",
-            dependencies: ["Core"],
+            dependencies: ["Core", "Extensions"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
@@ -96,7 +108,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ScenarioTests",
-            dependencies: ["Core", "InvariantKit", "Managers", "Workflows"],
+            dependencies: ["Core", "Extensions", "InvariantKit", "Managers", "Workflows"],
             swiftSettings: swiftSettings
         ),
     ]

@@ -1,3 +1,4 @@
+import Extensions
 import Foundation
 
 /// Generic interactive terminal I/O primitives for CLI applications.
@@ -106,17 +107,5 @@ package enum TerminalPrompt {
       guard num >= 1, num <= options.count else { return nil }
       return options[num - 1].value
     }
-  }
-}
-
-extension String {
-  fileprivate var trimmed: String {
-    trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
-extension Substring {
-  fileprivate var trimmed: String {
-    trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
