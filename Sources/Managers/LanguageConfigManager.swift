@@ -1,12 +1,12 @@
 package import Core
 import Foundation
 
-/// Pure domain manager for language analysis candidate discovery and configuration injection.
+/// Pure domain manager for language analysis input discovery and configuration injection.
 /// Headless: zero terminal prompting or CLI dependencies.
 package enum LanguageConfigManager {
-  /// Discovers candidate paths for a supported language's configuration.
-  package static func discoverCandidates(for language: SupportedLanguage) -> [String] {
-    language.spec.discoverCandidates()
+  /// Discovers candidate analysis inputs for a supported language's configuration.
+  package static func discoverAnalysisInputs(for language: SupportedLanguage) -> [String] {
+    language.spec.discoverAnalysisInputs()
   }
 
   /// Applies a language configuration dynamically into a repository languages configuration.

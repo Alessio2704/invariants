@@ -225,8 +225,8 @@ struct LanguageSpecTests {
     }
   }
 
-  @Test("SwiftLanguage discoverCandidates finds index stores and build output directories")
-  func swiftDiscoverCandidates() throws {
+  @Test("SwiftLanguage discoverAnalysisInputs finds index stores and build output directories")
+  func swiftDiscoverAnalysisInputs() throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let candidateDir = tmpDir.appendingPathComponent("build/Index.noindex/DataStore")
@@ -234,13 +234,13 @@ struct LanguageSpecTests {
     defer { try? fm.removeItem(at: tmpDir) }
 
     let candidates = RepoLocator.withRepoRoot(tmpDir) {
-      SwiftLanguage.discoverCandidates()
+      SwiftLanguage.discoverAnalysisInputs()
     }
     #expect(candidates.contains("build/Index.noindex/DataStore"))
   }
 
-  @Test("TypeScriptLanguage discoverCandidates finds tsconfig.json files")
-  func tsDiscoverCandidates() throws {
+  @Test("TypeScriptLanguage discoverAnalysisInputs finds tsconfig.json files")
+  func tsDiscoverAnalysisInputs() throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -254,7 +254,7 @@ struct LanguageSpecTests {
     try Data("{}".utf8).write(to: pkgTsconfigDir.appendingPathComponent("tsconfig.json"))
 
     let candidates = RepoLocator.withRepoRoot(tmpDir) {
-      TypeScriptLanguage.discoverCandidates()
+      TypeScriptLanguage.discoverAnalysisInputs()
     }
     #expect(candidates.contains("tsconfig.json"))
     #expect(candidates.contains("packages/api/tsconfig.json"))
@@ -267,7 +267,7 @@ struct LanguageSpecTests {
   func languageConfigFactoryAndDescriptor(language: SupportedLanguage) {
     let spec = language.spec
     let descriptor = spec.configPromptDescriptor
-    #expect(!descriptor.noCandidatesMessage.isEmpty)
+    #expect(!descriptor.noInputsFoundMessage.isEmpty)
     #expect(!descriptor.manualPromptQuestion.isEmpty)
 
     switch descriptor.selectionStyle {

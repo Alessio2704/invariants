@@ -44,7 +44,7 @@ public enum TypeScriptLanguage: LanguageSpec {
     return list.isEmpty ? "none" : list.joined(separator: ", ")
   }
 
-  public static func discoverCandidates() -> [String] {
+  public static func discoverAnalysisInputs() -> [String] {
     let fm = FileManager.default
     var candidates: [String] = []
     let rootURL = RepoLocator.current.resolvingSymlinksInPath()
@@ -74,7 +74,7 @@ public enum TypeScriptLanguage: LanguageSpec {
   }
 
   public static let configPromptDescriptor = LanguageConfigPromptDescriptor(
-    noCandidatesMessage: "TypeScript sources detected, but no tsconfig.json candidate was found.",
+    noInputsFoundMessage: "TypeScript sources detected, but no tsconfig.json was found.",
     manualPromptQuestion: "Enter tsconfig relative path (press Enter to skip / configure later)",
     manualFallbackQuestion: "Enter tsconfig relative path (press Enter to skip)",
     selectionStyle: .multiple(confirmationQuestion: "Use discovered tsconfig paths")

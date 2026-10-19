@@ -49,7 +49,7 @@ public enum SwiftLanguage: LanguageSpec {
     languages[Self.self]?.indexStore ?? "none"
   }
 
-  public static func discoverCandidates() -> [String] {
+  public static func discoverAnalysisInputs() -> [String] {
     let fm = FileManager.default
     var candidates: [String] = []
     let rootURL = RepoLocator.current.resolvingSymlinksInPath()
@@ -94,10 +94,10 @@ public enum SwiftLanguage: LanguageSpec {
   }
 
   public static let configPromptDescriptor = LanguageConfigPromptDescriptor(
-    noCandidatesMessage: "Swift sources detected, but no index store candidate was found "
+    noInputsFoundMessage: "Swift sources detected, but no index store was found "
       + "(e.g. build/Index.noindex/DataStore, .build/out, or .build/debug/index/store).",
     manualPromptQuestion: "Enter index store path (press Enter to skip / configure later)",
-    selectionStyle: .single(selectionTitle: "Discovered Swift Index candidates:")
+    selectionStyle: .single(selectionTitle: "Discovered Swift index store inputs:")
   )
 
   public static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)? {

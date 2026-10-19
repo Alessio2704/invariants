@@ -82,12 +82,12 @@ package enum LanguageConfigWorkflow {
     for language: SupportedLanguage
   ) -> (any LanguageConfiguration)? {
     let spec = language.spec
-    let candidates = LanguageConfigManager.discoverCandidates(for: language)
+    let inputs = LanguageConfigManager.discoverAnalysisInputs(for: language)
     let descriptor = spec.configPromptDescriptor
 
-    if candidates.isEmpty {
+    if inputs.isEmpty {
       guard TerminalPrompt.isInteractive else { return nil }
-      print("\n\(descriptor.noCandidatesMessage)")
+      print("\n\(descriptor.noInputsFoundMessage)")
       let choice = TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
       guard !choice.isEmpty else { return nil }
       return spec.makeConfig(from: [choice])
@@ -95,7 +95,7 @@ package enum LanguageConfigWorkflow {
 
     switch descriptor.selectionStyle {
     case .single(let selectionTitle):
-      let options = candidates.map { TerminalPrompt.Option(value: $0, label: $0) }
+      let options = inputs.map { TerminalPrompt.Option(value: $0, label: $0) }
       if let choice = TerminalPrompt.promptSelection(
         title: selectionTitle,
         options: options,
@@ -107,13 +107,13 @@ package enum LanguageConfigWorkflow {
       return nil
 
     case .multiple(let confirmationQuestion):
-      let joined = candidates.joined(separator: ", ")
+      let joined = inputs.joined(separator: ", ")
       let confirm = TerminalPrompt.promptConfirmation(
         question: "\(confirmationQuestion) (\(joined))?",
         default: true
       )
       if confirm {
-        return spec.makeConfig(from: candidates)
+        return spec.makeConfig(from: inputs)
       } else {
         let custom = TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
         guard !custom.isEmpty else { return nil }

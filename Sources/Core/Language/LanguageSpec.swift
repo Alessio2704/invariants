@@ -32,8 +32,8 @@ public protocol AnyLanguageSpec: Sendable {
   /// Detects if this language has source files in the repository.
   static func hasSources() -> Bool
 
-  /// Discovers candidate paths for this language in the repository root.
-  static func discoverCandidates() -> [String]
+  /// Discovers candidate analysis input paths for this language in the repository root.
+  static func discoverAnalysisInputs() -> [String]
 
   /// Specification descriptor for interactive terminal configuration prompts.
   static var configPromptDescriptor: LanguageConfigPromptDescriptor { get }
@@ -123,7 +123,7 @@ extension AnyLanguageSpec {
   }
 
   public static func autoDiscover() async -> (any LanguageConfiguration)? {
-    let candidates = discoverCandidates()
+    let candidates = discoverAnalysisInputs()
     guard !candidates.isEmpty else { return nil }
     switch configPromptDescriptor.selectionStyle {
     case .single:
@@ -155,7 +155,7 @@ extension LanguageSpec {
   }
 
   public static func autoDiscover() async -> Config? {
-    let candidates = discoverCandidates()
+    let candidates = discoverAnalysisInputs()
     guard !candidates.isEmpty else { return nil }
     switch configPromptDescriptor.selectionStyle {
     case .single:
