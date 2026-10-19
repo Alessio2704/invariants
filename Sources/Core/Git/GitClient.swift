@@ -210,8 +210,7 @@ public enum GitClient: Sendable {
 
   /// Discovers comprehensive repository branch information in a single concurrent pass.
   public static func discoverRepoInfo() async -> RepoInfo {
-    let repoRoot = RepoLocator.current
-    async let headsTask = localBranchHeads(repoRoot: repoRoot)
+    async let headsTask = localBranchHeads()
     async let currentTask = currentBranch()
     async let trunkTask = detectRemoteTrunk()
 
@@ -259,7 +258,8 @@ public enum GitClient: Sendable {
     await discoverRepoInfo().branches.map(\.name)
   }
 
-  private static func localBranchHeads(repoRoot: URL) async -> [String] {
+  private static func localBranchHeads() async -> [String] {
+    let repoRoot = RepoLocator.current
     guard
       let out = try? await SubprocessRunner.run(
         binary: .git,
