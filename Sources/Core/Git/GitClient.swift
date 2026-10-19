@@ -208,55 +208,59 @@ public enum GitClient: Sendable {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  /// Information about repository branches, current active branch, and remote trunk.
-  public struct BranchInfo: Sendable, Equatable {
-    public let branches: [String]
-    public let currentBranch: String?
-    public let remoteTrunk: String?
-
-    public init(branches: [String], currentBranch: String?, remoteTrunk: String?) {
-      self.branches = branches
-      self.currentBranch = currentBranch
-      self.remoteTrunk = remoteTrunk
-    }
-  }
-
-  /// Discovers comprehensive branch information in a single concurrent pass without redundant subprocesses.
-  public static func discoverBranchInfo() async -> BranchInfo {
+  /// Discovers comprehensive repository branch information in a single concurrent pass.
+  public static func discoverRepoInfo() async -> RepoInfo {
     let repoRoot = RepoLocator.current
     async let headsTask = localBranchHeads(repoRoot: repoRoot)
     async let currentTask = currentBranch()
     async let trunkTask = detectRemoteTrunk()
 
     let (heads, current, trunk) = await (headsTask, currentTask, trunkTask)
-    var branches = heads
-    if branches.isEmpty {
+    var names = heads
+    if names.isEmpty {
       if let current {
-        branches = [current]
+        names = [current]
       } else {
-        branches = ["main"]
+        names = ["main"]
       }
     }
 
     // Sort order: remote trunk first, or 'main' first, or 'master' first
-    var sorted = branches
-    if let trunk, let idx = sorted.firstIndex(of: trunk) {
-      let t = sorted.remove(at: idx)
-      sorted.insert(t, at: 0)
-    } else if let mainIdx = sorted.firstIndex(of: "main") {
-      let main = sorted.remove(at: mainIdx)
-      sorted.insert(main, at: 0)
-    } else if let legacyTrunkIdx = sorted.firstIndex(of: "master") {
-      let legacyTrunk = sorted.remove(at: legacyTrunkIdx)
-      sorted.insert(legacyTrunk, at: 0)
+    var sortedNames = names
+    if let trunk, let idx = sortedNames.firstIndex(of: trunk) {
+      let t = sortedNames.remove(at: idx)
+      sortedNames.insert(t, at: 0)
+    } else if let mainIdx = sortedNames.firstIndex(of: "main") {
+      let main = sortedNames.remove(at: mainIdx)
+      sortedNames.insert(main, at: 0)
+    } else if let legacyTrunkIdx = sortedNames.firstIndex(of: "master") {
+      let legacyTrunk = sortedNames.remove(at: legacyTrunkIdx)
+      sortedNames.insert(legacyTrunk, at: 0)
     }
 
-    return BranchInfo(branches: sorted, currentBranch: current, remoteTrunk: trunk)
+    let branchInfos = sortedNames.map { name in
+      let role: BranchRole
+      if name == trunk {
+        role = (name == current) ? .activeTrunk : .remoteTrunk
+      } else if name == current {
+        role = .active
+      } else if trunk == nil && name == "main" {
+        role = .recommended
+      } else {
+        role = .standard
+      }
+      return BranchInfo(name: name, role: role)
+    }
+
+    let currentBranchInfo = branchInfos.first(where: \.isActive)
+    let remoteTrunkInfo = branchInfos.first(where: \.isTrunk)
+
+    return RepoInfo(currentBranch: currentBranchInfo, remoteTrunk: remoteTrunkInfo, branches: branchInfos)
   }
 
-  /// Discovers all available branches in the repository, prioritizing remote trunk and canonical branches first.
+  /// Discovers all available branch names in the repository, prioritizing remote trunk and canonical branches first.
   public static func discoverBranches() async -> [String] {
-    await discoverBranchInfo().branches
+    await discoverRepoInfo().branches.map(\.name)
   }
 
   private static func localBranchHeads(repoRoot: URL) async -> [String] {

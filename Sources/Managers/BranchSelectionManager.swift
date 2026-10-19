@@ -1,13 +1,12 @@
 package import Core
 import Foundation
 
-/// Pure domain manager for discovering branch information in a repository.
+/// Pure domain manager for discovering branch and repository information.
 /// Headless: zero terminal prompting or CLI dependencies.
 package enum BranchSelectionManager {
-  package typealias BranchInfo = GitClient.BranchInfo
-
-  /// Discovers local branches, current branch, and remote trunk for the repository in a single concurrent pass.
-  package static func discoverBranchInfo() async -> BranchInfo {
-    await GitClient.discoverBranchInfo()
+  /// Discovers repository branch information, active branch, and remote trunk in a single concurrent pass.
+  package static func discoverRepoInfo() async -> GitClient.RepoInfo {
+    await GitClient.discoverRepoInfo()
   }
+
 }

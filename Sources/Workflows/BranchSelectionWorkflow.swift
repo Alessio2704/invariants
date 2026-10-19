@@ -11,21 +11,11 @@ package enum BranchSelectionWorkflow {
       return explicitBranch
     }
 
-    let info = await BranchSelectionManager.discoverBranchInfo()
-    guard !info.branches.isEmpty else { return "main" }
+    let repoInfo = await BranchSelectionManager.discoverRepoInfo()
+    guard !repoInfo.branches.isEmpty else { return "main" }
 
-    let options = info.branches.map { b in
-      var annotations: [String] = []
-      if b == info.remoteTrunk {
-        annotations.append("remote trunk")
-      } else if b == "main" && info.remoteTrunk == nil {
-        annotations.append("recommended")
-      }
-      if b == info.currentBranch {
-        annotations.append("current")
-      }
-      let ann = annotations.isEmpty ? nil : annotations.joined(separator: ", ")
-      return TerminalPrompt.Option(value: b, label: b, annotation: ann)
+    let options = repoInfo.branches.map { branch in
+      TerminalPrompt.Option(value: branch.name, label: branch.name, annotation: branch.annotation)
     }
 
     return TerminalPrompt.promptSelection(
@@ -33,6 +23,6 @@ package enum BranchSelectionWorkflow {
       options: options,
       default: 0,
       customHandler: { $0 }
-    ) ?? info.branches[0]
+    ) ?? repoInfo.defaultBranch?.name ?? "main"
   }
 }
