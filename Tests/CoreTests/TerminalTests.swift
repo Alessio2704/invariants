@@ -311,3 +311,77 @@ struct TerminalTests {
     }
   }
 }
+
+// MARK: - Test Doubles
+
+/// Thread-safe in-memory sink for capturing terminal output in automated test suites.
+private final class TerminalTestSink: TerminalSink, @unchecked Sendable {
+  private let lock = NSLock()
+  private var _stdout: String = ""
+  private var _stderr: String = ""
+  var allowsColor: Bool
+
+  init(allowsColor: Bool = false) {
+    self.allowsColor = allowsColor
+  }
+
+  func supportsColor(for stream: TerminalStream) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return allowsColor
+  }
+
+  func write(_ string: String, to stream: TerminalStream) {
+    lock.lock()
+    defer { lock.unlock() }
+    let output = allowsColor ? string : Terminal.stripANSI(string)
+    switch stream {
+    case .stdout: _stdout += output
+    case .stderr: _stderr += output
+    }
+  }
+
+  var stdout: String {
+    lock.lock()
+    defer { lock.unlock() }
+    return _stdout
+  }
+
+  var stderr: String {
+    lock.lock()
+    defer { lock.unlock() }
+    return _stderr
+  }
+
+  func clear() {
+    lock.lock()
+    defer { lock.unlock() }
+    _stdout = ""
+    _stderr = ""
+  }
+}
+
+/// Thread-safe in-memory input source for feeding simulated inputs in automated tests.
+private final class TerminalTestSource: TerminalSource, @unchecked Sendable {
+  private let lock = NSLock()
+  private var inputs: [String]
+  var isInteractive: Bool
+
+  init(inputs: [String] = [], isInteractive: Bool = true) {
+    self.inputs = inputs
+    self.isInteractive = isInteractive
+  }
+
+  func readLine() -> String? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !inputs.isEmpty else { return nil }
+    return inputs.removeFirst()
+  }
+
+  func enqueue(_ input: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    inputs.append(input)
+  }
+}
