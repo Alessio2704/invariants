@@ -5,18 +5,17 @@ import Foundation
 package enum TerminalPrompt {
   /// Whether current process standard input is an interactive terminal.
   package static var isInteractive: Bool {
-    isatty(FileHandle.standardInput.fileDescriptor) != 0
+    Terminal.isInteractive
   }
 
   /// Prompts user for a single line of input with an optional default value.
   package static func prompt(question: String, default defaultValue: String? = nil) -> String {
     guard isInteractive else { return defaultValue ?? "" }
     if let defaultValue {
-      print("\(question) [\(defaultValue)]: ", terminator: "")
+      Terminal.write("\(question) [\(defaultValue)]: ", to: .stdout)
     } else {
-      print("\(question): ", terminator: "")
+      Terminal.write("\(question): ", to: .stdout)
     }
-    fflush(stdout)
     guard let line = readLine()?.trimmed, !line.isEmpty else {
       return defaultValue ?? ""
     }
@@ -27,8 +26,7 @@ package enum TerminalPrompt {
   package static func promptConfirmation(question: String, default defaultYes: Bool = false) -> Bool {
     guard isInteractive else { return defaultYes }
     let hint = defaultYes ? "[Y/n]" : "[y/N]"
-    print("\(question) \(hint): ", terminator: "")
-    fflush(stdout)
+    Terminal.write("\(question) \(hint): ", to: .stdout)
     guard let line = readLine()?.trimmed.lowercased() else {
       return defaultYes
     }
@@ -60,11 +58,11 @@ package enum TerminalPrompt {
       return defaultIndex.flatMap { options.indices.contains($0) ? options[$0].value : nil }
     }
     if !title.isEmpty {
-      print("\n" + title)
+      Terminal.line("\n" + title)
     }
     for (idx, opt) in options.enumerated() {
       let ann = opt.annotation.map { " (\($0))" } ?? ""
-      print("  [\(idx + 1)] \(opt.label)\(ann)")
+      Terminal.numbered(idx + 1, text: "\(opt.label)\(ann)")
     }
     var promptQuestion = "Select option [1-\(options.count)]"
     var defaultVal: String?
@@ -91,11 +89,11 @@ package enum TerminalPrompt {
   ) -> [T] {
     guard !options.isEmpty && isInteractive else { return [] }
     if !title.isEmpty {
-      print("\n" + title)
+      Terminal.line("\n" + title)
     }
     for (idx, opt) in options.enumerated() {
       let ann = opt.annotation.map { " (\($0))" } ?? ""
-      print("  [\(idx + 1)] \(opt.label)\(ann)")
+      Terminal.numbered(idx + 1, text: "\(opt.label)\(ann)")
     }
     let choice = prompt(
       question: "Select options (comma-separated numbers, e.g. 1, 2 or press Enter to skip)",

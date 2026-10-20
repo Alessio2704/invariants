@@ -139,9 +139,10 @@ package enum UpdateRuleWorkflow {
     }
 
     if weakening.hasRedFlags {
-      print("\n🔴 WEAKENING DETECTED in invariant '\(context.input.id)':")
+      Terminal.line("")
+      Terminal.error("WEAKENING DETECTED in invariant '\(context.input.id)':")
       for item in weakening.items where item.severity == .red {
-        print("  ✗ [\(item.category)] \(item.message)")
+        Terminal.item("[\(item.category)] \(item.message)")
       }
 
       var isConfirmed = context.input.confirm || (context.input.confirmId == context.input.id)
@@ -159,9 +160,10 @@ package enum UpdateRuleWorkflow {
     }
 
     if weakening.hasGreenFlags {
-      print("\n🟢 Legitimate additions:")
+      Terminal.line("")
+      Terminal.success("Legitimate additions:")
       for item in weakening.items where item.severity == .green {
-        print("  ✓ [\(item.category)] \(item.message)")
+        Terminal.item("[\(item.category)] \(item.message)")
       }
     }
   }
@@ -221,7 +223,8 @@ package enum UpdateRuleWorkflow {
     env: SystemEnvironment
   ) async throws {
     let runner = RuleRunner(environment: env)
-    print("\nVerifying fixtures for '\(ruleId)'...")
+    Terminal.line("")
+    Terminal.info("Verifying fixtures for '\(ruleId)'...")
 
     for target in manifest.targets {
       let cases = try FixtureDiscoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
@@ -259,7 +262,7 @@ package enum UpdateRuleWorkflow {
         }
       }
     }
-    print("✓ All fixtures green.")
+    Terminal.success("All fixtures green.")
   }
 
   private static func saveAndCommitUpdate(
@@ -269,7 +272,7 @@ package enum UpdateRuleWorkflow {
   ) async throws {
     let newTreeHash = try await FingerprintEngine.computeFingerprint(ruleId: input.id)
     guard newTreeHash != oldSignedTreeHash else {
-      print("Notice: No changes detected. Rule '\(input.id)' is already at tree \(newTreeHash).")
+      Terminal.info("Notice: No changes detected. Rule '\(input.id)' is already at tree \(newTreeHash).")
       return
     }
 
@@ -280,7 +283,7 @@ package enum UpdateRuleWorkflow {
     registry.version += 1
     registry.rules[input.id] = newTreeHash
 
-    print("Signing registry v\(registry.version) with \(keyURL.lastPathComponent)...")
+    Terminal.info("Signing registry v\(registry.version) with \(keyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
       keyURL: keyURL
@@ -295,7 +298,7 @@ package enum UpdateRuleWorkflow {
       message: "Update invariant '\(input.id)' (registry v\(registry.version))"
     )
 
-    print("✓ Rule '\(input.id)' updated to \(newTreeHash) in registry v\(registry.version).")
+    Terminal.success("Rule '\(input.id)' updated to \(newTreeHash) in registry v\(registry.version).")
   }
 }
 

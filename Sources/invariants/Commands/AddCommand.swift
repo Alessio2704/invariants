@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 import Workflows
 
 struct AddCommand: AsyncParsableCommand {
@@ -22,7 +23,7 @@ struct AddCommand: AsyncParsableCommand {
         try await AddRuleWorkflow.execute(ruleId: id, keyPath: key)
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

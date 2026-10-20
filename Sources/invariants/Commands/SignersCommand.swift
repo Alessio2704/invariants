@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 import Workflows
 
 struct SignersCommand: AsyncParsableCommand {
@@ -29,7 +30,7 @@ struct SignersCommand: AsyncParsableCommand {
           try SignersWorkflow.list()
         }
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -57,7 +58,7 @@ struct SignersCommand: AsyncParsableCommand {
           try await SignersWorkflow.add(key: key, identity: identity, signingKey: signingKey)
         }
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -85,7 +86,7 @@ struct SignersCommand: AsyncParsableCommand {
           try await SignersWorkflow.revoke(pattern: pattern, hard: hard, signingKey: signingKey)
         }
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -126,7 +127,7 @@ struct SignersCommand: AsyncParsableCommand {
           try await SignersWorkflow.rotate(old: old, new: new, sunset: sunset, signingKey: signingKey)
         }
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }

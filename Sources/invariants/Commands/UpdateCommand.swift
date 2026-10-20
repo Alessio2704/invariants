@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 import Workflows
 
 struct UpdateCommand: AsyncParsableCommand {
@@ -35,7 +36,7 @@ struct UpdateCommand: AsyncParsableCommand {
         )
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

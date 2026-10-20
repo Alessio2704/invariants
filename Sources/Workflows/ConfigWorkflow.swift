@@ -35,12 +35,12 @@ package enum ConfigWorkflow {
     )
 
     guard !newLanguages.isEmpty else {
-      print("Configuration rejected: at least one language must remain configured.")
+      Terminal.info("Configuration rejected: at least one language must remain configured.")
       return
     }
 
     guard newLanguages != oldLanguages || defaultBranch != nil else {
-      print("No configuration changes made.")
+      Terminal.info("No configuration changes made.")
       return
     }
 
@@ -49,18 +49,16 @@ package enum ConfigWorkflow {
       registry.defaultBranch = defaultBranch
     }
 
-    print("Language Configuration Diff:")
-    print("────────────────────────────")
+    Terminal.header("Language Configuration Diff:")
     for lang in SupportedLanguage.allCases {
       let oldDesc = lang.spec.describeConfig(in: oldLanguages)
       let newDesc = lang.spec.describeConfig(in: newLanguages)
-      let label = "\(lang.spec.displayName):".padding(toLength: 17, withPad: " ", startingAt: 0)
-      print("\(label)\(oldDesc) → \(newDesc)")
+      Terminal.field("\(lang.spec.displayName):", value: "\(oldDesc) → \(newDesc)", width: 17)
     }
     if let defaultBranch {
-      print("Default branch:   \(oldDefaultBranch) → \(defaultBranch)")
+      Terminal.field("Default branch:", value: "\(oldDefaultBranch) → \(defaultBranch)", width: 17)
     }
-    print("")
+    Terminal.line()
 
     // Verify impact on every active rule
     var hasBlindingIssue = false
@@ -142,8 +140,8 @@ package enum ConfigWorkflow {
           )) ?? []
 
         if violationsNew.count < violationsOld.count {
-          print(
-            "🔴 BLINDED: Rule '\(ruleId)' reports fewer violations (\(violationsOld.count) → \(violationsNew.count))!"
+          Terminal.error(
+            "BLINDED: Rule '\(ruleId)' reports fewer violations (\(violationsOld.count) → \(violationsNew.count))!"
           )
           hasBlindingIssue = true
         }
@@ -158,7 +156,7 @@ package enum ConfigWorkflow {
       let confirm = TerminalPrompt.promptConfirmation(
         question: "Sign and commit new configuration?", default: true)
       guard confirm else {
-        print("Aborted.")
+        Terminal.info("Aborted.")
         return
       }
     }
@@ -170,7 +168,7 @@ package enum ConfigWorkflow {
       throw ConfigWorkflowError.noSigningKey
     }
 
-    print("Updating language analysis configuration in registry v\(registry.version)...")
+    Terminal.info("Updating language analysis configuration in registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
       keyURL: keyURL
@@ -184,7 +182,7 @@ package enum ConfigWorkflow {
       message: "Update invariants configuration (registry v\(registry.version))"
     )
 
-    print("✓ Configuration updated in registry v\(registry.version).")
+    Terminal.success("Configuration updated in registry v\(registry.version).")
   }
 
   private static func resolveTargetLanguages(
@@ -201,7 +199,7 @@ package enum ConfigWorkflow {
     }
 
     guard TerminalPrompt.isInteractive else {
-      print("No configuration changes specified. Use --languages or --default-branch.")
+      Terminal.info("No configuration changes specified. Use --languages or --default-branch.")
       return nil
     }
 
@@ -211,7 +209,7 @@ package enum ConfigWorkflow {
     }
     let selected = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)
     guard !selected.isEmpty else {
-      print("No configuration changes specified.")
+      Terminal.info("No configuration changes specified.")
       return nil
     }
     return selected

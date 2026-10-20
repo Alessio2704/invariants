@@ -1,5 +1,6 @@
 package import Core
 import Foundation
+import Terminal
 
 /// Interactive CLI workflow responsible for end-to-end repository initialization.
 package enum InitWorkflow {
@@ -22,7 +23,7 @@ package enum InitWorkflow {
   package static func execute(input: Input) async throws {
     let repoRootURL = RepoLocator.current
 
-    print("Initializing invariants in \(repoRootURL.lastPathComponent)...")
+    Terminal.info("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
     guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
@@ -56,13 +57,17 @@ package enum InitWorkflow {
       keyURL: keyURL
     )
 
-    print("Signing registry v1 with \(keyURL.lastPathComponent)...")
+    Terminal.info("Signing registry v1 with \(keyURL.lastPathComponent)...")
     try await InitManager.initialize(options: options)
 
-    print("✓ Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
-    print("\n💡 To enforce invariants automatically on commit or push, add:")
-    print("   invariants check --stage pre-commit")
-    print("to your pre-commit hook or CI pipeline.")
+    Terminal.success("Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
+    Terminal.hint(
+      """
+      To enforce invariants automatically on commit or push, add:
+         invariants check --stage pre-commit
+      to your pre-commit hook or CI pipeline.
+      """
+    )
   }
 }
 

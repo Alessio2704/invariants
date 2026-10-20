@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 import Workflows
 
 struct UpgradeCommand: AsyncParsableCommand {
@@ -19,7 +20,7 @@ struct UpgradeCommand: AsyncParsableCommand {
         try await UpgradeWorkflow.execute(keyPath: key)
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

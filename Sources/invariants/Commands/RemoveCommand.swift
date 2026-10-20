@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 import Workflows
 
 struct RemoveCommand: AsyncParsableCommand {
@@ -25,7 +26,7 @@ struct RemoveCommand: AsyncParsableCommand {
         try await RemoveRuleWorkflow.execute(ruleId: id, deleteFromDisk: delete, keyPath: key)
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 struct SelfUpdateCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -21,8 +22,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
 
       let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
 
-      print("Invariants Self-Update: \(tag)")
-      print("───────────────────────────────")
+      Terminal.header("Invariants Self-Update: \(tag)")
 
       let needsElevation =
         SubprocessRunner.requiresElevation(for: env.rootURL)
@@ -35,7 +35,7 @@ struct SelfUpdateCommand: AsyncParsableCommand {
             reason: "Authorizing invariants self-update to \(env.rootURL.path)"
           )
         } catch {
-          fputs("Error: Could not authorize elevation: \(error)\n", stderr)
+          Terminal.error("Could not authorize elevation: \(error)")
           throw ExitCode(1)
         }
       } else {
@@ -45,18 +45,18 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       if let stagePath {
         let stageURL = URL(fileURLWithPath: stagePath)
         guard fm.fileExists(atPath: stageURL.path) else {
-          fputs("Error: Stage directory does not exist at \(stageURL.path)\n", stderr)
+          Terminal.error("Stage directory does not exist at \(stageURL.path)")
           throw ExitCode(1)
         }
 
-        print("Installing from stage directory \(stageURL.path)...")
+        Terminal.info("Installing from stage directory \(stageURL.path)...")
         do {
           try await InstallationManager.installVersion(
             version: version, stageDir: stageURL, environment: env, token: token)
-          print("✓ Successfully installed invariants \(version) to \(env.rootURL.path)")
+          Terminal.success("Successfully installed invariants \(version) to \(env.rootURL.path)")
           return
         } catch {
-          fputs("Error: Failed to install from stage directory: \(error)\n", stderr)
+          Terminal.error("Failed to install from stage directory: \(error)")
           throw ExitCode(1)
         }
       }
@@ -66,23 +66,23 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
       defer { try? fm.removeItem(at: workDir) }
 
-      print("Extracting \(tag) archive...")
+      Terminal.info("Extracting \(tag) archive...")
       let archiveCmd =
         "\(SystemBinary.git.path) archive '\(tag)' | \(SystemBinary.tar.path) -x -C '\(workDir.path)'"
       let extractOutput = try await SubprocessRunner.runShell(archiveCmd)
       guard extractOutput.exitCode == 0 else {
-        fputs("Error: Failed to extract tag archive: \(extractOutput.stderrString)\n", stderr)
+        Terminal.error("Failed to extract tag archive: \(extractOutput.stderrString)")
         throw ExitCode(1)
       }
 
       // 2. Build release binary
-      print("Building release binary for \(tag)...")
+      Terminal.info("Building release binary for \(tag)...")
       let buildOutput = try await SubprocessRunner.run(
         binary: .xcrun,
         arguments: ["swift", "build", "-c", "release", "--package-path", workDir.path]
       )
       guard buildOutput.exitCode == 0 else {
-        fputs("Error: Release build failed:\n\(buildOutput.stderrString)\n", stderr)
+        Terminal.error("Release build failed:\n\(buildOutput.stderrString)")
         throw ExitCode(1)
       }
 
@@ -109,19 +109,19 @@ struct SelfUpdateCommand: AsyncParsableCommand {
       }
 
       // 5. Installation via InstallationManager
-      print("Installing version \(version) to \(env.rootURL.path)...")
+      Terminal.info("Installing version \(version) to \(env.rootURL.path)...")
       do {
         try await InstallationManager.installVersion(
           version: version, stageDir: stageDir, environment: env, token: token)
-        print("✓ Successfully self-updated invariants to \(tag)!")
+        Terminal.success("Successfully self-updated invariants to \(tag)!")
       } catch {
-        fputs("Error: Installation failed: \(error)\n", stderr)
+        Terminal.error("Installation failed: \(error)")
         throw ExitCode(1)
       }
     } catch let exitCode as ExitCode {
       throw exitCode
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

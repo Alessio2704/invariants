@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 private struct CheckContext {
   let registry: Registry
@@ -60,7 +61,7 @@ struct CheckCommand: AsyncParsableCommand {
     } catch let exitCode as ExitCode {
       throw exitCode
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }
@@ -75,16 +76,16 @@ extension CheckCommand {
     } catch let regErr {
       switch regErr {
       case .signatureInvalid(let msg):
-        fputs("✗ invariants check: signature invalid — \(msg)\n", stderr)
+        Terminal.error("invariants check: signature invalid — \(msg)")
         throw ExitCode(70)
       case .signatureNotFound(let url):
-        fputs("✗ invariants check: signature not found at \(url.path)\n", stderr)
+        Terminal.error("invariants check: signature not found at \(url.path)")
         throw ExitCode(70)
       case .engineVersionMismatch(let req, let inst):
-        fputs("✗ invariants check: engine version mismatch (installed \(inst), requires \(req))\n", stderr)
+        Terminal.error("invariants check: engine version mismatch (installed \(inst), requires \(req))")
         throw ExitCode(70)
       default:
-        fputs("✗ invariants check: \(regErr)\n", stderr)
+        Terminal.error("invariants check: \(regErr)")
         throw ExitCode(1)
       }
     }
@@ -111,13 +112,12 @@ extension CheckCommand {
     } catch let floorErr {
       switch floorErr {
       case .unauthorizedSigner(let v, let pv):
-        fputs(
-          "✗ invariants floor check failed: Version \(v) is not signed by an authorized signer from parent version \(pv).\n",
-          stderr
+        Terminal.error(
+          "invariants floor check failed: Version \(v) is not signed by an authorized signer from parent version \(pv)."
         )
         throw ExitCode(70)
       default:
-        fputs("✗ invariants floor check failed: \(floorErr)\n", stderr)
+        Terminal.error("invariants floor check failed: \(floorErr)")
         throw ExitCode(1)
       }
     }

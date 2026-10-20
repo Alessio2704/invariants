@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import Terminal
 import Workflows
 
 struct KeyCommand: AsyncParsableCommand {
@@ -31,7 +32,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         _ = try await HardwareKeyWorkflow.generate(force: force)
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -47,7 +48,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         try HardwareKeyWorkflow.show()
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -74,7 +75,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         try await HardwareKeyWorkflow.rotate()
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -93,7 +94,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         try await HardwareKeyWorkflow.delete(skipConfirmation: yes)
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -112,7 +113,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         try await HardwareKeyWorkflow.reset(skipConfirmation: yes)
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }
@@ -131,7 +132,7 @@ struct KeyCommand: AsyncParsableCommand {
       do {
         try HardwareKeyWorkflow.clean(skipConfirmation: yes)
       } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
+        Terminal.error(error.localizedDescription)
         throw ExitCode(1)
       }
     }

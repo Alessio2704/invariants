@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 struct NewCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -22,7 +23,7 @@ struct NewCommand: AsyncParsableCommand {
         let fm = FileManager.default
 
         guard !fm.fileExists(atPath: ruleDir.path) else {
-          fputs("Error: Rule directory already exists at \(ruleDir.path)\n", stderr)
+          Terminal.error("Rule directory already exists at \(ruleDir.path)")
           throw ExitCode(1)
         }
 
@@ -30,14 +31,14 @@ struct NewCommand: AsyncParsableCommand {
         var declaredTargets: [TargetLanguage] = []
         for t in targetList {
           guard let lang = TargetLanguage(rawValue: t) else {
-            fputs("Error: Unknown target language '\(t)'. Supported: swift, ts\n", stderr)
+            Terminal.error("Unknown target language '\(t)'. Supported: swift, ts")
             throw ExitCode(1)
           }
           declaredTargets.append(lang)
         }
 
         guard !declaredTargets.isEmpty else {
-          fputs("Error: Must specify at least one target language.\n", stderr)
+          Terminal.error("Must specify at least one target language.")
           throw ExitCode(1)
         }
 
@@ -118,17 +119,17 @@ struct NewCommand: AsyncParsableCommand {
           }
         }
 
-        print("✓ Scaffolded draft rule '\(id)' at invariants/rules/\(id)/")
-        print("Next steps:")
-        print("  1. Write fixtures first in should_fail and should_pass (they are the spec).")
-        print("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
-        print("  3. Run 'invariants test \(id)' until green.")
-        print("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
+        Terminal.success("Scaffolded draft rule '\(id)' at invariants/rules/\(id)/")
+        Terminal.info("Next steps:")
+        Terminal.info("  1. Write fixtures first in should_fail and should_pass (they are the spec).")
+        Terminal.info("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
+        Terminal.info("  3. Run 'invariants test \(id)' until green.")
+        Terminal.info("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
       }
     } catch let exitCode as ExitCode {
       throw exitCode
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

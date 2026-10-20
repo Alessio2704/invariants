@@ -1,27 +1,27 @@
 import Core
 package import Foundation
 import Managers
+import Terminal
 
 /// Interactive CLI workflow orchestrating repository signer management.
 package enum SignersWorkflow {
   package static func list() throws {
     let signersURL = RegistryManager.allowedSignersURL()
     guard FileManager.default.fileExists(atPath: signersURL.path) else {
-      print("No invariants/allowed_signers file found at \(signersURL.path).")
+      Terminal.info("No invariants/allowed_signers file found at \(signersURL.path).")
       return
     }
 
     let entries = try SignersManager.loadSigners(at: signersURL)
     if entries.isEmpty {
-      print("invariants/allowed_signers at \(signersURL.path) is empty.")
+      Terminal.info("invariants/allowed_signers at \(signersURL.path) is empty.")
       return
     }
 
-    print("Trusted Invariant Signers (\(signersURL.path)):")
-    print("──────────────────────────────────────────────────")
+    Terminal.header("Trusted Invariant Signers (\(signersURL.path)):")
     for (index, entry) in entries.enumerated() {
       let status = entry.isActive() ? "Active" : "Discontinued / Expired"
-      print("[\(index + 1)] [\(status)] \(entry.serialize())")
+      Terminal.numbered(index + 1, text: "[\(status)] \(entry.serialize())")
     }
   }
 
@@ -52,7 +52,7 @@ package enum SignersWorkflow {
 
     let keyURL = try await resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
-    print("✓ Added signer to \(signersURL.path) and signed updated registry.")
+    Terminal.success("Added signer to \(signersURL.path) and signed updated registry.")
   }
 
   package static func revoke(
@@ -68,14 +68,14 @@ package enum SignersWorkflow {
     )
 
     guard matchedCount > 0 else {
-      print("No signers matched pattern '\(pattern)'.")
+      Terminal.info("No signers matched pattern '\(pattern)'.")
       return
     }
 
     let keyURL = try await resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
     let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
-    print("✓ \(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
+    Terminal.success("\(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
   }
 
   package static func rotate(
@@ -137,7 +137,7 @@ package enum SignersWorkflow {
 
     let keyURL = try await resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
-    print("✓ Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and signed updated registry.")
+    Terminal.success("Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and signed updated registry.")
   }
 
   private static func resolveSigningKey(customPath: String?) async throws -> URL {

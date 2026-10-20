@@ -13,30 +13,31 @@ package enum HardwareKeyWorkflow {
     let defaultPub = defaultKey.appendingPathExtension("pub")
 
     if FileManager.default.fileExists(atPath: defaultKey.path) && !force {
-      print("Local signing key already exists at \(defaultKey.path).")
+      Terminal.info("Local signing key already exists at \(defaultKey.path).")
       if FileManager.default.fileExists(atPath: defaultPub.path) {
         let pub = try defaultPub.readTrimmedUTF8()
         if !pub.isEmpty {
-          print("\nPublic Key:\n  \(pub)\n")
+          Terminal.line("\nPublic Key:\n  \(pub)\n")
         }
       }
-      print("Use 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
+      Terminal.info(
+        "Use 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
       return defaultKey
     }
 
-    print("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
+    Terminal.info("Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave...")
     let generatedKey = try await HardwareKeyManager.generateHardwareKey(at: defaultKey, force: force)
 
     let pubKey = try defaultPub.readTrimmedUTF8()
 
-    print("✓ Created Apple Secure Enclave P-256 signing key: \(generatedKey.path)")
-    print("✓ Protected by Touch ID biometric hardware authorization")
-    print("\nPublic Key:")
-    print("  \(pubKey)\n")
-    print("To enroll this key in an Invariants project:")
-    print("  • If you are a project maintainer, run:")
-    print("      invariants signers add \"\(pubKey)\"")
-    print("  • Otherwise, share the public key above with your repository lead.")
+    Terminal.success("Created Apple Secure Enclave P-256 signing key: \(generatedKey.path)")
+    Terminal.success("Protected by Touch ID biometric hardware authorization")
+    Terminal.line("\nPublic Key:")
+    Terminal.line("  \(pubKey)\n")
+    Terminal.info("To enroll this key in an Invariants project:")
+    Terminal.item("If you are a project maintainer, run:")
+    Terminal.info("      invariants signers add \"\(pubKey)\"")
+    Terminal.item("Otherwise, share the public key above with your repository lead.")
 
     return generatedKey
   }
@@ -50,7 +51,7 @@ package enum HardwareKeyWorkflow {
     guard !pubKey.isEmpty else {
       throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
     }
-    print(pubKey)
+    Terminal.line(pubKey)
   }
 
   package static func status() async {
@@ -62,40 +63,40 @@ package enum HardwareKeyWorkflow {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
     let inspection = await HardwareKeyManager.inspectKey(at: defaultKey)
 
-    print("[Local Machine Identity]")
+    Terminal.header("[Local Machine Identity]")
     if FileManager.default.fileExists(atPath: defaultKey.path) {
-      print("  Private Key: \(defaultKey.path)")
+      Terminal.field("Private Key:", value: defaultKey.path)
       if let pub = inspection.pubKey {
         if let type = inspection.keyType {
-          print("  Key Type:    \(type)")
+          Terminal.field("Key Type:", value: type)
         }
-        print("  Public Key:  \(pub)")
+        Terminal.field("Public Key:", value: pub)
         if let fp = inspection.fingerprint {
-          print("  Fingerprint: \(fp)")
+          Terminal.field("Fingerprint:", value: fp)
         }
       }
     } else {
-      print("  Private Key: Not Found (\(defaultKey.path))")
-      print("  To generate a key, run: invariants key generate")
+      Terminal.field("Private Key:", value: "Not Found (\(defaultKey.path))")
+      Terminal.info("  To generate a key, run: invariants key generate")
     }
 
     if inspection.backupCount > 0 {
       let sshDir = defaultKey.deletingLastPathComponent()
-      print("  Backups:     \(inspection.backupCount) archived rotation backup(s) in \(sshDir.path)")
+      Terminal.field("Backups:", value: "\(inspection.backupCount) archived rotation backup(s) in \(sshDir.path)")
     }
     return inspection.pubKey
   }
 
   private static func statusProjectIfAvailable(for pubKey: String?) {
-    print("")
+    Terminal.line()
     guard let repoRoot = try? RepoLocator.discover() else {
-      print("[Active Project]")
-      print("  Not inside an Invariants repository.")
+      Terminal.header("[Active Project]")
+      Terminal.info("  Not inside an Invariants repository.")
       return
     }
 
     RepoLocator.withRepoRoot(repoRoot) {
-      print("[Active Project: \(repoRoot.lastPathComponent)]")
+      Terminal.header("[Active Project: \(repoRoot.lastPathComponent)]")
       let lockURL = RegistryManager.registryURL()
       let signersURL = RegistryManager.allowedSignersURL()
 
@@ -105,10 +106,10 @@ package enum HardwareKeyWorkflow {
         do {
           let lockData = try Data(contentsOf: lockURL)
           let reg = try CanonicalJSON.parse(data: lockData)
-          print("  Registry:    version \(reg.version) (\(reg.rules.count) active rule(s))")
-          print("  Trunk:       \(reg.defaultBranch)")
+          Terminal.field("Registry:", value: "version \(reg.version) (\(reg.rules.count) active rule(s))")
+          Terminal.field("Trunk:", value: reg.defaultBranch)
         } catch {
-          print("  Registry:    Error reading registry.lock: \(error.localizedDescription)")
+          Terminal.field("Registry:", value: "Error reading registry.lock: \(error.localizedDescription)")
         }
 
         if let pubKey {
@@ -116,24 +117,25 @@ package enum HardwareKeyWorkflow {
             let signersFile = try AllowedSignersFile.read(from: signersURL)
             if let matchedEntry = signersFile.entries.first(where: { $0.matches(keyString: pubKey) }) {
               if matchedEntry.isExpired() {
-                print("  Your Status: ❌ Revoked / Expired in this repository")
-                print("  Entry:       \(matchedEntry.serialize())")
+                Terminal.field("Your Status:", value: "❌ Revoked / Expired in this repository")
+                Terminal.field("Entry:", value: matchedEntry.serialize())
               } else {
-                print("  Your Status: ✅ Authorized Active Signer")
+                Terminal.field("Your Status:", value: "✅ Authorized Active Signer")
               }
             } else {
-              print("  Your Status: ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
-              print("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
+              Terminal.field("Your Status:", value: "ℹ️ Read-Only (Not enrolled in invariants/allowed_signers)")
+              Terminal.info("  To authorize, have a lead run: invariants signers add \"\(pubKey)\"")
             }
           } catch {
-            print("  Your Status: ⚠️ Error reading invariants/allowed_signers: \(error.localizedDescription)")
+            Terminal.field(
+              "Your Status:", value: "⚠️ Error reading invariants/allowed_signers: \(error.localizedDescription)")
           }
         } else {
-          print("  Your Status: ℹ️ Read-Only (No local key to check against allowed_signers)")
+          Terminal.field("Your Status:", value: "ℹ️ Read-Only (No local key to check against allowed_signers)")
         }
       } else {
-        print("  Invariants:  Not initialized in this repository.")
-        print("  To initialize, run: invariants init")
+        Terminal.info("  Invariants:  Not initialized in this repository.")
+        Terminal.info("  To initialize, run: invariants init")
       }
     }
   }
@@ -144,21 +146,21 @@ package enum HardwareKeyWorkflow {
       throw KeyLifecycleError.keyNotFound(defaultKey.path)
     }
 
-    print("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
+    Terminal.info("Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave...")
     let (backupKey, _) = try await HardwareKeyManager.rotateHardwareKey(at: defaultKey)
     let pubURL = defaultKey.appendingPathExtension("pub")
 
-    print("✓ Local key rotated successfully.")
-    print("Old key archived to: \(backupKey.path)")
+    Terminal.success("Local key rotated successfully.")
+    Terminal.info("Old key archived to: \(backupKey.path)")
     let newPub = try pubURL.readTrimmedUTF8()
     if !newPub.isEmpty {
-      print("\nNew Public Key:\n  \(newPub)\n")
+      Terminal.line("\nNew Public Key:\n  \(newPub)\n")
     }
 
-    print("Next steps:")
-    print("To update this key in your project(s), run in each relevant repository:")
-    print("    invariants signers rotate")
-    print("(or share the new public key above with your repository lead).")
+    Terminal.info("Next steps:")
+    Terminal.info("To update this key in your project(s), run in each relevant repository:")
+    Terminal.info("    invariants signers rotate")
+    Terminal.info("(or share the new public key above with your repository lead).")
   }
 
   package static func delete(skipConfirmation: Bool = false) async throws {
@@ -168,7 +170,7 @@ package enum HardwareKeyWorkflow {
     guard
       FileManager.default.fileExists(atPath: defaultKey.path) || FileManager.default.fileExists(atPath: defaultPub.path)
     else {
-      print("No signing key found at \(defaultKey.path).")
+      Terminal.info("No signing key found at \(defaultKey.path).")
       return
     }
 
@@ -178,20 +180,20 @@ package enum HardwareKeyWorkflow {
         default: false
       )
       guard confirmed else {
-        print("Aborted.")
+        Terminal.info("Aborted.")
         return
       }
     }
 
-    print("Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key...")
+    Terminal.info("Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key...")
     try await HardwareKeyManager.deleteHardwareKey(at: defaultKey)
 
-    print("✓ Deleted local signing key: \(defaultKey.path)")
-    print("\n⚠️  Important Reminder:")
-    print("This removed the private key from this Mac.")
-    print("If this key was registered in any Git projects, remember to have a team lead run:")
-    print("    invariants signers revoke \"<identity>\"")
-    print("in those repositories to remove its signing authorization.")
+    Terminal.success("Deleted local signing key: \(defaultKey.path)")
+    Terminal.line("\n⚠️  Important Reminder:")
+    Terminal.info("This removed the private key from this Mac.")
+    Terminal.info("If this key was registered in any Git projects, remember to have a team lead run:")
+    Terminal.info("    invariants signers revoke \"<identity>\"")
+    Terminal.info("in those repositories to remove its signing authorization.")
   }
 
   package static func reset(skipConfirmation: Bool = false) async throws {
@@ -204,27 +206,27 @@ package enum HardwareKeyWorkflow {
           default: false
         )
         guard confirmed else {
-          print("Aborted.")
+          Terminal.info("Aborted.")
           return
         }
       }
     }
 
     try await rotate()
-    print("✓ Generated fresh Secure Enclave signing key: \(defaultKey.path)")
+    Terminal.success("Generated fresh Secure Enclave signing key: \(defaultKey.path)")
   }
 
   package static func clean(skipConfirmation: Bool = false) throws {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
     let sshDir = defaultKey.deletingLastPathComponent()
     guard let items = try? FileManager.default.contentsOfDirectory(atPath: sshDir.path) else {
-      print("No SSH directory found at \(sshDir.path).")
+      Terminal.info("No SSH directory found at \(sshDir.path).")
       return
     }
 
     let backups = items.filter { $0.hasPrefix(SystemPaths.keyBackupPrefix) }
     guard !backups.isEmpty else {
-      print("No rotation backup keys found in \(sshDir.path).")
+      Terminal.info("No rotation backup keys found in \(sshDir.path).")
       return
     }
 
@@ -234,12 +236,12 @@ package enum HardwareKeyWorkflow {
         default: false
       )
       guard confirmed else {
-        print("Aborted.")
+        Terminal.info("Aborted.")
         return
       }
     }
 
     let count = try HardwareKeyManager.cleanBackups(in: sshDir)
-    print("✓ Cleaned up \(count) rotation backup file(s) from \(sshDir.path).")
+    Terminal.success("Cleaned up \(count) rotation backup file(s) from \(sshDir.path).")
   }
 }

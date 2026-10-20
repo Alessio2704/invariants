@@ -91,6 +91,7 @@ let package = Package(
             dependencies: [
                 "Core",
                 "InvariantKit",
+                "Terminal",
                 "Workflows",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
@@ -98,7 +99,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CoreTests",
-            dependencies: ["Core", "Extensions"],
+            dependencies: ["Core", "Extensions", "Terminal"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
@@ -108,7 +109,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ScenarioTests",
-            dependencies: ["Core", "Extensions", "InvariantKit", "Managers", "Workflows"],
+            dependencies: ["Core", "Extensions", "InvariantKit", "Managers", "Terminal", "Workflows"],
             swiftSettings: swiftSettings
         ),
     ]

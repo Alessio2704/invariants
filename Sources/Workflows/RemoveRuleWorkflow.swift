@@ -40,8 +40,8 @@ package enum RemoveRuleWorkflow {
         question: "Deactivate and remove invariant '\(ruleId)' from registry v\(registry.version + 1)?",
         default: true
       )
-      if !confirm {
-        print("Aborted.")
+      guard confirm else {
+        Terminal.info("Aborted.")
         return
       }
     }
@@ -51,7 +51,7 @@ package enum RemoveRuleWorkflow {
       throw RemoveRuleWorkflowError.noSigningKey
     }
 
-    print("Signing registry v\(registry.version)...")
+    Terminal.info("Signing registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
       keyURL: keyURL
@@ -63,9 +63,9 @@ package enum RemoveRuleWorkflow {
       message: "Remove invariant '\(ruleId)' (registry v\(registry.version))"
     )
 
-    print("✓ Rule '\(ruleId)' removed from registry v\(registry.version).")
+    Terminal.success("Rule '\(ruleId)' removed from registry v\(registry.version).")
     if !deleteFromDisk {
-      print("Notice: Directory kept as draft at invariants/rules/\(ruleId)/.")
+      Terminal.info("Notice: Directory kept as draft at invariants/rules/\(ruleId)/.")
     }
   }
 }

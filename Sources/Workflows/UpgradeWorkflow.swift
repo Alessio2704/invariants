@@ -15,7 +15,7 @@ package enum UpgradeWorkflow {
     )
 
     let newRange = "^\(EngineVersion.current)"
-    print("Re-verifying all active rules under engine \(EngineVersion.current)...")
+    Terminal.info("Re-verifying all active rules under engine \(EngineVersion.current)...")
 
     for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
       let tempSnapshot = fm.temporaryDirectory.appendingPathComponent("upgrade_\(ruleId)_\(UUID().uuidString)")
@@ -76,7 +76,7 @@ package enum UpgradeWorkflow {
       }
     }
 
-    print("✓ All active rule fixtures and repo checks passed under \(EngineVersion.current).")
+    Terminal.success("All active rule fixtures and repo checks passed under \(EngineVersion.current).")
 
     if TerminalPrompt.isInteractive {
       let confirm = TerminalPrompt.promptConfirmation(
@@ -84,7 +84,7 @@ package enum UpgradeWorkflow {
         default: true
       )
       if !confirm {
-        print("Aborted.")
+        Terminal.info("Aborted.")
         return
       }
     }
@@ -109,7 +109,7 @@ package enum UpgradeWorkflow {
       message: "Upgrade invariants engine range to \(newRange) (registry v\(registry.version))"
     )
 
-    print("✓ Upgraded engine range to \(newRange) in registry v\(registry.version).")
+    Terminal.success("Upgraded engine range to \(newRange) in registry v\(registry.version).")
   }
 }
 

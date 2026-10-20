@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 struct DevCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -29,11 +30,11 @@ struct DevCommand: AsyncParsableCommand {
           }
         }
 
-        print("✓ Created autocompletion workspace in invariants/.dev/")
-        print("Open this folder in Xcode or VSCode for rule authoring autocomplete.")
+        Terminal.success("Created autocompletion workspace in invariants/.dev/")
+        Terminal.info("Open this folder in Xcode or VSCode for rule authoring autocomplete.")
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

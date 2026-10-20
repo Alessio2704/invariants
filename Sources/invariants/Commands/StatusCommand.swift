@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 struct StatusCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -14,8 +15,7 @@ struct StatusCommand: AsyncParsableCommand {
       await RepoLocator.withRepoRoot(repoRoot) {
         let fm = FileManager.default
 
-        print("Invariants Status")
-        print("─────────────────")
+        Terminal.header("Invariants Status")
 
         // 1. Registry & Signature
         var registry: Registry?
@@ -24,28 +24,28 @@ struct StatusCommand: AsyncParsableCommand {
             installedEngineVersion: EngineVersion.current
           )
           registry = loaded
-          print("Engine:      \(EngineVersion.current) (satisfies range '\(loaded.engine)')")
-          print("Signature:   ✓ valid (verified against allowed_signers)")
-          print("Registry:    v\(loaded.version)")
+          Terminal.field("Engine:", value: "\(EngineVersion.current) (satisfies range '\(loaded.engine)')")
+          Terminal.field("Signature:", value: "✓ valid (verified against allowed_signers)")
+          Terminal.field("Registry:", value: "v\(loaded.version)")
         } catch let regErr as RegistryError {
           switch regErr {
           case .signatureInvalid:
-            print("Signature:   ✗ INVALID")
+            Terminal.field("Signature:", value: "✗ INVALID")
           case .signatureNotFound:
-            print("Signature:   ✗ signature file missing (registry.lock.sig)")
+            Terminal.field("Signature:", value: "✗ signature file missing (registry.lock.sig)")
           case .engineVersionMismatch(let req, let inst):
-            print("Engine:      ✗ installed \(inst) does not satisfy \(req)")
+            Terminal.field("Engine:", value: "✗ installed \(inst) does not satisfy \(req)")
           default:
-            print("Registry:    ✗ error: \(regErr)")
+            Terminal.field("Registry:", value: "✗ error: \(regErr)")
           }
         } catch {
-          print("Registry:    ✗ error: \(error)")
+          Terminal.field("Registry:", value: "✗ error: \(error)")
         }
 
         // 2. Floor
         if let reg = registry {
           if let histFloor = try? await FloorGuard.checkHistory(currentVersion: reg.version) {
-            print("Git Floor:   v\(histFloor) (history max)")
+            Terminal.field("Git Floor:", value: "v\(histFloor) (history max)")
           }
         }
 
@@ -67,19 +67,19 @@ struct StatusCommand: AsyncParsableCommand {
         }
 
         if !activeHooks.isEmpty {
-          print("Git Hooks:   ✓ active (\(activeHooks.joined(separator: ", ")))")
+          Terminal.field("Git Hooks:", value: "✓ active (\(activeHooks.joined(separator: ", ")))")
         } else {
-          print("Git Hooks:   none configured (optional: invoke 'invariants check' in pre-commit)")
+          Terminal.field("Git Hooks:", value: "none configured (optional: invoke 'invariants check' in pre-commit)")
         }
 
-        print("\nRules:")
+        Terminal.line("\nRules:")
         guard let reg = registry else { return }
 
         // Active rules
         for (ruleId, signedHash) in reg.rules.sorted(by: { $0.key < $1.key }) {
           let ruleDir = RepoLocator.current.appendingPathComponent("invariants/rules/\(ruleId)")
           if !fm.fileExists(atPath: ruleDir.path) {
-            print("  ✗ \(ruleId): missing on disk")
+            Terminal.statusItem("✗", label: ruleId, detail: "missing on disk")
             continue
           }
 
@@ -91,11 +91,11 @@ struct StatusCommand: AsyncParsableCommand {
           }
 
           if workingHash == signedHash {
-            print("  ✓ \(ruleId): active (\(signedHash.prefix(7)))")
+            Terminal.statusItem("✓", label: ruleId, detail: "active (\(signedHash.prefix(7)))")
           } else {
             let sH = signedHash.prefix(7)
             let wH = workingHash?.prefix(7) ?? "unknown"
-            print("  ✎ \(ruleId): modified since signed (\(sH) → \(wH))")
+            Terminal.statusItem("✎", label: ruleId, detail: "modified since signed (\(sH) → \(wH))")
           }
         }
 
@@ -106,13 +106,13 @@ struct StatusCommand: AsyncParsableCommand {
             let dURL = rulesDir.appendingPathComponent(dir)
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: dURL.path, isDirectory: &isDir), isDir.boolValue {
-              print("  ○ \(dir): draft")
+              Terminal.statusItem("○", label: dir, detail: "draft")
             }
           }
         }
       }
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }

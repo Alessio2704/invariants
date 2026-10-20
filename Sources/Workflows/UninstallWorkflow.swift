@@ -7,11 +7,10 @@ package enum UninstallWorkflow {
   package static func execute(yes: Bool) async throws {
     let env = SystemEnvironment.standard
 
-    print("Invariants Uninstaller")
-    print("──────────────────────")
-    print("Target root: \(env.rootURL.path)")
-    print("Target bin:  \(env.binURL.path)")
-    print("")
+    Terminal.header("Invariants Uninstaller")
+    Terminal.field("Target root:", value: env.rootURL.path)
+    Terminal.field("Target bin:", value: env.binURL.path)
+    Terminal.line()
 
     if !yes && TerminalPrompt.isInteractive {
       let confirmed = TerminalPrompt.promptConfirmation(
@@ -19,7 +18,7 @@ package enum UninstallWorkflow {
         default: false
       )
       guard confirmed else {
-        print("Uninstall aborted.")
+        Terminal.info("Uninstall aborted.")
         return
       }
     }
@@ -38,6 +37,6 @@ package enum UninstallWorkflow {
     }
 
     try await InstallationManager.uninstall(environment: env, token: token)
-    print("✓ Invariants successfully uninstalled from \(env.rootURL.path).")
+    Terminal.success("Invariants successfully uninstalled from \(env.rootURL.path).")
   }
 }

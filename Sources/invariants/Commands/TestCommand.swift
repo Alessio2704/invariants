@@ -1,6 +1,7 @@
 import ArgumentParser
 import Core
 import Foundation
+import Terminal
 
 struct TestCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -19,7 +20,7 @@ struct TestCommand: AsyncParsableCommand {
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: ruleDir.path) else {
-          fputs("Error: Rule '\(id)' not found at \(ruleDir.path)\n", stderr)
+          Terminal.error("Rule '\(id)' not found at \(ruleDir.path)")
           throw ExitCode(1)
         }
 
@@ -29,7 +30,7 @@ struct TestCommand: AsyncParsableCommand {
             installedEngineVersion: EngineVersion.current
           )
         } catch {
-          fputs("Error: Registry verification failed: \(error)\n", stderr)
+          Terminal.error("Registry verification failed: \(error)")
           throw ExitCode(1)
         }
 
@@ -44,12 +45,11 @@ struct TestCommand: AsyncParsableCommand {
             isFixtureMode: true
           )
         } catch {
-          fputs("Error: Manifest validation failed: \(error)\n", stderr)
+          Terminal.error("Manifest validation failed: \(error)")
           throw ExitCode(1)
         }
 
-        print("Testing invariant fixtures: \(id)")
-        print("────────────────────────────────")
+        Terminal.header("Testing invariant fixtures: \(id)")
 
         let runner = RuleRunner()
         var hasFailures = false
@@ -65,7 +65,7 @@ struct TestCommand: AsyncParsableCommand {
               manifestCodes: manifest.codes
             )
           } catch {
-            fputs("Error discovering fixtures for \(target.rawValue): \(error)\n", stderr)
+            Terminal.error("Error discovering fixtures for \(target.rawValue): \(error)")
             throw ExitCode(1)
           }
 
@@ -106,33 +106,35 @@ struct TestCommand: AsyncParsableCommand {
               case .ruleHung:
                 harnessErr = .ruleHung(caseId: fixtureCase.id)
               default:
-                print("  ✗ \(caseLabel): execution failed: \(runnerErr)")
+                Terminal.statusItem("✗", label: caseLabel, detail: "execution failed: \(runnerErr)")
                 hasFailures = true
                 continue
               }
-              print("  ✗ \(caseLabel): \(harnessErr.description)")
+              Terminal.statusItem("✗", label: caseLabel, detail: harnessErr.description)
               hasFailures = true
               continue
             } catch {
-              print("  ✗ \(caseLabel): execution failed: \(error)")
+              Terminal.statusItem("✗", label: caseLabel, detail: "execution failed: \(error)")
               hasFailures = true
               continue
             }
 
             if let error = fixtureCase.evaluateExpectations(reportedViolations: reportedViolations) {
-              print("  ✗ \(caseLabel): \(error.description)")
+              Terminal.statusItem("✗", label: caseLabel, detail: error.description)
               hasFailures = true
             } else {
               do {
                 try ManifestValidator.validateReportedViolations(manifest: manifest, violations: reportedViolations)
                 if fixtureCase.isShouldPass {
-                  print("  ✓ \(caseLabel): 0 violations (pass)")
+                  Terminal.statusItem("✓", label: caseLabel, detail: "0 violations (pass)")
                 } else {
-                  print("  ✓ \(caseLabel): matched all \(fixtureCase.expectedViolations.count) expected violations")
+                  Terminal.statusItem(
+                    "✓", label: caseLabel,
+                    detail: "matched all \(fixtureCase.expectedViolations.count) expected violations")
                 }
                 passedCases += 1
               } catch {
-                print("  ✗ \(caseLabel): \(error)")
+                Terminal.statusItem("✗", label: caseLabel, detail: "\(error)")
                 hasFailures = true
               }
             }
@@ -141,12 +143,12 @@ struct TestCommand: AsyncParsableCommand {
           do {
             try ManifestValidator.validateCodesCoverage(manifest: manifest, coveredCodes: coveredCodes)
           } catch {
-            print("  ✗ \(target.rawValue): \(error)")
+            Terminal.statusItem("✗", label: target.rawValue, detail: "\(error)")
             hasFailures = true
           }
         }
 
-        print("\nSummary: \(passedCases)/\(totalCases) fixture cases passed")
+        Terminal.line("\nSummary: \(passedCases)/\(totalCases) fixture cases passed")
         if hasFailures {
           throw ExitCode(1)
         }
@@ -154,7 +156,7 @@ struct TestCommand: AsyncParsableCommand {
     } catch let exitCode as ExitCode {
       throw exitCode
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
+      Terminal.error(error.localizedDescription)
       throw ExitCode(1)
     }
   }
