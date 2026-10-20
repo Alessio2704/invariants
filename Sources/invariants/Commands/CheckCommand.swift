@@ -23,9 +23,6 @@ struct CheckCommand: AsyncParsableCommand {
     abstract: "Execute the complete invariant enforcement pipeline."
   )
 
-  @Option(name: .long, help: "Git hook stage: pre-commit or pre-push.")
-  var stage: String?
-
   @Flag(name: .long, help: "Emit output in machine-readable JSON format.")
   var json: Bool = false
 
@@ -100,15 +97,6 @@ extension CheckCommand {
       try await FloorGuard.checkSignerAncestry(
         currentRegistry: registry
       )
-
-      if stage == "pre-push" {
-        let stdinData = FileHandle.standardInput.readDataToEndOfFile()
-        let pushedRefs = String(bytes: stdinData, encoding: .utf8) ?? ""
-        try await FloorGuard.checkNoRewrite(
-          pushedRefsInput: pushedRefs,
-          defaultBranch: registry.defaultBranch
-        )
-      }
     } catch let floorErr {
       switch floorErr {
       case .unauthorizedSigner(let v, let pv):

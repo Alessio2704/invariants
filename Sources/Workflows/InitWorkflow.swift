@@ -64,7 +64,7 @@ package enum InitWorkflow {
     Terminal.hint(
       """
       To enforce invariants automatically on commit or push, add:
-         invariants check --stage pre-commit
+         invariants check
       to your pre-commit hook or CI pipeline.
       """
     )

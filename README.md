@@ -237,11 +237,11 @@ invariants update forbid-force-cast
 
 ### Checking Invariants
 ```bash
-# Run pre-commit check on staged files
-invariants check --stage pre-commit
+# Run full invariant enforcement pipeline (usable in pre-commit, pre-push, or CI)
+invariants check
 
-# Run full project verification (used in pre-push or CI)
-invariants check --stage pre-push
+# Output in machine-readable JSON format
+invariants check --json
 ```
 
 ### Managing Local Keys
