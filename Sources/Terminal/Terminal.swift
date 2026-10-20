@@ -7,6 +7,11 @@ package enum Terminal {
 
   private static let defaultSink = StandardTerminalSink()
 
+  private static let ansiRegex = try? NSRegularExpression(
+    pattern: "\\u001B\\[[0-9;]*[a-zA-Z]",
+    options: []
+  )
+
   package static var sink: any TerminalSink {
     customSink ?? defaultSink
   }
@@ -20,10 +25,87 @@ package enum Terminal {
     }
   }
 
-  // MARK: - TTY & Interactive Inspection
+  // MARK: - TTY, Color & Interactive Inspection
 
   package static var isInteractive: Bool {
     isatty(FileHandle.standardInput.fileDescriptor) != 0
+  }
+
+  package static func supportsColor(for stream: TerminalStream = .stdout) -> Bool {
+    sink.supportsColor(for: stream)
+  }
+
+  /// Determines whether color is enabled based on POSIX environment standards (NO_COLOR, CLICOLOR, CLICOLOR_FORCE, TERM).
+  package static func environmentSupportsColor(
+    for stream: TerminalStream,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> Bool {
+    let tty =
+      (stream == .stdout)
+      ? isatty(FileHandle.standardOutput.fileDescriptor) != 0
+      : isatty(FileHandle.standardError.fileDescriptor) != 0
+    return environmentSupportsColor(for: stream, environment: environment, isTTY: tty)
+  }
+
+  /// Determines whether color is enabled based on POSIX environment standards with explicit TTY capability.
+  package static func environmentSupportsColor(
+    for _: TerminalStream,
+    environment: [String: String],
+    isTTY: Bool
+  ) -> Bool {
+    if let force = environment["CLICOLOR_FORCE"], force != "0" {
+      return true
+    }
+    if let noColor = environment["NO_COLOR"], !noColor.isEmpty {
+      return false
+    }
+    if environment["CLICOLOR"] == "0" {
+      return false
+    }
+    if environment["TERM"] == "dumb" {
+      return false
+    }
+    return isTTY
+  }
+
+  /// Strips all ANSI escape sequences from a string.
+  package static func stripANSI(_ string: String) -> String {
+    guard string.contains("\u{001B}") else { return string }
+    guard let regex = ansiRegex else { return string }
+    let range = NSRange(location: 0, length: string.utf16.count)
+    return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: "")
+  }
+
+  // MARK: - ANSI Styling & Formatting
+
+  /// Formats text with ANSI color and style if color output is supported for the target stream.
+  package static func styled(
+    _ text: String,
+    color: TerminalColor? = nil,
+    style: TerminalStyle? = nil,
+    stream: TerminalStream = .stdout
+  ) -> String {
+    guard supportsColor(for: stream) else { return text }
+    return format(text, color: color, style: style)
+  }
+
+  /// Unconditionally wraps text with ANSI escape codes for the specified color and style.
+  package static func format(
+    _ text: String,
+    color: TerminalColor? = nil,
+    style: TerminalStyle? = nil
+  ) -> String {
+    var codes: [Int] = []
+    if let style {
+      codes.append(style.rawCode)
+    }
+    if let color {
+      codes.append(color.rawCode)
+    }
+    guard !codes.isEmpty else { return text }
+    let prefix = "\u{001B}[" + codes.map(String.init).joined(separator: ";") + "m"
+    let suffix = "\u{001B}[0m"
+    return "\(prefix)\(text)\(suffix)"
   }
 
   // MARK: - Low-Level Writing
@@ -36,17 +118,20 @@ package enum Terminal {
 
   /// Emits a standardized error message to stderr.
   package static func error(_ message: String) {
-    sink.write("Error: \(message)\n", to: .stderr)
+    let prefix = styled("Error:", color: .red, style: .bold, stream: .stderr)
+    sink.write("\(prefix) \(message)\n", to: .stderr)
   }
 
   /// Emits a standardized warning message to stderr.
   package static func warning(_ message: String) {
-    sink.write("Warning: \(message)\n", to: .stderr)
+    let prefix = styled("Warning:", color: .yellow, style: .bold, stream: .stderr)
+    sink.write("\(prefix) \(message)\n", to: .stderr)
   }
 
   /// Emits a success notice to stdout with a checkmark.
   package static func success(_ message: String) {
-    sink.write("✓ \(message)\n", to: .stdout)
+    let symbol = styled("✓", color: .green, style: .bold, stream: .stdout)
+    sink.write("\(symbol) \(message)\n", to: .stdout)
   }
 
   /// Emits an informational message to stdout.
@@ -69,7 +154,9 @@ package enum Terminal {
   ) {
     let count = max(title.count, 16)
     let dividerLine = String(repeating: divider, count: count)
-    sink.write("\(title)\n\(dividerLine)\n", to: stream)
+    let styledTitle = styled(title, style: .bold, stream: stream)
+    let styledDivider = styled(dividerLine, color: .gray, stream: stream)
+    sink.write("\(styledTitle)\n\(styledDivider)\n", to: stream)
   }
 
   /// Emits a formatted key-value field aligned to a specified column width.
@@ -80,7 +167,8 @@ package enum Terminal {
     to stream: TerminalStream = .stdout
   ) {
     let padded = label.padding(toLength: width, withPad: " ", startingAt: 0)
-    sink.write("\(padded) \(value)\n", to: stream)
+    let styledLabel = styled(padded, color: .gray, stream: stream)
+    sink.write("\(styledLabel) \(value)\n", to: stream)
   }
 
   /// Emits an indented list item with a bullet or custom marker.
@@ -91,7 +179,8 @@ package enum Terminal {
     to stream: TerminalStream = .stdout
   ) {
     let spaces = String(repeating: " ", count: indent)
-    sink.write("\(spaces)\(bullet) \(text)\n", to: stream)
+    let styledBullet = styled(bullet, color: .cyan, stream: stream)
+    sink.write("\(spaces)\(styledBullet) \(text)\n", to: stream)
   }
 
   /// Emits a numbered list item.
@@ -100,7 +189,8 @@ package enum Terminal {
     text: String,
     to stream: TerminalStream = .stdout
   ) {
-    sink.write("  [\(number)] \(text)\n", to: stream)
+    let tag = styled("[\(number)]", color: .cyan, stream: stream)
+    sink.write("  \(tag) \(text)\n", to: stream)
   }
 
   /// Emits a status item (e.g. `  ✓ item: detail` or `  ✗ item`).
@@ -110,15 +200,25 @@ package enum Terminal {
     detail: String? = nil,
     to stream: TerminalStream = .stdout
   ) {
-    if let detail {
-      sink.write("  \(symbol) \(label): \(detail)\n", to: stream)
+    let styledSymbol: String
+    if symbol == "✓" {
+      styledSymbol = styled(symbol, color: .green, style: .bold, stream: stream)
+    } else if symbol == "✗" {
+      styledSymbol = styled(symbol, color: .red, style: .bold, stream: stream)
     } else {
-      sink.write("  \(symbol) \(label)\n", to: stream)
+      styledSymbol = symbol
+    }
+
+    if let detail {
+      sink.write("  \(styledSymbol) \(label): \(detail)\n", to: stream)
+    } else {
+      sink.write("  \(styledSymbol) \(label)\n", to: stream)
     }
   }
 
   /// Emits an actionable hint or tip.
   package static func hint(_ text: String, to stream: TerminalStream = .stdout) {
-    sink.write("💡 \(text)\n", to: stream)
+    let prefix = styled("💡", stream: stream)
+    sink.write("\(prefix) \(text)\n", to: stream)
   }
 }

@@ -12,7 +12,8 @@ package enum TerminalPrompt {
   package static func prompt(question: String, default defaultValue: String? = nil) -> String {
     guard isInteractive else { return defaultValue ?? "" }
     if let defaultValue {
-      Terminal.write("\(question) [\(defaultValue)]: ", to: .stdout)
+      let styledDefault = Terminal.styled("[\(defaultValue)]", color: .gray)
+      Terminal.write("\(question) \(styledDefault): ", to: .stdout)
     } else {
       Terminal.write("\(question): ", to: .stdout)
     }
@@ -26,7 +27,8 @@ package enum TerminalPrompt {
   package static func promptConfirmation(question: String, default defaultYes: Bool = false) -> Bool {
     guard isInteractive else { return defaultYes }
     let hint = defaultYes ? "[Y/n]" : "[y/N]"
-    Terminal.write("\(question) \(hint): ", to: .stdout)
+    let styledHint = Terminal.styled(hint, color: .gray)
+    Terminal.write("\(question) \(styledHint): ", to: .stdout)
     guard let line = readLine()?.trimmed.lowercased() else {
       return defaultYes
     }

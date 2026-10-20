@@ -9,6 +9,7 @@ package enum TerminalStream: Sendable {
 /// Abstract destination sink for terminal output, allowing in-memory buffering in tests.
 package protocol TerminalSink: Sendable {
   func write(_ string: String, to stream: TerminalStream)
+  func supportsColor(for stream: TerminalStream) -> Bool
 }
 
 /// Standard native terminal output sink writing directly via POSIX / FileHandle.
@@ -16,10 +17,15 @@ package struct StandardTerminalSink: TerminalSink {
   package init() {}
 
   package func write(_ string: String, to stream: TerminalStream) {
+    let output = supportsColor(for: stream) ? string : Terminal.stripANSI(string)
     let handle = (stream == .stdout) ? FileHandle.standardOutput : FileHandle.standardError
-    if let data = string.data(using: .utf8) {
+    if let data = output.data(using: .utf8) {
       handle.write(data)
     }
+  }
+
+  package func supportsColor(for stream: TerminalStream) -> Bool {
+    Terminal.environmentSupportsColor(for: stream)
   }
 }
 
@@ -28,15 +34,25 @@ package final class TerminalTestSink: TerminalSink, @unchecked Sendable {
   private let lock = NSLock()
   private var _stdout: String = ""
   private var _stderr: String = ""
+  package var allowsColor: Bool
 
-  package init() {}
+  package init(allowsColor: Bool = false) {
+    self.allowsColor = allowsColor
+  }
+
+  package func supportsColor(for stream: TerminalStream) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return allowsColor
+  }
 
   package func write(_ string: String, to stream: TerminalStream) {
     lock.lock()
     defer { lock.unlock() }
+    let output = allowsColor ? string : Terminal.stripANSI(string)
     switch stream {
-    case .stdout: _stdout += string
-    case .stderr: _stderr += string
+    case .stdout: _stdout += output
+    case .stderr: _stderr += output
     }
   }
 
