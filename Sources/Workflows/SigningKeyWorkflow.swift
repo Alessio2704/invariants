@@ -6,15 +6,11 @@ import Terminal
 package enum SigningKeyWorkflow {
   /// Resolves the signing key from explicit path or default location, prompting the user interactively if missing.
   package static func resolveOrPrompt(customPath: String? = nil) async throws -> URL? {
-    if let customPath, !customPath.isEmpty {
-      let url = URL(fileURLWithPath: (customPath as NSString).expandingTildeInPath)
-      if FileManager.default.fileExists(atPath: url.path) {
-        return url
-      }
-      return nil
+    if let customPath {
+      return SigningKeyResolver.resolveCustomSigningKey(customPath: customPath)
     }
 
-    if let defaultKey = SigningKeyResolver.resolveSigningKey() {
+    if let defaultKey = SigningKeyResolver.resolveDefaultSigningKey() {
       return defaultKey
     }
 
@@ -30,10 +26,7 @@ package enum SigningKeyWorkflow {
       question: "Enter path to an existing SSH private key (or press Enter to cancel)"
     )
     if !custom.isEmpty {
-      let expanded = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
-      if FileManager.default.fileExists(atPath: expanded.path) {
-        return expanded
-      }
+      return SigningKeyResolver.resolveCustomSigningKey(customPath: custom)
     }
 
     return nil
