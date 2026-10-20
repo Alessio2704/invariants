@@ -34,17 +34,27 @@ package enum BranchSelectionWorkflow {
       TerminalPrompt.Option(value: branch.name, label: branch.name, annotation: branch.annotation)
     }
 
-    guard
-      let selected = TerminalPrompt.promptSelection(
-        title: "Discovered branches in this repository:",
-        options: options,
-        default: 0,
-        customHandler: { $0 }
-      )
-    else {
+    guard Terminal.isInteractive else {
+      if let defaultBranch = repoInfo.defaultBranch?.name {
+        return defaultBranch
+      }
       throw BranchSelectionError.noBranchesFound
     }
 
-    return selected
+    do {
+      guard
+        let selected = try TerminalPrompt.promptSelection(
+          title: "Discovered branches in this repository:",
+          options: options,
+          default: 0,
+          customHandler: { $0 }
+        )
+      else {
+        throw BranchSelectionError.noBranchesFound
+      }
+      return selected
+    } catch {
+      throw BranchSelectionError.noBranchesFound
+    }
   }
 }

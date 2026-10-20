@@ -146,8 +146,8 @@ package enum UpdateRuleWorkflow {
       }
 
       var isConfirmed = context.input.confirm || (context.input.confirmId == context.input.id)
-      if !isConfirmed && TerminalPrompt.isInteractive {
-        let typed = TerminalPrompt.prompt(
+      if !isConfirmed && Terminal.isInteractive {
+        let typed = try TerminalPrompt.prompt(
           question: "\nTo confirm this weakening, please type the rule id '\(context.input.id)'")
         if typed == context.input.id {
           isConfirmed = true
@@ -276,7 +276,7 @@ package enum UpdateRuleWorkflow {
       return
     }
 
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
       throw UpdateRuleWorkflowError.noSigningKey
     }
 

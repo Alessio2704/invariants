@@ -141,7 +141,7 @@ package enum SignersWorkflow {
   }
 
   private static func resolveSigningKey(customPath: String?) async throws -> URL {
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: customPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: customPath) else {
       throw SystemError.fileIOError("No Invariants signing key resolved to sign registry update.")
     }
     return keyURL

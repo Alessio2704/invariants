@@ -174,8 +174,11 @@ package enum HardwareKeyWorkflow {
       return
     }
 
-    if !skipConfirmation && TerminalPrompt.isInteractive {
-      let confirmed = TerminalPrompt.promptConfirmation(
+    if !skipConfirmation {
+      guard Terminal.isInteractive else {
+        throw HardwareKeyWorkflowError.confirmationRequired("deletion")
+      }
+      let confirmed = try TerminalPrompt.promptConfirmation(
         question: "Are you sure you want to delete \(defaultKey.path)?",
         default: false
       )
@@ -200,8 +203,11 @@ package enum HardwareKeyWorkflow {
     let defaultKey = SystemEnvironment.defaultSigningKeyURL
 
     if FileManager.default.fileExists(atPath: defaultKey.path) {
-      if !skipConfirmation && TerminalPrompt.isInteractive {
-        let confirmed = TerminalPrompt.promptConfirmation(
+      if !skipConfirmation {
+        guard Terminal.isInteractive else {
+          throw HardwareKeyWorkflowError.confirmationRequired("reset")
+        }
+        let confirmed = try TerminalPrompt.promptConfirmation(
           question: "This will archive your current key and generate a brand-new one. Continue?",
           default: false
         )
@@ -230,8 +236,11 @@ package enum HardwareKeyWorkflow {
       return
     }
 
-    if !skipConfirmation && TerminalPrompt.isInteractive {
-      let confirmed = TerminalPrompt.promptConfirmation(
+    if !skipConfirmation {
+      guard Terminal.isInteractive else {
+        throw HardwareKeyWorkflowError.confirmationRequired("cleanup")
+      }
+      let confirmed = try TerminalPrompt.promptConfirmation(
         question: "Found \(backups.count) backup file(s) in \(sshDir.path). Delete them?",
         default: false
       )
@@ -243,5 +252,16 @@ package enum HardwareKeyWorkflow {
 
     let count = try HardwareKeyManager.cleanBackups(in: sshDir)
     Terminal.success("Cleaned up \(count) rotation backup file(s) from \(sshDir.path).")
+  }
+}
+
+package enum HardwareKeyWorkflowError: LocalizedError, Sendable {
+  case confirmationRequired(String)
+
+  package var errorDescription: String? {
+    switch self {
+    case .confirmationRequired(let action):
+      return "Key \(action) requires confirmation. Run interactively or pass '--yes'."
+    }
   }
 }

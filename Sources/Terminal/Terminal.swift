@@ -4,8 +4,10 @@ import Foundation
 /// Centralized, type-safe terminal presentation and output subsystem for invariants CLI.
 package enum Terminal {
   @TaskLocal package static var customSink: (any TerminalSink)?
+  @TaskLocal package static var customSource: (any TerminalSource)?
 
   private static let defaultSink = StandardTerminalSink()
+  private static let defaultSource = StandardTerminalSource()
 
   private static let ansiRegex = try? NSRegularExpression(
     pattern: "\\u001B\\[[0-9;]*[a-zA-Z]",
@@ -14,6 +16,10 @@ package enum Terminal {
 
   package static var sink: any TerminalSink {
     customSink ?? defaultSink
+  }
+
+  package static var source: any TerminalSource {
+    customSource ?? defaultSource
   }
 
   // MARK: - Scoped Execution for Testing
@@ -25,10 +31,21 @@ package enum Terminal {
     }
   }
 
+  @discardableResult
+  package static func withSource<T>(_ source: any TerminalSource, operation: () throws -> T) rethrows -> T {
+    try $customSource.withValue(source) {
+      try operation()
+    }
+  }
+
   // MARK: - TTY, Color & Interactive Inspection
 
   package static var isInteractive: Bool {
-    isatty(FileHandle.standardInput.fileDescriptor) != 0
+    source.isInteractive
+  }
+
+  package static func readLine() -> String? {
+    source.readLine()
   }
 
   package static func supportsColor(for stream: TerminalStream = .stdout) -> Bool {

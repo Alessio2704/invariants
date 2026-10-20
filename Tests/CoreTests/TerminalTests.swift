@@ -220,4 +220,94 @@ struct TerminalTests {
     // 6. Test default overload reading TTY from file descriptor
     _ = Terminal.environmentSupportsColor(for: .stdout)
   }
+
+  @Test("TerminalTestSource feeds inputs and restores previous source")
+  func testTerminalSource() {
+    let source = TerminalTestSource(inputs: ["first", "second"], isInteractive: true)
+    Terminal.withSource(source) {
+      #expect(Terminal.isInteractive)
+      #expect(Terminal.readLine() == "first")
+      #expect(Terminal.readLine() == "second")
+      #expect(Terminal.readLine() == nil)
+
+      source.enqueue("third")
+      #expect(Terminal.readLine() == "third")
+    }
+  }
+
+  @Test("TerminalPrompt functions read from Terminal source when interactive")
+  func testInteractivePrompts() throws {
+    let source = TerminalTestSource(
+      inputs: [
+        "custom value",
+        "",  // Enter for default
+        "y",
+        "n",
+        "",  // Enter for default
+        "2",
+        "1, 2",
+      ],
+      isInteractive: true
+    )
+
+    try Terminal.withSource(source) {
+      // 1. prompt with explicit value
+      let val1 = try TerminalPrompt.prompt(question: "Name")
+      #expect(val1 == "custom value")
+
+      // 2. prompt with default value
+      let val2 = try TerminalPrompt.prompt(question: "Branch", default: "main")
+      #expect(val2 == "main")
+
+      // 3. promptConfirmation with explicit 'y'
+      let conf1 = try TerminalPrompt.promptConfirmation(question: "Continue?")
+      #expect(conf1 == true)
+
+      // 4. promptConfirmation with explicit 'n'
+      let conf2 = try TerminalPrompt.promptConfirmation(question: "Continue?")
+      #expect(conf2 == false)
+
+      // 5. promptConfirmation with Enter (default = true)
+      let conf3 = try TerminalPrompt.promptConfirmation(question: "Continue?", default: true)
+      #expect(conf3 == true)
+
+      // 6. promptSelection
+      let options = [
+        TerminalPrompt.Option(value: "a", label: "Option A"),
+        TerminalPrompt.Option(value: "b", label: "Option B"),
+      ]
+      let selected = try TerminalPrompt.promptSelection(title: "Pick", options: options)
+      #expect(selected == "b")
+
+      // 7. promptMultiSelection
+      let multi = try TerminalPrompt.promptMultiSelection(title: "Pick many", options: options)
+      #expect(multi == ["a", "b"])
+    }
+  }
+
+  @Test("TerminalPrompt strictly throws nonInteractive error when not in an interactive terminal")
+  func testNonInteractivePromptStrictErrors() {
+    let nonInteractiveSource = TerminalTestSource(inputs: [], isInteractive: false)
+
+    Terminal.withSource(nonInteractiveSource) {
+      #expect(!Terminal.isInteractive)
+
+      #expect(throws: TerminalPromptError.self) {
+        try TerminalPrompt.prompt(question: "Name", default: "default")
+      }
+
+      #expect(throws: TerminalPromptError.self) {
+        try TerminalPrompt.promptConfirmation(question: "Confirm?", default: true)
+      }
+
+      let options = [TerminalPrompt.Option(value: "a", label: "Option A")]
+      #expect(throws: TerminalPromptError.self) {
+        try TerminalPrompt.promptSelection(title: "Pick", options: options, default: 0)
+      }
+
+      #expect(throws: TerminalPromptError.self) {
+        try TerminalPrompt.promptMultiSelection(title: "Pick many", options: options)
+      }
+    }
+  }
 }

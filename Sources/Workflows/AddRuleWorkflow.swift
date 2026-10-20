@@ -101,8 +101,8 @@ package enum AddRuleWorkflow {
     }
     Terminal.info("Repo impact preview: \(repoViolationsCount) violations on current codebase.")
 
-    if TerminalPrompt.isInteractive {
-      let confirm = TerminalPrompt.promptConfirmation(
+    if Terminal.isInteractive {
+      let confirm = try TerminalPrompt.promptConfirmation(
         question: "Add and lock invariant '\(ruleId)' into registry v\(registry.version + 1)?",
         default: true
       )
@@ -117,7 +117,7 @@ package enum AddRuleWorkflow {
     Terminal.field("Fingerprint:", value: treeHash)
 
     // 6. Resolve signing key
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
       throw AddRuleWorkflowError.noSigningKey
     }
 

@@ -78,8 +78,8 @@ package enum UpgradeWorkflow {
 
     Terminal.success("All active rule fixtures and repo checks passed under \(EngineVersion.current).")
 
-    if TerminalPrompt.isInteractive {
-      let confirm = TerminalPrompt.promptConfirmation(
+    if Terminal.isInteractive {
+      let confirm = try TerminalPrompt.promptConfirmation(
         question: "Upgrade engine range from '\(registry.engine)' to '\(newRange)'?",
         default: true
       )
@@ -92,7 +92,7 @@ package enum UpgradeWorkflow {
     registry.engine = newRange
     registry.version += 1
 
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
       throw UpgradeWorkflowError.noSigningKey
     }
 

@@ -26,12 +26,12 @@ package enum InitWorkflow {
     Terminal.info("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
       throw InitWorkflowError.noSigningKey
     }
 
     // 2. Detect language inputs interactively or via flags
-    let languagesConfig = LanguageConfigWorkflow.resolveConfigurations(
+    let languagesConfig = try LanguageConfigWorkflow.resolveConfigurations(
       explicitLanguages: input.languages
     )
 

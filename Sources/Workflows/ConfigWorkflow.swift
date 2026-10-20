@@ -19,7 +19,7 @@ package enum ConfigWorkflow {
     )
 
     guard
-      let targetLanguages = resolveTargetLanguages(
+      let targetLanguages = try resolveTargetLanguages(
         explicitLanguages: languages,
         defaultBranch: defaultBranch,
         languages: registry.languages
@@ -29,7 +29,7 @@ package enum ConfigWorkflow {
     }
 
     let oldLanguages = registry.languages
-    let newLanguages = LanguageConfigWorkflow.configure(
+    let newLanguages = try LanguageConfigWorkflow.configure(
       languages: targetLanguages,
       baseConfig: oldLanguages
     )
@@ -152,8 +152,8 @@ package enum ConfigWorkflow {
       throw ConfigWorkflowError.blindingDetected
     }
 
-    if TerminalPrompt.isInteractive {
-      let confirm = TerminalPrompt.promptConfirmation(
+    if Terminal.isInteractive {
+      let confirm = try TerminalPrompt.promptConfirmation(
         question: "Sign and commit new configuration?", default: true)
       guard confirm else {
         Terminal.info("Aborted.")
@@ -164,7 +164,7 @@ package enum ConfigWorkflow {
     registry.languages = newLanguages
     registry.version += 1
 
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
       throw ConfigWorkflowError.noSigningKey
     }
 
@@ -189,7 +189,7 @@ package enum ConfigWorkflow {
     explicitLanguages: [SupportedLanguage],
     defaultBranch: String?,
     languages: LanguagesConfig
-  ) -> [SupportedLanguage]? {
+  ) throws -> [SupportedLanguage]? {
     guard explicitLanguages.isEmpty else {
       return explicitLanguages
     }
@@ -198,7 +198,7 @@ package enum ConfigWorkflow {
       return []
     }
 
-    guard TerminalPrompt.isInteractive else {
+    guard Terminal.isInteractive else {
       Terminal.info("No configuration changes specified. Use --languages or --default-branch.")
       return nil
     }
@@ -207,7 +207,8 @@ package enum ConfigWorkflow {
       let currentDesc = lang.spec.describeConfig(in: languages)
       return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
     }
-    let selected = TerminalPrompt.promptMultiSelection(title: "Select language to reconfigure:", options: options)
+    let selected = try TerminalPrompt.promptMultiSelection(
+      title: "Select language to reconfigure:", options: options)
     guard !selected.isEmpty else {
       Terminal.info("No configuration changes specified.")
       return nil

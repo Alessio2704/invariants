@@ -9,26 +9,26 @@ package enum LanguageConfigWorkflow {
   package static func resolveConfigurations(
     explicitLanguages: [SupportedLanguage],
     baseConfig: LanguagesConfig = LanguagesConfig()
-  ) -> LanguagesConfig {
+  ) throws -> LanguagesConfig {
     guard explicitLanguages.isEmpty else {
-      return configure(languages: explicitLanguages, baseConfig: baseConfig)
+      return try configure(languages: explicitLanguages, baseConfig: baseConfig)
     }
 
-    let targetLanguages = resolveDiscoveredOrInteractiveLanguages()
-    return configure(languages: targetLanguages, baseConfig: baseConfig)
+    let targetLanguages = try resolveDiscoveredOrInteractiveLanguages()
+    return try configure(languages: targetLanguages, baseConfig: baseConfig)
   }
 
-  private static func resolveDiscoveredOrInteractiveLanguages() -> [SupportedLanguage] {
+  private static func resolveDiscoveredOrInteractiveLanguages() throws -> [SupportedLanguage] {
     let detected = LanguageConfigManager.detectLanguages()
 
     guard !detected.isEmpty else {
-      guard TerminalPrompt.isInteractive else { return [] }
+      guard Terminal.isInteractive else { return [] }
       Terminal.line("")
       Terminal.warning("No known source files detected in repository.")
-      return promptForLanguageSelection()
+      return try promptForLanguageSelection()
     }
 
-    guard TerminalPrompt.isInteractive else {
+    guard Terminal.isInteractive else {
       return detected
     }
 
@@ -39,12 +39,12 @@ package enum LanguageConfigWorkflow {
       Terminal.item("\(lang.spec.displayName) (\(exts))")
     }
 
-    let confirmed = TerminalPrompt.promptConfirmation(
+    let confirmed = try TerminalPrompt.promptConfirmation(
       question: "Configure invariants for discovered languages?",
       default: true
     )
     guard confirmed else {
-      return promptForLanguageSelection()
+      return try promptForLanguageSelection()
     }
 
     return detected
@@ -54,52 +54,61 @@ package enum LanguageConfigWorkflow {
   package static func configure(
     languages: [SupportedLanguage],
     baseConfig: LanguagesConfig = LanguagesConfig()
-  ) -> LanguagesConfig {
+  ) throws -> LanguagesConfig {
     var languagesConfig = baseConfig
     for lang in languages {
-      configureLanguage(lang, into: &languagesConfig)
+      try configureLanguage(lang, into: &languagesConfig)
     }
     return languagesConfig
   }
 
   /// Prompts the user to select from available languages.
-  package static func promptForLanguageSelection(title: String = "Available languages:") -> [SupportedLanguage] {
+  package static func promptForLanguageSelection(title: String = "Available languages:") throws -> [SupportedLanguage] {
     let options = SupportedLanguage.allCases.map { lang in
       let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
       return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "extensions: \(exts)")
     }
-    return TerminalPrompt.promptMultiSelection(title: title, options: options)
+    return try TerminalPrompt.promptMultiSelection(title: title, options: options)
   }
 
   private static func configureLanguage(
     _ language: SupportedLanguage,
     into languagesConfig: inout LanguagesConfig
-  ) {
-    if let config = promptForConfig(for: language) {
+  ) throws {
+    if let config = try promptForConfig(for: language) {
       LanguageConfigManager.applyConfig(config, for: language, into: &languagesConfig)
     }
   }
 
   private static func promptForConfig(
     for language: SupportedLanguage
-  ) -> (any LanguageConfiguration)? {
+  ) throws -> (any LanguageConfiguration)? {
     let spec = language.spec
     let inputs = LanguageConfigManager.discoverAnalysisInputs(for: language)
     let descriptor = spec.configPromptDescriptor
 
     if inputs.isEmpty {
-      guard TerminalPrompt.isInteractive else { return nil }
+      guard Terminal.isInteractive else { return nil }
       Terminal.line("")
       Terminal.warning(descriptor.noInputsFoundMessage)
-      let choice = TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
+      let choice = try TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
       guard !choice.isEmpty else { return nil }
       return spec.makeConfig(from: [choice])
+    }
+
+    guard Terminal.isInteractive else {
+      switch descriptor.selectionStyle {
+      case .single:
+        return spec.makeConfig(from: [inputs[0]])
+      case .multiple:
+        return spec.makeConfig(from: inputs)
+      }
     }
 
     switch descriptor.selectionStyle {
     case .single(let selectionTitle):
       let options = inputs.map { TerminalPrompt.Option(value: $0, label: $0) }
-      if let choice = TerminalPrompt.promptSelection(
+      if let choice = try TerminalPrompt.promptSelection(
         title: selectionTitle,
         options: options,
         default: 0,
@@ -111,14 +120,14 @@ package enum LanguageConfigWorkflow {
 
     case .multiple(let confirmationQuestion):
       let joined = inputs.joined(separator: ", ")
-      let confirm = TerminalPrompt.promptConfirmation(
+      let confirm = try TerminalPrompt.promptConfirmation(
         question: "\(confirmationQuestion) (\(joined))?",
         default: true
       )
       if confirm {
         return spec.makeConfig(from: inputs)
       } else {
-        let custom = TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
+        let custom = try TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
         guard !custom.isEmpty else { return nil }
         return spec.makeConfig(from: [custom])
       }

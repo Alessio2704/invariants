@@ -12,8 +12,11 @@ package enum UninstallWorkflow {
     Terminal.field("Target bin:", value: env.binURL.path)
     Terminal.line()
 
-    if !yes && TerminalPrompt.isInteractive {
-      let confirmed = TerminalPrompt.promptConfirmation(
+    if !yes {
+      guard Terminal.isInteractive else {
+        throw UninstallWorkflowError.confirmationRequired
+      }
+      let confirmed = try TerminalPrompt.promptConfirmation(
         question: "Are you sure you want to completely uninstall invariants from your machine?",
         default: false
       )
@@ -38,5 +41,16 @@ package enum UninstallWorkflow {
 
     try await InstallationManager.uninstall(environment: env, token: token)
     Terminal.success("Invariants successfully uninstalled from \(env.rootURL.path).")
+  }
+}
+
+package enum UninstallWorkflowError: LocalizedError, Sendable {
+  case confirmationRequired
+
+  package var errorDescription: String? {
+    switch self {
+    case .confirmationRequired:
+      return "Uninstall requires confirmation. Run interactively or pass '--yes'."
+    }
   }
 }

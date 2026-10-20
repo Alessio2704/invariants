@@ -1,38 +1,54 @@
 import Extensions
 import Foundation
 
+/// Errors thrown by interactive terminal prompts.
+package enum TerminalPromptError: LocalizedError, Sendable {
+  case nonInteractive(String)
+
+  package var errorDescription: String? {
+    switch self {
+    case .nonInteractive(let question):
+      return "Cannot prompt for '\(question)' in a non-interactive environment. Provide the required CLI flags."
+    }
+  }
+}
+
 /// Generic interactive terminal I/O primitives for CLI applications.
 package enum TerminalPrompt {
-  /// Whether current process standard input is an interactive terminal.
-  package static var isInteractive: Bool {
-    Terminal.isInteractive
-  }
-
-  /// Prompts user for a single line of input with an optional default value.
-  package static func prompt(question: String, default defaultValue: String? = nil) -> String {
-    guard isInteractive else { return defaultValue ?? "" }
+  /// Prompts user for a single line of input with an optional default value on Enter.
+  package static func prompt(
+    question: String,
+    default defaultValue: String? = nil
+  ) throws -> String {
+    guard Terminal.isInteractive else {
+      throw TerminalPromptError.nonInteractive(question)
+    }
     if let defaultValue {
       let styledDefault = Terminal.styled("[\(defaultValue)]", color: .gray)
       Terminal.write("\(question) \(styledDefault): ", to: .stdout)
     } else {
       Terminal.write("\(question): ", to: .stdout)
     }
-    guard let line = readLine()?.trimmed, !line.isEmpty else {
+    guard let line = Terminal.readLine()?.trimmed, !line.isEmpty else {
       return defaultValue ?? ""
     }
     return line
   }
 
   /// Prompts user for a yes/no confirmation.
-  package static func promptConfirmation(question: String, default defaultYes: Bool = false) -> Bool {
-    guard isInteractive else { return defaultYes }
+  package static func promptConfirmation(
+    question: String,
+    default defaultYes: Bool = false
+  ) throws -> Bool {
+    guard Terminal.isInteractive else {
+      throw TerminalPromptError.nonInteractive(question)
+    }
     let hint = defaultYes ? "[Y/n]" : "[y/N]"
     let styledHint = Terminal.styled(hint, color: .gray)
     Terminal.write("\(question) \(styledHint): ", to: .stdout)
-    guard let line = readLine()?.trimmed.lowercased() else {
+    guard let line = Terminal.readLine()?.trimmed.lowercased(), !line.isEmpty else {
       return defaultYes
     }
-    if line.isEmpty { return defaultYes }
     return line == "y" || line == "yes"
   }
 
@@ -54,10 +70,10 @@ package enum TerminalPrompt {
     options: [Option<T>],
     default defaultIndex: Int? = 0,
     customHandler: ((String) -> T?)? = nil
-  ) -> T? {
+  ) throws -> T? {
     guard !options.isEmpty else { return nil }
-    guard isInteractive else {
-      return defaultIndex.flatMap { options.indices.contains($0) ? options[$0].value : nil }
+    guard Terminal.isInteractive else {
+      throw TerminalPromptError.nonInteractive(title)
     }
     if !title.isEmpty {
       Terminal.line("\n" + title)
@@ -74,7 +90,7 @@ package enum TerminalPrompt {
     } else if customHandler != nil {
       promptQuestion += " or enter custom input (press Enter to skip)"
     }
-    let choice = prompt(question: promptQuestion, default: defaultVal)
+    let choice = try prompt(question: promptQuestion, default: defaultVal)
     if let num = Int(choice), num >= 1, num <= options.count {
       return options[num - 1].value
     }
@@ -88,8 +104,11 @@ package enum TerminalPrompt {
   package static func promptMultiSelection<T>(
     title: String,
     options: [Option<T>]
-  ) -> [T] {
-    guard !options.isEmpty && isInteractive else { return [] }
+  ) throws -> [T] {
+    guard !options.isEmpty else { return [] }
+    guard Terminal.isInteractive else {
+      throw TerminalPromptError.nonInteractive(title)
+    }
     if !title.isEmpty {
       Terminal.line("\n" + title)
     }
@@ -97,7 +116,7 @@ package enum TerminalPrompt {
       let ann = opt.annotation.map { " (\($0))" } ?? ""
       Terminal.numbered(idx + 1, text: "\(opt.label)\(ann)")
     }
-    let choice = prompt(
+    let choice = try prompt(
       question: "Select options (comma-separated numbers, e.g. 1, 2 or press Enter to skip)",
       default: nil
     )
