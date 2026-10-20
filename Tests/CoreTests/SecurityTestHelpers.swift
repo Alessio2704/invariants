@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import LocalAuthentication
 
@@ -50,5 +51,33 @@ extension Registry {
       rules: rules,
       signersHash: signersHash
     )
+  }
+}
+
+extension SigningClient {
+  /// Generates an in-memory / software P-256 key pair for automated test suites.
+  static func generateThrowawayKey(at keyURL: URL, comment: String = "test-key") throws(SystemError) {
+    let parent = keyURL.deletingLastPathComponent()
+    do {
+      try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+    } catch {
+      throw SystemError.fileIOError("Failed to create directory \(parent.path): \(error.localizedDescription)")
+    }
+
+    let privateKey = P256.Signing.PrivateKey()
+    do {
+      try privateKey.rawRepresentation.write(to: keyURL, options: .atomic)
+      try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyURL.path)
+    } catch {
+      throw SystemError.fileIOError("Failed to write test key to \(keyURL.path): \(error.localizedDescription)")
+    }
+
+    let pubString = SSHSIG.formatOpenSSHPublicKey(privateKey.publicKey, comment: comment)
+    let pubURL = keyURL.appendingPathExtension("pub")
+    do {
+      try pubString.write(to: pubURL, atomically: true, encoding: .utf8)
+    } catch {
+      throw SystemError.fileIOError("Failed to write public key to \(pubURL.path): \(error.localizedDescription)")
+    }
   }
 }
