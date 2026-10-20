@@ -49,29 +49,6 @@ struct StatusCommand: AsyncParsableCommand {
           }
         }
 
-        // 3. Git Hooks
-        let candidateHooks = [
-          ".githooks/pre-commit",
-          ".githooks/pre-push",
-          ".git/hooks/pre-commit",
-          ".git/hooks/pre-push",
-        ]
-        let activeHooks = candidateHooks.filter { rel in
-          let url = RepoLocator.current.appendingPathComponent(rel)
-          guard FileManager.default.fileExists(atPath: url.path) else { return false }
-          do {
-            return try url.readUTF8().contains("invariants check")
-          } catch {
-            return false
-          }
-        }
-
-        if !activeHooks.isEmpty {
-          Terminal.field("Git Hooks:", value: "✓ active (\(activeHooks.joined(separator: ", ")))")
-        } else {
-          Terminal.field("Git Hooks:", value: "none configured (optional: invoke 'invariants check' in pre-commit)")
-        }
-
         Terminal.line("\nRules:")
         guard let reg = registry else { return }
 
