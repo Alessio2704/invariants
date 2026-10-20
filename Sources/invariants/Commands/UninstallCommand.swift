@@ -16,7 +16,7 @@ struct UninstallCommand: AsyncParsableCommand {
     do {
       try await UninstallWorkflow.execute(yes: yes)
     } catch {
-      fputs("Error: Uninstall failed: \(error.localizedDescription)\n", stderr)
+      fputs("Error: \(error.localizedDescription)\n", stderr)
       throw ExitCode(1)
     }
   }

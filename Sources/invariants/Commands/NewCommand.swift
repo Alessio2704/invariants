@@ -15,32 +15,32 @@ struct NewCommand: AsyncParsableCommand {
   var targets: String = "swift"
 
   func run() async throws {
-    let repoRoot = try RepoLocator.discover()
-    try RepoLocator.withRepoRoot(repoRoot) {
-      let ruleDir = RepoLocator.current.appendingPathComponent("invariants/rules/\(id)")
-      let fm = FileManager.default
+    do {
+      let repoRoot = try RepoLocator.discover()
+      try RepoLocator.withRepoRoot(repoRoot) {
+        let ruleDir = RepoLocator.current.appendingPathComponent("invariants/rules/\(id)")
+        let fm = FileManager.default
 
-      guard !fm.fileExists(atPath: ruleDir.path) else {
-        fputs("Error: Rule directory already exists at \(ruleDir.path)\n", stderr)
-        throw ExitCode(1)
-      }
-
-      let targetList = targets.split(separator: ",").map(\.trimmed)
-      var declaredTargets: [TargetLanguage] = []
-      for t in targetList {
-        guard let lang = TargetLanguage(rawValue: t) else {
-          fputs("Error: Unknown target language '\(t)'. Supported: swift, ts\n", stderr)
+        guard !fm.fileExists(atPath: ruleDir.path) else {
+          fputs("Error: Rule directory already exists at \(ruleDir.path)\n", stderr)
           throw ExitCode(1)
         }
-        declaredTargets.append(lang)
-      }
 
-      guard !declaredTargets.isEmpty else {
-        fputs("Error: Must specify at least one target language.\n", stderr)
-        throw ExitCode(1)
-      }
+        let targetList = targets.split(separator: ",").map(\.trimmed)
+        var declaredTargets: [TargetLanguage] = []
+        for t in targetList {
+          guard let lang = TargetLanguage(rawValue: t) else {
+            fputs("Error: Unknown target language '\(t)'. Supported: swift, ts\n", stderr)
+            throw ExitCode(1)
+          }
+          declaredTargets.append(lang)
+        }
 
-      do {
+        guard !declaredTargets.isEmpty else {
+          fputs("Error: Must specify at least one target language.\n", stderr)
+          throw ExitCode(1)
+        }
+
         try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)
 
         // 1. Generate manifest.json
@@ -124,10 +124,12 @@ struct NewCommand: AsyncParsableCommand {
         print("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
         print("  3. Run 'invariants test \(id)' until green.")
         print("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
-      } catch {
-        fputs("Error scaffolding rule: \(error.localizedDescription)\n", stderr)
-        throw ExitCode(1)
       }
+    } catch let exitCode as ExitCode {
+      throw exitCode
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw ExitCode(1)
     }
   }
 }

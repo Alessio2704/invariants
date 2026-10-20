@@ -26,7 +26,6 @@ package enum InitWorkflow {
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
     guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
-      fputs("Error: No signing key selected. Run 'invariants key generate' or specify --key <path>.\n", stderr)
       throw InitWorkflowError.noSigningKey
     }
 
@@ -36,10 +35,6 @@ package enum InitWorkflow {
     )
 
     guard !languagesConfig.isEmpty else {
-      let msg =
-        "Error: At least one supported language must be configured. "
-        + "Specify --languages or run interactively in a repository with source files.\n"
-      fputs(msg, stderr)
       throw InitWorkflowError.noLanguagesConfigured
     }
 
@@ -50,7 +45,6 @@ package enum InitWorkflow {
         explicitBranch: input.branch
       )
     } catch {
-      fputs("Error: \(error.localizedDescription)\n", stderr)
       throw InitWorkflowError.noBranchesFound
     }
 
@@ -80,9 +74,11 @@ package enum InitWorkflowError: LocalizedError, Sendable {
   package var errorDescription: String? {
     switch self {
     case .noSigningKey:
-      return "No signing key selected."
+      return "No signing key selected. Run 'invariants key generate' or specify --key <path>."
     case .noLanguagesConfigured:
-      return "Repository initialization failed: at least one supported language must be configured."
+      return
+        "Repository initialization failed: at least one supported language must be configured. "
+        + "Specify --languages or run interactively in a repository with source files."
     case .noBranchesFound:
       return "Repository initialization failed: no git branches found in this repository."
     }

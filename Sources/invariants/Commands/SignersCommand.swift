@@ -23,14 +23,14 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      let repoRoot = try RepoLocator.discover()
-      try RepoLocator.withRepoRoot(repoRoot) {
-        do {
+      do {
+        let repoRoot = try RepoLocator.discover()
+        try RepoLocator.withRepoRoot(repoRoot) {
           try SignersWorkflow.list()
-        } catch {
-          fputs("Error: \(error.localizedDescription)\n", stderr)
-          throw ExitCode(1)
         }
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
       }
     }
   }
@@ -51,14 +51,14 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = try RepoLocator.discover()
-      try await RepoLocator.withRepoRoot(repoRoot) {
-        do {
+      do {
+        let repoRoot = try RepoLocator.discover()
+        try await RepoLocator.withRepoRoot(repoRoot) {
           try await SignersWorkflow.add(key: key, identity: identity, signingKey: signingKey)
-        } catch {
-          fputs("Error: \(error.localizedDescription)\n", stderr)
-          throw ExitCode(1)
         }
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
       }
     }
   }
@@ -79,14 +79,14 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = try RepoLocator.discover()
-      try await RepoLocator.withRepoRoot(repoRoot) {
-        do {
+      do {
+        let repoRoot = try RepoLocator.discover()
+        try await RepoLocator.withRepoRoot(repoRoot) {
           try await SignersWorkflow.revoke(pattern: pattern, hard: hard, signingKey: signingKey)
-        } catch {
-          fputs("Error: \(error.localizedDescription)\n", stderr)
-          throw ExitCode(1)
         }
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
       }
     }
   }
@@ -120,14 +120,14 @@ struct SignersCommand: AsyncParsableCommand {
     var signingKey: String?
 
     func run() async throws {
-      let repoRoot = try RepoLocator.discover()
-      try await RepoLocator.withRepoRoot(repoRoot) {
-        do {
+      do {
+        let repoRoot = try RepoLocator.discover()
+        try await RepoLocator.withRepoRoot(repoRoot) {
           try await SignersWorkflow.rotate(old: old, new: new, sunset: sunset, signingKey: signingKey)
-        } catch {
-          fputs("Error: \(error.localizedDescription)\n", stderr)
-          throw ExitCode(1)
         }
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
       }
     }
   }

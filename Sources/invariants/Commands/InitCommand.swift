@@ -25,15 +25,16 @@ struct InitCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRoot = try RepoLocator.discover()
-    try await RepoLocator.withRepoRoot(repoRoot) {
-      do {
+    do {
+      let repoRoot = try RepoLocator.discover()
+      try await RepoLocator.withRepoRoot(repoRoot) {
         try await InitWorkflow.execute(
           input: .init(branch: branch, languages: languages, keyPath: key)
         )
-      } catch is InitWorkflowError {
-        throw ExitCode(1)
       }
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw ExitCode(1)
     }
   }
 }

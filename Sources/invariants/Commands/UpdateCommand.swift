@@ -22,9 +22,9 @@ struct UpdateCommand: AsyncParsableCommand {
   var confirm: Bool = false
 
   func run() async throws {
-    let repoRoot = try RepoLocator.discover()
-    try await RepoLocator.withRepoRoot(repoRoot) {
-      do {
+    do {
+      let repoRoot = try RepoLocator.discover()
+      try await RepoLocator.withRepoRoot(repoRoot) {
         try await UpdateRuleWorkflow.execute(
           input: .init(
             id: id,
@@ -33,10 +33,10 @@ struct UpdateCommand: AsyncParsableCommand {
             confirm: confirm
           )
         )
-      } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
-        throw ExitCode(1)
       }
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw ExitCode(1)
     }
   }
 }

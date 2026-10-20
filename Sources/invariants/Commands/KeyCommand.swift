@@ -1,4 +1,5 @@
 import ArgumentParser
+import Foundation
 import Workflows
 
 struct KeyCommand: AsyncParsableCommand {
@@ -27,7 +28,12 @@ struct KeyCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-      _ = try await HardwareKeyWorkflow.generate(force: force)
+      do {
+        _ = try await HardwareKeyWorkflow.generate(force: force)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 
@@ -38,7 +44,12 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() throws {
-      try HardwareKeyWorkflow.show()
+      do {
+        try HardwareKeyWorkflow.show()
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 
@@ -60,7 +71,12 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-      try await HardwareKeyWorkflow.rotate()
+      do {
+        try await HardwareKeyWorkflow.rotate()
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 
@@ -74,7 +90,12 @@ struct KeyCommand: AsyncParsableCommand {
     var yes: Bool = false
 
     func run() async throws {
-      try await HardwareKeyWorkflow.delete(skipConfirmation: yes)
+      do {
+        try await HardwareKeyWorkflow.delete(skipConfirmation: yes)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 
@@ -88,7 +109,12 @@ struct KeyCommand: AsyncParsableCommand {
     var yes: Bool = false
 
     func run() async throws {
-      try await HardwareKeyWorkflow.reset(skipConfirmation: yes)
+      do {
+        try await HardwareKeyWorkflow.reset(skipConfirmation: yes)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 
@@ -102,7 +128,12 @@ struct KeyCommand: AsyncParsableCommand {
     var yes: Bool = false
 
     func run() throws {
-      try HardwareKeyWorkflow.clean(skipConfirmation: yes)
+      do {
+        try HardwareKeyWorkflow.clean(skipConfirmation: yes)
+      } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        throw ExitCode(1)
+      }
     }
   }
 }

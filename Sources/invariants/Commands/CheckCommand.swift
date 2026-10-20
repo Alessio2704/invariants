@@ -29,32 +29,39 @@ struct CheckCommand: AsyncParsableCommand {
   var json: Bool = false
 
   func run() async throws {
-    let repoRoot = try RepoLocator.discover()
-    try await RepoLocator.withRepoRoot(repoRoot) {
-      let env = SystemEnvironment.standard
+    do {
+      let repoRoot = try RepoLocator.discover()
+      try await RepoLocator.withRepoRoot(repoRoot) {
+        let env = SystemEnvironment.standard
 
-      let registry = try await verifyRegistry()
-      try await verifyFloor(registry: registry)
+        let registry = try await verifyRegistry()
+        try await verifyFloor(registry: registry)
 
-      let context = CheckContext(
-        registry: registry,
-        ruleRunner: RuleRunner(environment: env)
-      )
+        let context = CheckContext(
+          registry: registry,
+          ruleRunner: RuleRunner(environment: env)
+        )
 
-      let activeItems = try await checkActiveRules(context: context)
-      let draftItems = await discoverDraftRules(context: context)
+        let activeItems = try await checkActiveRules(context: context)
+        let draftItems = await discoverDraftRules(context: context)
 
-      let report = CheckReport(
-        registryVersion: registry.version,
-        engineVersion: EngineVersion.current,
-        rules: activeItems + draftItems
-      )
+        let report = CheckReport(
+          registryVersion: registry.version,
+          engineVersion: EngineVersion.current,
+          rules: activeItems + draftItems
+        )
 
-      outputReport(report)
+        outputReport(report)
 
-      if report.hasProblems {
-        throw ExitCode(1)
+        if report.hasProblems {
+          throw ExitCode(1)
+        }
       }
+    } catch let exitCode as ExitCode {
+      throw exitCode
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw ExitCode(1)
     }
   }
 }

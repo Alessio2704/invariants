@@ -25,18 +25,18 @@ struct ConfigCommand: AsyncParsableCommand {
   var key: String?
 
   func run() async throws {
-    let repoRoot = try RepoLocator.discover()
-    try await RepoLocator.withRepoRoot(repoRoot) {
-      do {
+    do {
+      let repoRoot = try RepoLocator.discover()
+      try await RepoLocator.withRepoRoot(repoRoot) {
         try await ConfigWorkflow.execute(
           languages: languages,
           defaultBranch: defaultBranch,
           keyPath: key
         )
-      } catch {
-        fputs("Error: \(error.localizedDescription)\n", stderr)
-        throw ExitCode(1)
       }
+    } catch {
+      fputs("Error: \(error.localizedDescription)\n", stderr)
+      throw ExitCode(1)
     }
   }
 }
