@@ -1,6 +1,5 @@
 import Core
 import Foundation
-import Managers
 import Terminal
 
 /// Errors that occur during branch selection.
@@ -25,7 +24,7 @@ package enum BranchSelectionWorkflow {
       return explicitBranch
     }
 
-    let repoInfo = await BranchSelectionManager.discoverRepoInfo()
+    let repoInfo = await GitClient.discoverRepoInfo()
     guard !repoInfo.branches.isEmpty else {
       throw BranchSelectionError.noBranchesFound
     }

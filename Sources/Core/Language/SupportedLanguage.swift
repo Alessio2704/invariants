@@ -46,4 +46,9 @@ extension SupportedLanguage {
   public static func shouldSkipAny(url: URL) -> Bool {
     allCases.contains { $0.spec.shouldSkip(url: url) }
   }
+
+  /// Detects languages with source files present in the repository root.
+  public static func detectLanguages() -> [SupportedLanguage] {
+    allCases.filter { $0.spec.hasSources() }
+  }
 }

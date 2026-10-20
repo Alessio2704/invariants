@@ -1,6 +1,5 @@
 package import Core
 import Foundation
-import Managers
 import Terminal
 
 /// Interactive CLI workflow for configuring project language analysis inputs.
@@ -19,7 +18,7 @@ package enum LanguageConfigWorkflow {
   }
 
   private static func resolveDiscoveredOrInteractiveLanguages() throws -> [SupportedLanguage] {
-    let detected = LanguageConfigManager.detectLanguages()
+    let detected = SupportedLanguage.detectLanguages()
 
     guard !detected.isEmpty else {
       Terminal.line("")
@@ -71,7 +70,7 @@ package enum LanguageConfigWorkflow {
     into languagesConfig: inout LanguagesConfig
   ) throws {
     if let config = try promptForConfig(for: language) {
-      LanguageConfigManager.applyConfig(config, for: language, into: &languagesConfig)
+      languagesConfig[language] = config
     }
   }
 
@@ -79,7 +78,7 @@ package enum LanguageConfigWorkflow {
     for language: SupportedLanguage
   ) throws -> (any LanguageConfiguration)? {
     let spec = language.spec
-    let inputs = LanguageConfigManager.discoverAnalysisInputs(for: language)
+    let inputs = spec.discoverAnalysisInputs()
     let descriptor = spec.configPromptDescriptor
 
     if inputs.isEmpty {
