@@ -1,11 +1,10 @@
 import ArgumentParser
-import Core
 import Workflows
 
 struct KeyCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "key",
-    abstract: "Manage your local hardware signing key and check repository enrollment.",
+    abstract: "Manage your local hardware signing key in Apple Secure Enclave.",
     subcommands: [
       Generate.self,
       Show.self,
@@ -21,20 +20,14 @@ struct KeyCommand: AsyncParsableCommand {
   struct Generate: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "generate",
-      abstract: "Generate a dedicated Touch ID signing key in the Apple Secure Enclave."
+      abstract: "Generate a dedicated Touch ID signing key in Apple Secure Enclave."
     )
 
     @Flag(name: .long, help: "Overwrite existing key if one already exists.")
     var force: Bool = false
 
     func run() async throws {
-      if let repoRoot = try? RepoLocator.discover() {
-        try await RepoLocator.withRepoRoot(repoRoot) {
-          _ = try await HardwareKeyWorkflow.generateInRepo(force: force)
-        }
-      } else {
-        _ = try await HardwareKeyWorkflow.generateOutsideRepo(force: force)
-      }
+      _ = try await HardwareKeyWorkflow.generate(force: force)
     }
   }
 
@@ -56,30 +49,18 @@ struct KeyCommand: AsyncParsableCommand {
     )
 
     func run() async {
-      if let repoRoot = try? RepoLocator.discover() {
-        await RepoLocator.withRepoRoot(repoRoot) {
-          await HardwareKeyWorkflow.statusInRepo()
-        }
-      } else {
-        await HardwareKeyWorkflow.statusOutsideRepo()
-      }
+      await HardwareKeyWorkflow.status()
     }
   }
 
   struct Rotate: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "rotate",
-      abstract: "Rotate local signing key and update the active repository's allowed_signers."
+      abstract: "Rotate your local hardware signing key in Apple Secure Enclave."
     )
 
     func run() async throws {
-      if let repoRoot = try? RepoLocator.discover() {
-        try await RepoLocator.withRepoRoot(repoRoot) {
-          try await HardwareKeyWorkflow.rotateInRepo()
-        }
-      } else {
-        try await HardwareKeyWorkflow.rotateOutsideRepo()
-      }
+      try await HardwareKeyWorkflow.rotate()
     }
   }
 

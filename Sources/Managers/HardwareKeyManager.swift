@@ -1,4 +1,4 @@
-import Core
+package import Core
 package import Foundation
 
 /// Pure domain manager for Apple Secure Enclave hardware key lifecycle operations.
@@ -30,7 +30,8 @@ package enum HardwareKeyManager {
   @discardableResult
   package static func generateHardwareKey(
     at destinationURL: URL = SystemEnvironment.defaultSigningKeyURL,
-    force: Bool = false
+    force: Bool = false,
+    token: BiometricAuthToken? = nil
   ) async throws -> URL {
     let defaultPub = destinationURL.appendingPathExtension("pub")
 
@@ -38,10 +39,15 @@ package enum HardwareKeyManager {
       return destinationURL
     }
 
-    let token = try await Authorizer.authorizeBiometrics(
-      reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
-    )
-    try SigningClient.generateSigningKey(at: destinationURL, token: token)
+    let authToken: BiometricAuthToken
+    if let token {
+      authToken = token
+    } else {
+      authToken = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll your hardware signing key in Apple Secure Enclave"
+      )
+    }
+    try SigningClient.generateSigningKey(at: destinationURL, token: authToken)
 
     guard FileManager.default.fileExists(atPath: defaultPub.path) else {
       throw KeyLifecycleError.publicKeyNotFound(defaultPub.path)
@@ -52,17 +58,24 @@ package enum HardwareKeyManager {
 
   /// Deletes local private signing key using Touch ID authorization.
   package static func deleteHardwareKey(
-    at keyURL: URL = SystemEnvironment.defaultSigningKeyURL
+    at keyURL: URL = SystemEnvironment.defaultSigningKeyURL,
+    token: BiometricAuthToken? = nil
   ) async throws {
-    let token = try await Authorizer.authorizeBiometrics(
-      reason: "Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key"
-    )
-    try SigningClient.deleteSigningKey(at: keyURL, token: token)
+    let authToken: BiometricAuthToken
+    if let token {
+      authToken = token
+    } else {
+      authToken = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to confirm deleting your Apple Secure Enclave signing key"
+      )
+    }
+    try SigningClient.deleteSigningKey(at: keyURL, token: authToken)
   }
 
   /// Rotates local hardware key, archiving old key with timestamp.
   package static func rotateHardwareKey(
-    at keyURL: URL = SystemEnvironment.defaultSigningKeyURL
+    at keyURL: URL = SystemEnvironment.defaultSigningKeyURL,
+    token: BiometricAuthToken? = nil
   ) async throws -> (archivedKeyURL: URL, newKeyURL: URL) {
     guard FileManager.default.fileExists(atPath: keyURL.path) else {
       throw KeyLifecycleError.keyNotFound(keyURL.path)
@@ -83,10 +96,15 @@ package enum HardwareKeyManager {
       try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
     }
 
-    let token = try await Authorizer.authorizeBiometrics(
-      reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
-    )
-    try SigningClient.generateSigningKey(at: keyURL, token: token)
+    let authToken: BiometricAuthToken
+    if let token {
+      authToken = token
+    } else {
+      authToken = try await Authorizer.authorizeBiometrics(
+        reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
+      )
+    }
+    try SigningClient.generateSigningKey(at: keyURL, token: authToken)
 
     return (archivedKeyURL: backupKey, newKeyURL: keyURL)
   }

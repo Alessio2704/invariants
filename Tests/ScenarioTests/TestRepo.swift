@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 
 @testable import Core
 
@@ -195,6 +196,20 @@ extension Registry {
       languages: languages,
       rules: rules,
       signersHash: signersHash
+    )
+  }
+}
+
+extension BiometricAuthToken {
+  static func forTesting(
+    context: LAContext = LAContext(),
+    authorizedAt: Date = Date(),
+    expirationInterval: TimeInterval = 30.0
+  ) -> BiometricAuthToken {
+    BiometricAuthToken(
+      context: context,
+      authorizedAt: authorizedAt,
+      expirationInterval: expirationInterval
     )
   }
 }

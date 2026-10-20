@@ -25,24 +25,11 @@ struct SignersCommand: AsyncParsableCommand {
     func run() async throws {
       let repoRoot = try RepoLocator.discover()
       try RepoLocator.withRepoRoot(repoRoot) {
-        let signersURL = RegistryManager.allowedSignersURL()
-
-        guard FileManager.default.fileExists(atPath: signersURL.path) else {
-          print("No invariants/allowed_signers file found at \(signersURL.path).")
-          return
-        }
-
-        let signersFile = try AllowedSignersFile.read(from: signersURL)
-        if signersFile.entries.isEmpty {
-          print("invariants/allowed_signers at \(signersURL.path) is empty.")
-          return
-        }
-
-        print("Trusted Invariant Signers (\(signersURL.path)):")
-        print("──────────────────────────────────────────────────")
-        for (index, entry) in signersFile.entries.enumerated() {
-          let status = entry.isActive() ? "Active" : "Discontinued / Expired"
-          print("[\(index + 1)] [\(status)] \(entry.serialize())")
+        do {
+          try SignersWorkflow.list()
+        } catch {
+          fputs("Error: \(error.localizedDescription)\n", stderr)
+          throw ExitCode(1)
         }
       }
     }
@@ -66,29 +53,12 @@ struct SignersCommand: AsyncParsableCommand {
     func run() async throws {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        let signersURL = RegistryManager.allowedSignersURL()
-
-        let keyContent: String
-        let expanded = (key as NSString).expandingTildeInPath
-        if FileManager.default.fileExists(atPath: expanded) {
-          keyContent = try URL(fileURLWithPath: expanded).readTrimmedUTF8()
-        } else {
-          keyContent = key.trimmed
-        }
-
-        guard keyContent.hasPrefix("ssh-") || keyContent.hasPrefix("ecdsa-") || keyContent.hasPrefix("sk-") else {
-          fputs("Error: Invalid SSH public key format. Must start with 'ssh-', 'ecdsa-', or 'sk-'.\n", stderr)
+        do {
+          try await SignersWorkflow.add(key: key, identity: identity, signingKey: signingKey)
+        } catch {
+          fputs("Error: \(error.localizedDescription)\n", stderr)
           throw ExitCode(1)
         }
-
-        let principal = identity ?? "*"
-        var signersFile = try AllowedSignersFile.read(from: signersURL)
-        try signersFile.addPublicKey(keyContent, principal: principal, namespaces: ["invariants"])
-        try signersFile.write(to: signersURL)
-
-        // Bump registry version & sign
-        try await SignersCommand.bumpAndSignRegistry(customSigningKey: signingKey)
-        print("✓ Added signer to \(signersURL.path) and signed updated registry.")
       }
     }
   }
@@ -111,37 +81,12 @@ struct SignersCommand: AsyncParsableCommand {
     func run() async throws {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        let signersURL = RegistryManager.allowedSignersURL()
-
-        guard FileManager.default.fileExists(atPath: signersURL.path) else {
-          fputs("Error: invariants/allowed_signers not found at \(signersURL.path).\n", stderr)
+        do {
+          try await SignersWorkflow.revoke(pattern: pattern, hard: hard, signingKey: signingKey)
+        } catch {
+          fputs("Error: \(error.localizedDescription)\n", stderr)
           throw ExitCode(1)
         }
-
-        var signersFile = try AllowedSignersFile.read(from: signersURL)
-        let matchedCount: Int
-
-        if hard {
-          let initialCount = signersFile.entries.count
-          signersFile.entries.removeAll {
-            $0.matches(keyString: pattern) || $0.principals.contains(pattern) || $0.comment?.contains(pattern) == true
-          }
-          matchedCount = initialCount - signersFile.entries.count
-        } else {
-          matchedCount = signersFile.revoke(keyDataOrSubstring: pattern, effectiveDate: Date())
-        }
-
-        guard matchedCount > 0 else {
-          print("No signers matched pattern '\(pattern)'.")
-          return
-        }
-
-        try signersFile.write(to: signersURL)
-
-        // Bump registry version & sign
-        try await SignersCommand.bumpAndSignRegistry(customSigningKey: signingKey)
-        let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
-        print("✓ \(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
       }
     }
   }
@@ -149,34 +94,41 @@ struct SignersCommand: AsyncParsableCommand {
   struct Rotate: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "rotate",
-      abstract: "Rotate the local Invariants signing key and update repository invariants/allowed_signers."
+      abstract: "Rotate an authorized signer key in repository invariants/allowed_signers."
     )
+
+    @Option(
+      name: .long,
+      help: "Pattern, identity, or key data of the old key being rotated. If omitted, detects most recent backup key."
+    )
+    var old: String?
+
+    @Option(
+      name: .long,
+      help:
+        "New public key string or path to new public key file. If omitted, uses local public key (~/.ssh/invariants_p256.pub)."
+    )
+    var new: String?
+
+    @Option(
+      name: .long,
+      help: "Sunset duration in seconds before the old key is fully revoked (default: 86400 / 24h)."
+    )
+    var sunset: TimeInterval = 86400
+
+    @Option(name: .long, help: "Path to your private signing key to authorize this rotation.")
+    var signingKey: String?
 
     func run() async throws {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        try await HardwareKeyWorkflow.rotateInRepo()
+        do {
+          try await SignersWorkflow.rotate(old: old, new: new, sunset: sunset, signingKey: signingKey)
+        } catch {
+          fputs("Error: \(error.localizedDescription)\n", stderr)
+          throw ExitCode(1)
+        }
       }
     }
-  }
-
-  private static func bumpAndSignRegistry(customSigningKey: String?) async throws {
-    let lockURL = RegistryManager.registryURL()
-
-    guard FileManager.default.fileExists(atPath: lockURL.path) else {
-      fputs("Error: registry.lock not found in \(RepoLocator.current.path).\n", stderr)
-      throw ExitCode(1)
-    }
-
-    let data = try Data(contentsOf: lockURL)
-    var registry = try CanonicalJSON.parse(data: data)
-
-    registry.version += 1
-    guard let keyURL = await SigningKeyWorkflow.resolveOrPrompt(customPath: customSigningKey) else {
-      fputs("Error: No Invariants signing key resolved to sign registry update.\n", stderr)
-      throw ExitCode(1)
-    }
-
-    try await RegistryManager.saveAndSign(registry: registry, keyURL: keyURL)
   }
 }
