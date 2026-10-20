@@ -36,7 +36,6 @@ public enum SigningClient: Sendable {
   /// Zero fallback.
   public static func generateSigningKey(
     at keyURL: URL,
-    comment: String = "invariants-owner",
     token: BiometricAuthToken
   ) throws(SystemError) {
     try token.validateFreshness()
@@ -87,7 +86,7 @@ public enum SigningClient: Sendable {
         "Failed to write private key token to \(keyURL.path): \(error.localizedDescription)")
     }
 
-    let pubString = SSHSIG.formatOpenSSHPublicKey(privateKey.publicKey, comment: comment)
+    let pubString = SSHSIG.formatOpenSSHPublicKey(privateKey.publicKey)
     let pubURL = keyURL.appendingPathExtension("pub")
     do {
       try pubString.write(to: pubURL, atomically: true, encoding: .utf8)

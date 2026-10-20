@@ -56,7 +56,7 @@ extension Registry {
 
 extension SigningClient {
   /// Generates an in-memory / software P-256 key pair for automated test suites.
-  static func generateThrowawayKey(at keyURL: URL, comment: String = "test-key") throws(SystemError) {
+  static func generateThrowawayKey(at keyURL: URL) throws(SystemError) {
     let parent = keyURL.deletingLastPathComponent()
     do {
       try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -72,7 +72,7 @@ extension SigningClient {
       throw SystemError.fileIOError("Failed to write test key to \(keyURL.path): \(error.localizedDescription)")
     }
 
-    let pubString = SSHSIG.formatOpenSSHPublicKey(privateKey.publicKey, comment: comment)
+    let pubString = SSHSIG.formatOpenSSHPublicKey(privateKey.publicKey)
     let pubURL = keyURL.appendingPathExtension("pub")
     do {
       try pubString.write(to: pubURL, atomically: true, encoding: .utf8)

@@ -9,10 +9,10 @@ struct SigningClientTests {
   @Test("OpenSSH wire format serialization and fingerprinting")
   func testPublicKeySerialization() async throws {
     let key = P256.Signing.PrivateKey()
-    let pubLine = SSHSIG.formatOpenSSHPublicKey(key.publicKey, comment: "test-user@invariants")
+    let pubLine = SSHSIG.formatOpenSSHPublicKey(key.publicKey)
 
     #expect(pubLine.hasPrefix("ecdsa-sha2-nistp256 "))
-    #expect(pubLine.contains(" test-user@invariants"))
+    #expect(pubLine.split(separator: " ").count == 2)
 
     let tmpPub = FileManager.default.temporaryDirectory
       .appendingPathComponent("test_pub_\(UUID().uuidString).pub")
@@ -35,7 +35,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
@@ -77,7 +77,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
@@ -114,7 +114,7 @@ struct SigningClientTests {
     let messageURL = tmpDir.appendingPathComponent("registry.lock")
     let signersURL = tmpDir.appendingPathComponent("allowed_signers")
 
-    try SigningClient.generateThrowawayKey(at: keyURL, comment: "lead@plans")
+    try SigningClient.generateThrowawayKey(at: keyURL)
 
     let messageContent = "{\"version\":1,\"rules\":[]}\n"
     try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)

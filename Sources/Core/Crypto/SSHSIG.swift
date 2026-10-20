@@ -44,12 +44,11 @@ public enum SSHSIG {
   }
 
   public static func formatOpenSSHPublicKey(
-    _ publicKey: P256.Signing.PublicKey,
-    comment: String = "invariants-owner"
+    _ publicKey: P256.Signing.PublicKey
   ) -> String {
     let wire = encodePublicKeyWire(publicKey)
     let b64 = wire.base64EncodedString()
-    return "\(keyType) \(b64) \(comment)\n"
+    return "\(keyType) \(b64)\n"
   }
 
   // MARK: - Signed Data Payload
