@@ -162,7 +162,7 @@ package enum ConfigWorkflow {
     registry.languages = newLanguages
     registry.version += 1
 
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
       throw ConfigWorkflowError.noSigningKey
     }
 

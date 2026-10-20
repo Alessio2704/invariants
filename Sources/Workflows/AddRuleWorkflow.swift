@@ -115,7 +115,7 @@ package enum AddRuleWorkflow {
     Terminal.field("Fingerprint:", value: treeHash)
 
     // 6. Resolve signing key
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
       throw AddRuleWorkflowError.noSigningKey
     }
 

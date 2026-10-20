@@ -276,7 +276,7 @@ package enum UpdateRuleWorkflow {
       return
     }
 
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: input.keyPath) else {
       throw UpdateRuleWorkflowError.noSigningKey
     }
 

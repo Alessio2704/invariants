@@ -50,7 +50,7 @@ package enum SignersWorkflow {
       at: signersURL
     )
 
-    let keyURL = try await resolveSigningKey(customPath: signingKey)
+    let keyURL = try resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
     Terminal.success("Added signer to \(signersURL.path) and signed updated registry.")
   }
@@ -72,7 +72,7 @@ package enum SignersWorkflow {
       return
     }
 
-    let keyURL = try await resolveSigningKey(customPath: signingKey)
+    let keyURL = try resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
     let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
     Terminal.success("\(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
@@ -135,13 +135,13 @@ package enum SignersWorkflow {
       at: signersURL
     )
 
-    let keyURL = try await resolveSigningKey(customPath: signingKey)
+    let keyURL = try resolveSigningKey(customPath: signingKey)
     try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
     Terminal.success("Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and signed updated registry.")
   }
 
-  private static func resolveSigningKey(customPath: String?) async throws -> URL {
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: customPath) else {
+  private static func resolveSigningKey(customPath: String?) throws -> URL {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: customPath) else {
       throw SystemError.fileIOError("No Invariants signing key resolved to sign registry update.")
     }
     return keyURL

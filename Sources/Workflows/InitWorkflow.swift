@@ -26,7 +26,7 @@ package enum InitWorkflow {
     Terminal.info("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
     // 1. Resolve signing key first (mandatory prerequisite for init)
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: input.keyPath) else {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: input.keyPath) else {
       throw InitWorkflowError.noSigningKey
     }
 

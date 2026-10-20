@@ -45,7 +45,7 @@ package enum RemoveRuleWorkflow {
     }
 
     // 3. Resolve key and sign
-    guard let keyURL = try await SigningKeyWorkflow.resolveOrPrompt(customPath: keyPath) else {
+    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
       throw RemoveRuleWorkflowError.noSigningKey
     }
 
