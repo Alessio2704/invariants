@@ -101,15 +101,13 @@ package enum AddRuleWorkflow {
     }
     Terminal.info("Repo impact preview: \(repoViolationsCount) violations on current codebase.")
 
-    if Terminal.isInteractive {
-      let confirm = try TerminalPrompt.promptConfirmation(
-        question: "Add and lock invariant '\(ruleId)' into registry v\(registry.version + 1)?",
-        default: true
-      )
-      guard confirm else {
-        Terminal.info("Aborted.")
-        return
-      }
+    let confirm = try TerminalPrompt.promptConfirmation(
+      question: "Add and lock invariant '\(ruleId)' into registry v\(registry.version + 1)?",
+      default: true
+    )
+    guard confirm else {
+      Terminal.info("Aborted.")
+      return
     }
 
     // 5. Compute tree hash

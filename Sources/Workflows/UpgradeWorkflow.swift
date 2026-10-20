@@ -78,15 +78,13 @@ package enum UpgradeWorkflow {
 
     Terminal.success("All active rule fixtures and repo checks passed under \(EngineVersion.current).")
 
-    if Terminal.isInteractive {
-      let confirm = try TerminalPrompt.promptConfirmation(
-        question: "Upgrade engine range from '\(registry.engine)' to '\(newRange)'?",
-        default: true
-      )
-      if !confirm {
-        Terminal.info("Aborted.")
-        return
-      }
+    let confirm = try TerminalPrompt.promptConfirmation(
+      question: "Upgrade engine range from '\(registry.engine)' to '\(newRange)'?",
+      default: true
+    )
+    if !confirm {
+      Terminal.info("Aborted.")
+      return
     }
 
     registry.engine = newRange

@@ -35,15 +35,13 @@ package enum RemoveRuleWorkflow {
       }
     }
 
-    if Terminal.isInteractive {
-      let confirm = try TerminalPrompt.promptConfirmation(
-        question: "Deactivate and remove invariant '\(ruleId)' from registry v\(registry.version + 1)?",
-        default: true
-      )
-      guard confirm else {
-        Terminal.info("Aborted.")
-        return
-      }
+    let confirm = try TerminalPrompt.promptConfirmation(
+      question: "Deactivate and remove invariant '\(ruleId)' from registry v\(registry.version + 1)?",
+      default: true
+    )
+    guard confirm else {
+      Terminal.info("Aborted.")
+      return
     }
 
     // 3. Resolve key and sign

@@ -6,12 +6,16 @@ import Terminal
 package enum SigningKeyWorkflow {
   /// Resolves the signing key from explicit path or default location, prompting the user interactively if missing.
   package static func resolveOrPrompt(customPath: String? = nil) async throws -> URL? {
-    if let resolved = SigningKeyResolver.resolveSigningKey(customPath: customPath) {
-      return resolved
+    if let customPath, !customPath.isEmpty {
+      let url = URL(fileURLWithPath: (customPath as NSString).expandingTildeInPath)
+      if FileManager.default.fileExists(atPath: url.path) {
+        return url
+      }
+      return nil
     }
 
-    guard Terminal.isInteractive else {
-      return nil
+    if let defaultKey = SigningKeyResolver.resolveSigningKey() {
+      return defaultKey
     }
 
     let shouldGenerate = try TerminalPrompt.promptConfirmation(

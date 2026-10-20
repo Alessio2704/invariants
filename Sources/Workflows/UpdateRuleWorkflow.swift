@@ -146,7 +146,7 @@ package enum UpdateRuleWorkflow {
       }
 
       var isConfirmed = context.input.confirm || (context.input.confirmId == context.input.id)
-      if !isConfirmed && Terminal.isInteractive {
+      if !isConfirmed {
         let typed = try TerminalPrompt.prompt(
           question: "\nTo confirm this weakening, please type the rule id '\(context.input.id)'")
         if typed == context.input.id {

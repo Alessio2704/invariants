@@ -22,14 +22,9 @@ package enum LanguageConfigWorkflow {
     let detected = LanguageConfigManager.detectLanguages()
 
     guard !detected.isEmpty else {
-      guard Terminal.isInteractive else { return [] }
       Terminal.line("")
       Terminal.warning("No known source files detected in repository.")
       return try promptForLanguageSelection()
-    }
-
-    guard Terminal.isInteractive else {
-      return detected
     }
 
     Terminal.line("")
@@ -88,7 +83,6 @@ package enum LanguageConfigWorkflow {
     let descriptor = spec.configPromptDescriptor
 
     if inputs.isEmpty {
-      guard Terminal.isInteractive else { return nil }
       Terminal.line("")
       Terminal.warning(descriptor.noInputsFoundMessage)
       let choice = try TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
@@ -96,17 +90,11 @@ package enum LanguageConfigWorkflow {
       return spec.makeConfig(from: [choice])
     }
 
-    guard Terminal.isInteractive else {
-      switch descriptor.selectionStyle {
-      case .single:
-        return spec.makeConfig(from: [inputs[0]])
-      case .multiple:
-        return spec.makeConfig(from: inputs)
-      }
-    }
-
     switch descriptor.selectionStyle {
     case .single(let selectionTitle):
+      if inputs.count == 1, let first = inputs.first {
+        return spec.makeConfig(from: [first])
+      }
       let options = inputs.map { TerminalPrompt.Option(value: $0, label: $0) }
       if let choice = try TerminalPrompt.promptSelection(
         title: selectionTitle,

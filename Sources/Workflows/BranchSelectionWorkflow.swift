@@ -20,7 +20,7 @@ package enum BranchSelectionWorkflow {
   /// Resolves the default trunk branch for repository initialization.
   package static func selectDefaultBranch(
     explicitBranch: String? = nil
-  ) async throws(BranchSelectionError) -> String {
+  ) async throws -> String {
     if let explicitBranch, !explicitBranch.isEmpty {
       return explicitBranch
     }
@@ -34,27 +34,16 @@ package enum BranchSelectionWorkflow {
       TerminalPrompt.Option(value: branch.name, label: branch.name, annotation: branch.annotation)
     }
 
-    guard Terminal.isInteractive else {
-      if let defaultBranch = repoInfo.defaultBranch?.name {
-        return defaultBranch
-      }
+    guard
+      let selected = try TerminalPrompt.promptSelection(
+        title: "Discovered branches in this repository:",
+        options: options,
+        default: 0,
+        customHandler: { $0 }
+      )
+    else {
       throw BranchSelectionError.noBranchesFound
     }
-
-    do {
-      guard
-        let selected = try TerminalPrompt.promptSelection(
-          title: "Discovered branches in this repository:",
-          options: options,
-          default: 0,
-          customHandler: { $0 }
-        )
-      else {
-        throw BranchSelectionError.noBranchesFound
-      }
-      return selected
-    } catch {
-      throw BranchSelectionError.noBranchesFound
-    }
+    return selected
   }
 }

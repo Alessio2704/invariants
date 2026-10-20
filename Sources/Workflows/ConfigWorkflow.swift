@@ -152,13 +152,11 @@ package enum ConfigWorkflow {
       throw ConfigWorkflowError.blindingDetected
     }
 
-    if Terminal.isInteractive {
-      let confirm = try TerminalPrompt.promptConfirmation(
-        question: "Sign and commit new configuration?", default: true)
-      guard confirm else {
-        Terminal.info("Aborted.")
-        return
-      }
+    let confirm = try TerminalPrompt.promptConfirmation(
+      question: "Sign and commit new configuration?", default: true)
+    guard confirm else {
+      Terminal.info("Aborted.")
+      return
     }
 
     registry.languages = newLanguages
@@ -196,11 +194,6 @@ package enum ConfigWorkflow {
 
     guard defaultBranch == nil else {
       return []
-    }
-
-    guard Terminal.isInteractive else {
-      Terminal.info("No configuration changes specified. Use --languages or --default-branch.")
-      return nil
     }
 
     let options = SupportedLanguage.allCases.map { lang in

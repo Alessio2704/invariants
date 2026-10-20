@@ -1,4 +1,5 @@
 import Foundation
+import Terminal
 import Testing
 
 @testable import Core
@@ -35,11 +36,13 @@ struct InitWorkflowTests {
     }
   }
 
-  @Test("InitWorkflow throws noLanguagesConfigured when language list is empty and no source files exist")
+  @Test(
+    "InitWorkflow throws TerminalPromptError when language list is empty, no source files exist, and environment is non-interactive"
+  )
   func throwsNoLanguagesConfigured() async throws {
     let repo = try await TestRepo()
     await repo.run {
-      await #expect(throws: InitWorkflowError.self) {
+      await #expect(throws: TerminalPromptError.self) {
         try await InitWorkflow.execute(
           input: .init(
             branch: "main",

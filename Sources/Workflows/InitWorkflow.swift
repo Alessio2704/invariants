@@ -45,7 +45,7 @@ package enum InitWorkflow {
       defaultBranch = try await BranchSelectionWorkflow.selectDefaultBranch(
         explicitBranch: input.branch
       )
-    } catch {
+    } catch is BranchSelectionError {
       throw InitWorkflowError.noBranchesFound
     }
 
