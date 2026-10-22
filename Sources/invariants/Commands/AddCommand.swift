@@ -13,14 +13,14 @@ struct AddCommand: AsyncParsableCommand {
   @Argument(help: "The rule ID to add.")
   var id: String
 
-  @Option(name: .long, help: "Custom SSH key path for signing.")
-  var key: String?
+  @OptionGroup
+  var signing: SigningOptions
 
   func run() async throws {
     do {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        try await AddRuleWorkflow.execute(ruleId: id, keyPath: key)
+        try await AddRuleWorkflow.execute(ruleId: id, keyPath: signing.key)
       }
     } catch {
       Terminal.error(error.localizedDescription)

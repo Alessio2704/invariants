@@ -43,19 +43,19 @@ struct SignersCommand: AsyncParsableCommand {
     )
 
     @Argument(help: "Path to public key file (e.g. ~/.ssh/invariants_p256.pub) or raw public key string.")
-    var key: String
+    var publicKey: String
 
     @Option(name: .long, help: "Identity / principal for the key (e.g. alice@plans.app).")
     var identity: String?
 
-    @Option(name: .long, help: "Path to your private signing key to authorize this addition.")
-    var signingKey: String?
+    @OptionGroup
+    var signing: SigningOptions
 
     func run() async throws {
       do {
         let repoRoot = try RepoLocator.discover()
         try await RepoLocator.withRepoRoot(repoRoot) {
-          try await SignersWorkflow.add(key: key, identity: identity, signingKey: signingKey)
+          try await SignersWorkflow.add(key: publicKey, identity: identity, signingKey: signing.key)
         }
       } catch {
         Terminal.error(error.localizedDescription)
@@ -76,14 +76,14 @@ struct SignersCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Hard revocation: completely delete the key instead of setting valid-before.")
     var hard: Bool = false
 
-    @Option(name: .long, help: "Path to your private signing key to authorize this revocation.")
-    var signingKey: String?
+    @OptionGroup
+    var signing: SigningOptions
 
     func run() async throws {
       do {
         let repoRoot = try RepoLocator.discover()
         try await RepoLocator.withRepoRoot(repoRoot) {
-          try await SignersWorkflow.revoke(pattern: pattern, hard: hard, signingKey: signingKey)
+          try await SignersWorkflow.revoke(pattern: pattern, hard: hard, signingKey: signing.key)
         }
       } catch {
         Terminal.error(error.localizedDescription)
@@ -117,14 +117,14 @@ struct SignersCommand: AsyncParsableCommand {
     )
     var sunset: TimeInterval = 86400
 
-    @Option(name: .long, help: "Path to your private signing key to authorize this rotation.")
-    var signingKey: String?
+    @OptionGroup
+    var signing: SigningOptions
 
     func run() async throws {
       do {
         let repoRoot = try RepoLocator.discover()
         try await RepoLocator.withRepoRoot(repoRoot) {
-          try await SignersWorkflow.rotate(old: old, new: new, sunset: sunset, signingKey: signingKey)
+          try await SignersWorkflow.rotate(old: old, new: new, sunset: sunset, signingKey: signing.key)
         }
       } catch {
         Terminal.error(error.localizedDescription)

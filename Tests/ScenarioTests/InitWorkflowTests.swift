@@ -10,9 +10,6 @@ struct InitWorkflowTests {
 
   @Test("InitWorkflowError descriptions are clear and informative")
   func errorDescriptions() {
-    let err1 = InitWorkflowError.noSigningKey
-    #expect(err1.errorDescription?.contains("No signing key selected") == true)
-
     let err2 = InitWorkflowError.noLanguagesConfigured
     #expect(err2.errorDescription?.contains("at least one supported language must be configured") == true)
 
@@ -20,11 +17,11 @@ struct InitWorkflowTests {
     #expect(err3.errorDescription?.contains("no git branches found") == true)
   }
 
-  @Test("InitWorkflow throws noSigningKey when key cannot be resolved")
-  func throwsNoSigningKey() async throws {
+  @Test("InitWorkflow throws SigningError when key cannot be resolved")
+  func throwsSigningError() async throws {
     let repo = try await TestRepo()
     await repo.run {
-      await #expect(throws: InitWorkflowError.self) {
+      await #expect(throws: SigningError.self) {
         try await InitWorkflow.execute(
           input: .init(
             branch: "main",

@@ -189,4 +189,56 @@ struct KeyDecouplingScenarioTests {
       #expect(!signersAfterRevoke.contains(where: { $0.principals.contains("dev@company.com") }))
     }
   }
+
+  @Test("Mutating workflows fail fast immediately with SigningError when called with unauthorized key")
+  func mutatingWorkflowsFailFastWithUnauthorizedKey() async throws {
+    let repo = try await TestRepo()
+    try repo.withRule("active-rule")
+    try await repo.signed(version: 1)
+
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("unauth_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    // Generate an outsider key NOT in allowed_signers
+    let outsiderKey = tmpDir.appendingPathComponent("id_outsider")
+    try SigningClient.generateThrowawayKey(at: outsiderKey)
+
+    try await repo.run {
+      // 1. AddRuleWorkflow fails fast
+      await #expect(throws: SigningError.self) {
+        try await AddRuleWorkflow.execute(ruleId: "new-rule", keyPath: outsiderKey.path)
+      }
+
+      // 2. RemoveRuleWorkflow fails fast
+      await #expect(throws: SigningError.self) {
+        try await RemoveRuleWorkflow.execute(ruleId: "active-rule", deleteFromDisk: false, keyPath: outsiderKey.path)
+      }
+
+      // 3. UpdateRuleWorkflow fails fast
+      await #expect(throws: SigningError.self) {
+        try await UpdateRuleWorkflow.execute(input: .init(id: "active-rule", keyPath: outsiderKey.path))
+      }
+
+      // 4. UpgradeWorkflow fails fast
+      await #expect(throws: SigningError.self) {
+        try await UpgradeWorkflow.execute(keyPath: outsiderKey.path)
+      }
+
+      // 5. ConfigWorkflow fails fast
+      await #expect(throws: SigningError.self) {
+        try await ConfigWorkflow.execute(languages: [.swift], defaultBranch: "main", keyPath: outsiderKey.path)
+      }
+
+      // 6. SignersWorkflow.add fails fast before modifying signers
+      await #expect(throws: SigningError.self) {
+        try await SignersWorkflow.add(
+          key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtV+fakeKey", identity: "attacker", signingKey: outsiderKey.path)
+      }
+
+      // Verify repository files were NEVER touched
+      let signersAfter = try SignersManager.loadSigners()
+      #expect(!signersAfter.contains(where: { $0.principals.contains("attacker") }))
+    }
+  }
 }

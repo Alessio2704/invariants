@@ -22,15 +22,15 @@ struct InitCommand: AsyncParsableCommand {
   )
   var languages: [SupportedLanguage] = []
 
-  @Option(name: .long, help: "Custom SSH key path for signing.")
-  var key: String?
+  @OptionGroup
+  var signing: SigningOptions
 
   func run() async throws {
     do {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
         try await InitWorkflow.execute(
-          input: .init(branch: branch, languages: languages, keyPath: key)
+          input: .init(branch: branch, languages: languages, keyPath: signing.key)
         )
       }
     } catch {

@@ -22,8 +22,8 @@ struct ConfigCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Default protected trunk branch name (e.g. main).")
   var defaultBranch: String?
 
-  @Option(name: .long, help: "Custom SSH key path for signing.")
-  var key: String?
+  @OptionGroup
+  var signing: SigningOptions
 
   func run() async throws {
     do {
@@ -32,7 +32,7 @@ struct ConfigCommand: AsyncParsableCommand {
         try await ConfigWorkflow.execute(
           languages: languages,
           defaultBranch: defaultBranch,
-          keyPath: key
+          keyPath: signing.key
         )
       }
     } catch {

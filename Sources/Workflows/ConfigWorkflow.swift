@@ -14,6 +14,9 @@ package enum ConfigWorkflow {
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
+    // 1. Authorize signing session upfront (fail-fast)
+    let session = try SigningSession.authorize(customPath: keyPath)
+
     var registry = try await RegistryManager.loadAndVerify(
       installedEngineVersion: EngineVersion.current
     )
@@ -162,14 +165,10 @@ package enum ConfigWorkflow {
     registry.languages = newLanguages
     registry.version += 1
 
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
-      throw ConfigWorkflowError.noSigningKey
-    }
-
     Terminal.info("Updating language analysis configuration in registry v\(registry.version)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
     try await GitClient.commit(
@@ -213,7 +212,6 @@ package enum ConfigWorkflow {
 package enum ConfigWorkflowError: LocalizedError, Sendable {
   case fixtureFailed(String)
   case blindingDetected
-  case noSigningKey
 
   package var errorDescription: String? {
     switch self {
@@ -221,8 +219,6 @@ package enum ConfigWorkflowError: LocalizedError, Sendable {
       return "Rule '\(ruleId)' fixture failed under new config."
     case .blindingDetected:
       return "Configuration change rejected: new inputs blind active rules."
-    case .noSigningKey:
-      return "No SSH signing key found."
     }
   }
 }

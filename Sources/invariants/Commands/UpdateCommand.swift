@@ -13,8 +13,8 @@ struct UpdateCommand: AsyncParsableCommand {
   @Argument(help: "The rule ID to update.")
   var id: String
 
-  @Option(name: .long, help: "Custom SSH key path for signing.")
-  var key: String?
+  @OptionGroup
+  var signing: SigningOptions
 
   @Option(name: .long, help: "Confirm update by providing the exact rule ID when weakening is detected.")
   var confirmId: String?
@@ -29,7 +29,7 @@ struct UpdateCommand: AsyncParsableCommand {
         try await UpdateRuleWorkflow.execute(
           input: .init(
             id: id,
-            keyPath: key,
+            keyPath: signing.key,
             confirmId: confirmId,
             confirm: confirm
           )

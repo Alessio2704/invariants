@@ -9,7 +9,10 @@ package enum AddRuleWorkflow {
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
 
-    // 1. Load registry
+    // 1. Authorize signing session upfront (fail-fast)
+    let session = try SigningSession.authorize(customPath: keyPath)
+
+    // 2. Load registry
     var registry = try await RegistryManager.loadAndVerify(
       installedEngineVersion: EngineVersion.current
     )
@@ -24,7 +27,7 @@ package enum AddRuleWorkflow {
       throw AddRuleWorkflowError.ruleDirectoryNotFound(ruleDir.path)
     }
 
-    // 2. Validate manifest and structure
+    // 3. Validate manifest and structure
     let manifest = try ManifestParser.load(from: ruleDir.appendingPathComponent("manifest.json"), expectedId: ruleId)
     try ManifestValidator.validateStructure(
       ruleDirectory: ruleDir,
@@ -33,7 +36,7 @@ package enum AddRuleWorkflow {
       isFixtureMode: false
     )
 
-    // 3. Self-test fixtures
+    // 4. Self-test fixtures
     Terminal.info("Running fixture self-test for '\(ruleId)'...")
     for target in manifest.targets {
       let cases = try FixtureDiscoverer.discover(
@@ -78,7 +81,7 @@ package enum AddRuleWorkflow {
     }
     Terminal.success("All fixtures passed.")
 
-    // 4. Repo impact preview
+    // 5. Repo impact preview
     var repoViolationsCount = 0
     for target in manifest.targets {
       guard let targetScope = manifest.scope[target] else { continue }
@@ -110,23 +113,18 @@ package enum AddRuleWorkflow {
       return
     }
 
-    // 5. Compute tree hash
+    // 6. Compute tree hash
     let treeHash = try await FingerprintEngine.computeFingerprint(ruleId: ruleId)
     Terminal.field("Fingerprint:", value: treeHash)
-
-    // 6. Resolve signing key
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
-      throw AddRuleWorkflowError.noSigningKey
-    }
 
     // 7. Update registry
     registry.version += 1
     registry.rules[ruleId] = treeHash
 
-    Terminal.info("Signing registry v\(registry.version) with key \(keyURL.lastPathComponent)...")
+    Terminal.info("Signing registry v\(registry.version) with key \(session.privateKeyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
     // 8. Commit
@@ -147,7 +145,6 @@ package enum AddRuleWorkflowError: LocalizedError, Sendable {
   case alreadyActive(String)
   case ruleDirectoryNotFound(String)
   case fixtureFailed(String)
-  case noSigningKey
 
   package var errorDescription: String? {
     switch self {
@@ -157,8 +154,6 @@ package enum AddRuleWorkflowError: LocalizedError, Sendable {
       return "Rule folder not found at \(path)"
     case .fixtureFailed(let reason):
       return reason
-    case .noSigningKey:
-      return "No signing key found. Run 'invariants key generate' or specify --key <path>."
     }
   }
 }

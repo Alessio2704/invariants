@@ -8,7 +8,10 @@ package enum RemoveRuleWorkflow {
     let repoRootURL = RepoLocator.current
     let fm = FileManager.default
 
-    // 1. Load registry
+    // 1. Authorize signing session upfront (fail-fast)
+    let session = try SigningSession.authorize(customPath: keyPath)
+
+    // 2. Load registry
     var registry = try await RegistryManager.loadAndVerify(
       installedEngineVersion: EngineVersion.current
     )
@@ -19,7 +22,7 @@ package enum RemoveRuleWorkflow {
 
     let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(ruleId)")
 
-    // 2. Remove rule
+    // 3. Remove rule
     registry.rules.removeValue(forKey: ruleId)
     registry.version += 1
 
@@ -44,18 +47,14 @@ package enum RemoveRuleWorkflow {
       return
     }
 
-    // 3. Resolve key and sign
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
-      throw RemoveRuleWorkflowError.noSigningKey
-    }
-
-    Terminal.info("Signing registry v\(registry.version)...")
+    // 4. Sign updated registry
+    Terminal.info("Signing registry v\(registry.version) with key \(session.privateKeyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
-    // 4. Commit
+    // 5. Commit
     try await GitClient.commit(
       paths: pathsToCommit,
       message: "Remove invariant '\(ruleId)' (registry v\(registry.version))"
@@ -70,14 +69,11 @@ package enum RemoveRuleWorkflow {
 
 package enum RemoveRuleWorkflowError: LocalizedError, Sendable {
   case notInRegistry(String)
-  case noSigningKey
 
   package var errorDescription: String? {
     switch self {
     case .notInRegistry(let id):
       return "Rule '\(id)' is not in registry."
-    case .noSigningKey:
-      return "No signing key found. Run 'invariants key generate' or specify --key <path>."
     }
   }
 }

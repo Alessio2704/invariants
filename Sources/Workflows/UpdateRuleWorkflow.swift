@@ -23,6 +23,9 @@ package enum UpdateRuleWorkflow {
     let env = SystemEnvironment.standard
     let fm = FileManager.default
 
+    // 1. Authorize signing session upfront (fail-fast)
+    let session = try SigningSession.authorize(customPath: input.keyPath)
+
     var registry = try await RegistryManager.loadAndVerify(
       installedEngineVersion: EngineVersion.current
     )
@@ -88,7 +91,8 @@ package enum UpdateRuleWorkflow {
     try await saveAndCommitUpdate(
       input: input,
       oldSignedTreeHash: oldSignedTreeHash,
-      registry: &registry
+      registry: &registry,
+      session: session
     )
   }
 
@@ -268,7 +272,8 @@ package enum UpdateRuleWorkflow {
   private static func saveAndCommitUpdate(
     input: Input,
     oldSignedTreeHash: String,
-    registry: inout Registry
+    registry: inout Registry,
+    session: SigningSession
   ) async throws {
     let newTreeHash = try await FingerprintEngine.computeFingerprint(ruleId: input.id)
     guard newTreeHash != oldSignedTreeHash else {
@@ -276,17 +281,13 @@ package enum UpdateRuleWorkflow {
       return
     }
 
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: input.keyPath) else {
-      throw UpdateRuleWorkflowError.noSigningKey
-    }
-
     registry.version += 1
     registry.rules[input.id] = newTreeHash
 
-    Terminal.info("Signing registry v\(registry.version) with \(keyURL.lastPathComponent)...")
+    Terminal.info("Signing registry v\(registry.version) with \(session.privateKeyURL.lastPathComponent)...")
     try await RegistryManager.saveAndSign(
       registry: registry,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
     try await GitClient.commit(
@@ -318,7 +319,6 @@ package enum UpdateRuleWorkflowError: LocalizedError, Sendable {
   case directoryMissing(String)
   case weakeningBlocked(String)
   case fixtureFailed(String)
-  case noSigningKey
 
   package var errorDescription: String? {
     switch self {
@@ -330,8 +330,6 @@ package enum UpdateRuleWorkflowError: LocalizedError, Sendable {
       return "Update blocked by weakening guard. Pass --confirm-id \(id) or type rule id to confirm."
     case .fixtureFailed(let reason):
       return reason
-    case .noSigningKey:
-      return "No signing key found. Run 'invariants key generate' or specify --key <path>."
     }
   }
 }

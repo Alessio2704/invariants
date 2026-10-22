@@ -25,10 +25,11 @@ package enum InitWorkflow {
 
     Terminal.info("Initializing invariants in \(repoRootURL.lastPathComponent)...")
 
-    // 1. Resolve signing key first (mandatory prerequisite for init)
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: input.keyPath) else {
-      throw InitWorkflowError.noSigningKey
-    }
+    // 1. Authorize signing session upfront (skipAllowedSignersCheck because init creates allowed_signers)
+    let session = try SigningSession.authorize(
+      customPath: input.keyPath,
+      skipAllowedSignersCheck: true
+    )
 
     // 2. Detect language inputs interactively or via flags
     let languagesConfig = try LanguageConfigWorkflow.resolveConfigurations(
@@ -54,10 +55,10 @@ package enum InitWorkflow {
       engineVersion: EngineVersion.current,
       defaultBranch: defaultBranch,
       languages: languagesConfig,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
-    Terminal.info("Signing registry v1 with \(keyURL.lastPathComponent)...")
+    Terminal.info("Signing registry v1 with \(session.privateKeyURL.lastPathComponent)...")
     try await InitManager.initialize(options: options)
 
     Terminal.success("Invariants initialized successfully in \(repoRootURL.lastPathComponent) (registry v1).")
@@ -72,14 +73,11 @@ package enum InitWorkflow {
 }
 
 package enum InitWorkflowError: LocalizedError, Sendable {
-  case noSigningKey
   case noLanguagesConfigured
   case noBranchesFound
 
   package var errorDescription: String? {
     switch self {
-    case .noSigningKey:
-      return "No signing key selected. Run 'invariants key generate' or specify --key <path>."
     case .noLanguagesConfigured:
       return
         "Repository initialization failed: at least one supported language must be configured. "

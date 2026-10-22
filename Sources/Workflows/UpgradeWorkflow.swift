@@ -10,6 +10,10 @@ package enum UpgradeWorkflow {
     let runner = RuleRunner(environment: env)
     let fm = FileManager.default
 
+    // 1. Authorize signing session upfront (fail-fast)
+    let session = try SigningSession.authorize(customPath: keyPath)
+
+    // 2. Load and verify registry
     var registry = try await RegistryManager.loadAndVerify(
       installedEngineVersion: EngineVersion.current
     )
@@ -90,13 +94,9 @@ package enum UpgradeWorkflow {
     registry.engine = newRange
     registry.version += 1
 
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: keyPath) else {
-      throw UpgradeWorkflowError.noSigningKey
-    }
-
     try await RegistryManager.saveAndSign(
       registry: registry,
-      keyURL: keyURL
+      keyURL: session.privateKeyURL
     )
 
     try await GitClient.commit(
@@ -113,14 +113,11 @@ package enum UpgradeWorkflow {
 
 package enum UpgradeWorkflowError: LocalizedError, Sendable {
   case fixtureFailed(String)
-  case noSigningKey
 
   package var errorDescription: String? {
     switch self {
     case .fixtureFailed(let ruleId):
       return "Rule '\(ruleId)' fixture failed under engine \(EngineVersion.current)."
-    case .noSigningKey:
-      return "No SSH signing key found."
     }
   }
 }

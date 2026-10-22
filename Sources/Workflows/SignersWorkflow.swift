@@ -30,6 +30,9 @@ package enum SignersWorkflow {
     identity: String?,
     signingKey: String?
   ) async throws {
+    // 1. Authorize signing session upfront (fail-fast before mutating allowed_signers)
+    let session = try SigningSession.authorize(customPath: signingKey)
+
     let signersURL = RegistryManager.allowedSignersURL()
     let keyContent: String
     let expanded = (key as NSString).expandingTildeInPath
@@ -50,8 +53,7 @@ package enum SignersWorkflow {
       at: signersURL
     )
 
-    let keyURL = try resolveSigningKey(customPath: signingKey)
-    try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
+    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
     Terminal.success("Added signer to \(signersURL.path) and signed updated registry.")
   }
 
@@ -60,6 +62,9 @@ package enum SignersWorkflow {
     hard: Bool,
     signingKey: String?
   ) async throws {
+    // 1. Authorize signing session upfront (fail-fast before mutating allowed_signers)
+    let session = try SigningSession.authorize(customPath: signingKey)
+
     let signersURL = RegistryManager.allowedSignersURL()
     let matchedCount = try SignersManager.revokeSigner(
       matching: pattern,
@@ -72,8 +77,7 @@ package enum SignersWorkflow {
       return
     }
 
-    let keyURL = try resolveSigningKey(customPath: signingKey)
-    try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
+    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
     let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
     Terminal.success("\(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
   }
@@ -84,10 +88,13 @@ package enum SignersWorkflow {
     sunset: TimeInterval = 86400,
     signingKey: String?
   ) async throws {
+    // 1. Authorize signing session upfront (fail-fast before mutating allowed_signers)
+    let session = try SigningSession.authorize(customPath: signingKey)
+
     let signersURL = RegistryManager.allowedSignersURL()
     let currentEntries = try SignersManager.loadSigners(at: signersURL)
 
-    // 1. Resolve new public key content
+    // 2. Resolve new public key content
     let newKeyContent: String
     if let new {
       let expanded = (new as NSString).expandingTildeInPath
@@ -110,7 +117,7 @@ package enum SignersWorkflow {
       throw SystemError.fileIOError("Invalid new SSH public key format. Must start with 'ssh-', 'ecdsa-', or 'sk-'.")
     }
 
-    // 2. Resolve old public key or pattern
+    // 3. Resolve old public key or pattern
     let oldKeyPattern: String
     if let old {
       let expanded = (old as NSString).expandingTildeInPath
@@ -135,16 +142,8 @@ package enum SignersWorkflow {
       at: signersURL
     )
 
-    let keyURL = try resolveSigningKey(customPath: signingKey)
-    try await SignersManager.bumpAndSignRegistry(keyURL: keyURL)
+    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
     Terminal.success("Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and signed updated registry.")
-  }
-
-  private static func resolveSigningKey(customPath: String?) throws -> URL {
-    guard let keyURL = SigningKeyWorkflow.resolve(customPath: customPath) else {
-      throw SystemError.fileIOError("No Invariants signing key resolved to sign registry update.")
-    }
-    return keyURL
   }
 
   private static func isValidSSHKey(_ key: String) -> Bool {

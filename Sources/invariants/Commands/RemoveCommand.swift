@@ -16,14 +16,14 @@ struct RemoveCommand: AsyncParsableCommand {
   @Flag(name: .long, help: "Delete the rule directory from disk instead of keeping it as a draft.")
   var delete: Bool = false
 
-  @Option(name: .long, help: "Custom SSH key path for signing.")
-  var key: String?
+  @OptionGroup
+  var signing: SigningOptions
 
   func run() async throws {
     do {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        try await RemoveRuleWorkflow.execute(ruleId: id, deleteFromDisk: delete, keyPath: key)
+        try await RemoveRuleWorkflow.execute(ruleId: id, deleteFromDisk: delete, keyPath: signing.key)
       }
     } catch {
       Terminal.error(error.localizedDescription)
