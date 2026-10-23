@@ -109,8 +109,13 @@ struct TerminalTests {
   func testTerminalKeyDecoder() {
     #expect(TerminalKeyDecoder.decode(bytes: [0x1B, UInt8(ascii: "["), UInt8(ascii: "A")]) == .up)
     #expect(TerminalKeyDecoder.decode(bytes: [0x1B, UInt8(ascii: "["), UInt8(ascii: "B")]) == .down)
+    #expect(TerminalKeyDecoder.decode(bytes: [0x1B, UInt8(ascii: "["), UInt8(ascii: "C")]) == .right)
+    #expect(TerminalKeyDecoder.decode(bytes: [0x1B, UInt8(ascii: "["), UInt8(ascii: "D")]) == .left)
+    #expect(TerminalKeyDecoder.decode(bytes: [0x1B, UInt8(ascii: "["), UInt8(ascii: "Z")]) == .unknown)
     #expect(TerminalKeyDecoder.decode(bytes: [UInt8(ascii: "k")]) == .up)
     #expect(TerminalKeyDecoder.decode(bytes: [UInt8(ascii: "j")]) == .down)
+    #expect(TerminalKeyDecoder.decode(bytes: [UInt8(ascii: "h")]) == .left)
+    #expect(TerminalKeyDecoder.decode(bytes: [UInt8(ascii: "l")]) == .right)
     #expect(TerminalKeyDecoder.decode(bytes: [0x20]) == .space)
     #expect(TerminalKeyDecoder.decode(bytes: [0x0A]) == .enter)
     #expect(TerminalKeyDecoder.decode(bytes: [0x0D]) == .enter)
@@ -172,6 +177,14 @@ struct TerminalTests {
 
     // Space toggles off index 0 (since number(1) moved cursor to 0)
     _ = engine.handleKey(.space)
+    #expect(engine.selectedIndices == [1, 2])
+
+    // Right explicitly selects current index 0
+    _ = engine.handleKey(.right)
+    #expect(engine.selectedIndices == [0, 1, 2])
+
+    // Left explicitly deselects current index 0
+    _ = engine.handleKey(.left)
     #expect(engine.selectedIndices == [1, 2])
 
     // Enter submits selected in option order

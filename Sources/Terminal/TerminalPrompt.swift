@@ -245,6 +245,14 @@ package final class RawTerminalSession {
               var thirdByte: UInt8 = 0
               if read(STDIN_FILENO, &thirdByte, 1) > 0 {
                 bytes.append(thirdByte)
+                while poll(&pfd, 1, 10) > 0 && (pfd.revents & Int16(POLLIN)) != 0 {
+                  var extraByte: UInt8 = 0
+                  if read(STDIN_FILENO, &extraByte, 1) > 0 {
+                    bytes.append(extraByte)
+                  } else {
+                    break
+                  }
+                }
               }
             }
           }

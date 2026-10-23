@@ -46,6 +46,16 @@ package struct MultiSelectEngine<T: Sendable>: Sendable {
         }
       }
       return .continue
+    case .right:
+      if options.indices.contains(cursorIndex) {
+        selectedIndices.insert(cursorIndex)
+      }
+      return .continue
+    case .left:
+      if options.indices.contains(cursorIndex) {
+        selectedIndices.remove(cursorIndex)
+      }
+      return .continue
     case .toggleAll:
       if selectedIndices.count == options.count {
         selectedIndices.removeAll()

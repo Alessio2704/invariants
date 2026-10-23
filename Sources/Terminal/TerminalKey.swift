@@ -3,6 +3,8 @@ import Foundation
 package enum TerminalKey: Equatable, Sendable {
   case up
   case down
+  case left
+  case right
   case space
   case enter
   case toggleAll
@@ -22,10 +24,16 @@ package enum TerminalKeyDecoder: Sendable {
         switch bytes[2] {
         case UInt8(ascii: "A"): return .up
         case UInt8(ascii: "B"): return .down
-        default: return .escape
+        case UInt8(ascii: "C"): return .right
+        case UInt8(ascii: "D"): return .left
+        default: return .unknown
         }
       }
-      return .escape
+      // Only standalone ESC (0x1B) with no trailing sequence cancels
+      if bytes.count == 1 {
+        return .escape
+      }
+      return .unknown
     }
 
     switch first {
@@ -39,6 +47,10 @@ package enum TerminalKeyDecoder: Sendable {
       return .up
     case UInt8(ascii: "j"), UInt8(ascii: "J"):
       return .down
+    case UInt8(ascii: "h"), UInt8(ascii: "H"):
+      return .left
+    case UInt8(ascii: "l"), UInt8(ascii: "L"):
+      return .right
     case UInt8(ascii: "a"), UInt8(ascii: "A"):
       return .toggleAll
     case UInt8(ascii: "c"), UInt8(ascii: "C"):
