@@ -259,7 +259,20 @@ struct KeyDecouplingScenarioTests {
   func newRuleWorkflowTargetsScaffolding() async throws {
     let repo = try await TestRepo()
 
-    // Scaffolds draft rule with targets
+    // 1. Throws notInitialized when invariants has not been initialized
+    repo.run {
+      #expect(throws: RuleScaffoldError.self) {
+        try NewRuleWorkflow.execute(id: "draft-multi", targets: [.swift, .ts])
+      }
+    }
+
+    // 2. Initialize with swift and ts configured
+    var languages = LanguagesConfig()
+    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build")
+    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    try await repo.signed(version: 1, languages: languages)
+
+    // 3. Scaffolds draft rule with targets
     try repo.run {
       try NewRuleWorkflow.execute(id: "draft-multi", targets: [.swift, .ts])
       let manifestURL = repo.repoURL.appendingPathComponent("invariants/rules/draft-multi/manifest.json")
@@ -272,6 +285,15 @@ struct KeyDecouplingScenarioTests {
       #expect(
         FileManager.default.fileExists(
           atPath: repo.repoURL.appendingPathComponent("invariants/rules/draft-multi/rule.ts").path))
+    }
+
+    // 4. Attempting to scaffold with unconfigured target throws targetNotConfigured
+    let swiftOnlyRepo = try await TestRepo()
+    try await swiftOnlyRepo.signed(version: 1)  // defaultLanguages is Swift only
+    swiftOnlyRepo.run {
+      #expect(throws: RuleScaffoldError.self) {
+        try NewRuleWorkflow.execute(id: "draft-ts", targets: [.ts])
+      }
     }
   }
 }

@@ -5,6 +5,9 @@ package enum RuleScaffoldError: LocalizedError, Sendable {
   case ruleAlreadyExists(String)
   case invalidTarget(String)
   case noTargetsSpecified
+  case notInitialized
+  case noConfiguredLanguages
+  case targetNotConfigured(TargetLanguage, configured: [TargetLanguage])
 
   package var errorDescription: String? {
     switch self {
@@ -14,6 +17,14 @@ package enum RuleScaffoldError: LocalizedError, Sendable {
       return "Unknown target language '\(target)'. Supported: swift, ts"
     case .noTargetsSpecified:
       return "Must specify at least one target language."
+    case .notInitialized:
+      return "Invariants has not been initialized in this repository. Run 'invariants init' first."
+    case .noConfiguredLanguages:
+      return
+        "No languages are configured for this repository. Run 'invariants config languages' to configure languages first."
+    case .targetNotConfigured(let target, let configured):
+      let names = configured.map(\.rawValue).joined(separator: ", ")
+      return "Language '\(target.rawValue)' is not configured in this repository. Configured languages: \(names)."
     }
   }
 }
