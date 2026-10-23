@@ -26,14 +26,11 @@ struct RuleCommand: AsyncParsableCommand {
     @Argument(help: "The unique identifier of the rule (e.g. no-raw-text).")
     var id: String
 
-    @Option(name: .long, help: "Comma-separated target languages: swift, ts.")
-    var targets: String = "swift"
-
     func run() async throws {
       do {
         let repoRoot = try RepoLocator.discover()
         try RepoLocator.withRepoRoot(repoRoot) {
-          try NewRuleWorkflow.execute(id: id, targets: targets)
+          try NewRuleWorkflow.execute(id: id)
         }
       } catch {
         Terminal.error(error.localizedDescription)

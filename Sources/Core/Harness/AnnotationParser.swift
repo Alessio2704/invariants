@@ -23,7 +23,8 @@ public enum AnnotationParser: Sendable {
       if let range = line.range(of: "expect:", options: .caseInsensitive) {
         let rest = line[range.upperBound...].trimmed
         let clean = rest.replacingOccurrences(of: "*/", with: "").trimmed
-        let codes = clean.split(separator: ",").map(\.trimmed).filter { !$0.isEmpty }
+        let delimiters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ","))
+        let codes = clean.components(separatedBy: delimiters).map(\.trimmed).filter { !$0.isEmpty }
 
         for code in codes {
           results.append(

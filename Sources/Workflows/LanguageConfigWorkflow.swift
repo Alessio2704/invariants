@@ -29,7 +29,7 @@ package enum LanguageConfigWorkflow {
     Terminal.line("")
     Terminal.header("Discovered languages in this repository:")
     for lang in detected {
-      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: " ")
       Terminal.item("\(lang.spec.displayName) (\(exts))")
     }
 
@@ -59,7 +59,7 @@ package enum LanguageConfigWorkflow {
   /// Prompts the user to select from available languages.
   package static func promptForLanguageSelection(title: String = "Available languages:") throws -> [SupportedLanguage] {
     let options = SupportedLanguage.allCases.map { lang in
-      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: ", ")
+      let exts = lang.spec.sourceExtensions.map { ".\($0)" }.joined(separator: " ")
       return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "extensions: \(exts)")
     }
     return try TerminalPrompt.promptMultiSelection(title: title, options: options)

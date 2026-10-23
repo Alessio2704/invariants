@@ -14,10 +14,10 @@ struct InitCommand: AsyncParsableCommand {
   var branch: String?
 
   @Option(
-    name: [.short, .customLong("languages"), .customLong("lang")],
+    name: [.short, .customLong("targets"), .customLong("target"), .customLong("languages"), .customLong("lang")],
     parsing: .upToNextOption,
     help: ArgumentHelp(
-      "Target languages to configure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")))."
+      "Target languages to configure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: " ")))."
     )
   )
   var languages: [SupportedLanguage] = []

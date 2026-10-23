@@ -117,11 +117,12 @@ package enum TerminalPrompt {
       Terminal.numbered(idx + 1, text: "\(opt.label)\(ann)")
     }
     let choice = try prompt(
-      question: "Select options (comma-separated numbers, e.g. 1, 2 or press Enter to skip)",
+      question: "Select options (e.g. 1 2, or press Enter to skip)",
       default: nil
     )
     guard !choice.isEmpty else { return [] }
-    let numbers = choice.split(separator: ",").compactMap { Int($0.trimmed) }
+    let delimiters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ","))
+    let numbers = choice.components(separatedBy: delimiters).compactMap { Int($0.trimmed) }
     return numbers.compactMap { num in
       guard num >= 1, num <= options.count else { return nil }
       return options[num - 1].value

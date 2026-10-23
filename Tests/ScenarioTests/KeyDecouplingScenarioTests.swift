@@ -254,4 +254,24 @@ struct KeyDecouplingScenarioTests {
       updateErr.errorDescription
         == "Rule 'sample-rule' is not currently active. Use 'invariants rule add sample-rule' to activate it.")
   }
+
+  @Test("NewRuleWorkflow scaffolds rules with targets")
+  func newRuleWorkflowTargetsScaffolding() async throws {
+    let repo = try await TestRepo()
+
+    // Scaffolds draft rule with targets
+    try repo.run {
+      try NewRuleWorkflow.execute(id: "draft-multi", targets: [.swift, .ts])
+      let manifestURL = repo.repoURL.appendingPathComponent("invariants/rules/draft-multi/manifest.json")
+      let manifestData = try Data(contentsOf: manifestURL)
+      let manifest = try ManifestParser.parse(data: manifestData)
+      #expect(manifest.targets == [.swift, .ts])
+      #expect(
+        FileManager.default.fileExists(
+          atPath: repo.repoURL.appendingPathComponent("invariants/rules/draft-multi/rule.swift").path))
+      #expect(
+        FileManager.default.fileExists(
+          atPath: repo.repoURL.appendingPathComponent("invariants/rules/draft-multi/rule.ts").path))
+    }
+  }
 }

@@ -11,10 +11,13 @@ struct ConfigCommand: AsyncParsableCommand {
   )
 
   @Option(
-    name: [.short, .customLong("languages"), .customLong("language"), .customLong("lang")],
+    name: [
+      .short, .customLong("targets"), .customLong("target"), .customLong("languages"), .customLong("language"),
+      .customLong("lang"),
+    ],
     parsing: .upToNextOption,
     help: ArgumentHelp(
-      "Target languages to reconfigure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: ", ")))."
+      "Target languages to reconfigure (\(SupportedLanguage.allCases.map(\.rawValue).joined(separator: " ")))."
     )
   )
   var languages: [SupportedLanguage] = []

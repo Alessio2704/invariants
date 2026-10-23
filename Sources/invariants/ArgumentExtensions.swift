@@ -1,5 +1,12 @@
 public import ArgumentParser
-import Core
+public import Core
 import Foundation
 
-extension SupportedLanguage: ExpressibleByArgument {}
+extension SupportedLanguage: ExpressibleByArgument {
+  public init?(argument: String) {
+    if argument.contains(",") {
+      return nil
+    }
+    self.init(rawValue: argument)
+  }
+}

@@ -222,8 +222,8 @@ This generates a disposable `invariants/.dev/` workspace (automatically ignored 
 
 ### Managing Rules
 ```bash
-# Create a new rule scaffold with manifest and fixture templates
-invariants rule new forbid-force-cast --target swift
+# Create a new rule scaffold (prompts for target language in terminal)
+invariants rule new forbid-force-cast
 
 # Test fixtures locally
 invariants rule test forbid-force-cast
