@@ -21,7 +21,7 @@ package enum HardwareKeyWorkflow {
         }
       }
       Terminal.info(
-        "Use 'invariants key show' to view your public key or 'invariants key reset' to generate a fresh one.")
+        "Use 'invariants key show' to view your public key or 'invariants key rotate' to generate a fresh one.")
       return defaultKey
     }
 
@@ -194,26 +194,6 @@ package enum HardwareKeyWorkflow {
     Terminal.info("If this key was registered in any Git projects, remember to have a team lead run:")
     Terminal.info("    invariants signers revoke \"<identity>\"")
     Terminal.info("in those repositories to remove its signing authorization.")
-  }
-
-  package static func reset(skipConfirmation: Bool = false) async throws {
-    let defaultKey = SystemEnvironment.defaultSigningKeyURL
-
-    if FileManager.default.fileExists(atPath: defaultKey.path) {
-      if !skipConfirmation {
-        let confirmed = try TerminalPrompt.promptConfirmation(
-          question: "This will archive your current key and generate a brand-new one. Continue?",
-          default: false
-        )
-        guard confirmed else {
-          Terminal.info("Aborted.")
-          return
-        }
-      }
-    }
-
-    try await rotate()
-    Terminal.success("Generated fresh Secure Enclave signing key: \(defaultKey.path)")
   }
 
   package static func clean(skipConfirmation: Bool = false) throws {

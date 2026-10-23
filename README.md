@@ -261,8 +261,8 @@ invariants key status
 # Safely delete local private key from this machine
 invariants key delete
 
-# Reset and generate a fresh Secure Enclave key
-invariants key reset
+# Rotate and generate a fresh Secure Enclave key (archives old key)
+invariants key rotate
 
 # Clean up old rotation backup files (.bak-*) from ~/.ssh/
 invariants key clean

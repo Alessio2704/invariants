@@ -96,9 +96,9 @@ struct KeyLifecycleTests {
     #expect(unknownMatch == nil)
   }
 
-  @Test("Key reset archives old credentials and generates a fresh keypair")
-  func keyResetArchiving() async throws {
-    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("reset_test_\(UUID().uuidString)")
+  @Test("Key rotation archives old credentials and generates a fresh keypair")
+  func keyRotationArchiving() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("rotate_test_\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -109,7 +109,7 @@ struct KeyLifecycleTests {
 
     let originalPub = try defaultPub.readTrimmedUTF8()
 
-    // Perform reset: archive old to backup
+    // Perform rotation: archive old to backup
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyyMMddHHmmss"
     formatter.timeZone = TimeZone(secondsFromGMT: 0)

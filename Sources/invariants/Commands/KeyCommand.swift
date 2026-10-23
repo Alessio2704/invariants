@@ -13,7 +13,6 @@ struct KeyCommand: AsyncParsableCommand {
       Status.self,
       Rotate.self,
       Delete.self,
-      Reset.self,
       Clean.self,
     ],
     defaultSubcommand: Status.self
@@ -93,25 +92,6 @@ struct KeyCommand: AsyncParsableCommand {
     func run() async throws {
       do {
         try await HardwareKeyWorkflow.delete(skipConfirmation: yes)
-      } catch {
-        Terminal.error(error.localizedDescription)
-        throw ExitCode(1)
-      }
-    }
-  }
-
-  struct Reset: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "reset",
-      abstract: "Archive current signing key and generate a fresh Secure Enclave key."
-    )
-
-    @Flag(name: [.customShort("y"), .long], help: "Skip confirmation prompt.")
-    var yes: Bool = false
-
-    func run() async throws {
-      do {
-        try await HardwareKeyWorkflow.reset(skipConfirmation: yes)
       } catch {
         Terminal.error(error.localizedDescription)
         throw ExitCode(1)
