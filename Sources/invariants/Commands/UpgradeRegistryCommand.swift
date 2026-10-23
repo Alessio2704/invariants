@@ -4,9 +4,9 @@ import Foundation
 import Terminal
 import Workflows
 
-struct UpgradeCommand: AsyncParsableCommand {
+struct UpgradeRegistryCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
-    commandName: "upgrade",
+    commandName: "upgrade-registry",
     abstract: "Re-verify rules and upgrade engine range in registry after an engine version update."
   )
 

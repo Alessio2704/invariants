@@ -96,7 +96,7 @@ public enum ReportFormatter {
         let sH = item.signedHash?.prefix(6) ?? ""
         let cH = item.currentHash?.prefix(6) ?? ""
         lines.append("\(item.ruleId)  ✎ modified since signed (\(sH) → \(cH))")
-        lines.append("    signed version enforced; run `invariants update \(item.ruleId)`")
+        lines.append("    signed version enforced; run `invariants rule update \(item.ruleId)`")
       case .draft:
         let passed = item.draftPassedFixtures ?? 0
         let total = item.draftTotalFixtures ?? 0

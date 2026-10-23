@@ -5,7 +5,7 @@ if command -v invariants >/dev/null 2>&1; then
   INSTALLED_V="$(invariants --version 2>/dev/null || echo 'installed')"
   echo "✓ Invariants is already installed on this machine (${INSTALLED_V})."
   echo "To upgrade to the latest version, run:"
-  echo "    invariants upgrade"
+  echo "    invariants self-update"
   echo "To manage your keys or repository invariants, run:"
   echo "    invariants key status"
   exit 0

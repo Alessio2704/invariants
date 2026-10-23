@@ -165,6 +165,7 @@ struct ScenarioTests {
     #expect(textOutput.contains("ERR-01"))
     #expect(textOutput.contains("rule-b"))
     #expect(textOutput.contains("modified"))
+    #expect(textOutput.contains("run `invariants rule update rule-b`"))
     #expect(textOutput.contains("rule-c"))
     #expect(textOutput.contains("draft"))
 

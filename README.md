@@ -216,23 +216,26 @@ invariants init --branch main
 ### Authoring Rules with Full IDE Autocompletion
 Rules live in standalone files. To get syntax highlighting, jump-to-definition, and autocomplete for `InvariantKit` in Xcode or VS Code:
 ```bash
-invariants dev
+invariants dev-workspace
 ```
 This generates a disposable `invariants/.dev/` workspace (automatically ignored by Git) linking directly to `InvariantKit`.
 
-### Adding & Updating Rules
+### Managing Rules
 ```bash
 # Create a new rule scaffold with manifest and fixture templates
-invariants new forbid-force-cast --target swift
+invariants rule new forbid-force-cast --target swift
 
 # Test fixtures locally
-invariants test forbid-force-cast
+invariants rule test forbid-force-cast
 
 # Lock and sign the rule into registry.lock (prompts for Touch ID)
-invariants add forbid-force-cast
+invariants rule add forbid-force-cast
 
 # Update an existing rule after modifying fixtures (prompts for Touch ID)
-invariants update forbid-force-cast
+invariants rule update forbid-force-cast
+
+# Deactivate an invariant rule and remove it from the signed registry
+invariants rule remove forbid-force-cast
 ```
 
 ### Checking Invariants

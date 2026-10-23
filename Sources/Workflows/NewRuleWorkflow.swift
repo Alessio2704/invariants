@@ -30,7 +30,7 @@ package enum NewRuleWorkflow {
     Terminal.info("Next steps:")
     Terminal.info("  1. Write fixtures first in should_fail and should_pass (they are the spec).")
     Terminal.info("  2. Implement the check in rule.\(declaredTargets[0].rawValue).")
-    Terminal.info("  3. Run 'invariants test \(id)' until green.")
-    Terminal.info("  4. Run 'invariants add \(id)' to lock and activate with Touch ID.")
+    Terminal.info("  3. Run 'invariants rule test \(id)' until green.")
+    Terminal.info("  4. Run 'invariants rule add \(id)' to lock and activate with Touch ID.")
   }
 }

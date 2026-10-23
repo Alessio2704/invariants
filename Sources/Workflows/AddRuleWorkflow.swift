@@ -149,7 +149,7 @@ package enum AddRuleWorkflowError: LocalizedError, Sendable {
   package var errorDescription: String? {
     switch self {
     case .alreadyActive(let id):
-      return "Rule '\(id)' is already active in registry. Use 'invariants update \(id)' instead."
+      return "Rule '\(id)' is already active in registry. Use 'invariants rule update \(id)' instead."
     case .ruleDirectoryNotFound(let path):
       return "Rule folder not found at \(path)"
     case .fixtureFailed(let reason):

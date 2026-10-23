@@ -323,7 +323,7 @@ package enum UpdateRuleWorkflowError: LocalizedError, Sendable {
   package var errorDescription: String? {
     switch self {
     case .notActive(let id):
-      return "Rule '\(id)' is not currently active. Use 'invariants add \(id)' to activate it."
+      return "Rule '\(id)' is not currently active. Use 'invariants rule add \(id)' to activate it."
     case .directoryMissing(let path):
       return "Working tree directory missing at \(path)"
     case .weakeningBlocked(let id):

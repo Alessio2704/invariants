@@ -4,9 +4,9 @@ import Foundation
 import Terminal
 import Workflows
 
-struct DevCommand: AsyncParsableCommand {
+struct DevWorkspaceCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
-    commandName: "dev",
+    commandName: "dev-workspace",
     abstract: "Scaffold an autocompletion development workspace in invariants/.dev/."
   )
 

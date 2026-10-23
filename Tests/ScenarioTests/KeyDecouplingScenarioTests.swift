@@ -241,4 +241,17 @@ struct KeyDecouplingScenarioTests {
       #expect(!signersAfter.contains(where: { $0.principals.contains("attacker") }))
     }
   }
+
+  @Test("Rule guidance messages refer to 'invariants rule <action>'")
+  func ruleGuidanceMessagesReferToRuleSubcommands() {
+    let addErr = AddRuleWorkflowError.alreadyActive("sample-rule")
+    #expect(
+      addErr.errorDescription
+        == "Rule 'sample-rule' is already active in registry. Use 'invariants rule update sample-rule' instead.")
+
+    let updateErr = UpdateRuleWorkflowError.notActive("sample-rule")
+    #expect(
+      updateErr.errorDescription
+        == "Rule 'sample-rule' is not currently active. Use 'invariants rule add sample-rule' to activate it.")
+  }
 }
