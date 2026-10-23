@@ -109,10 +109,11 @@ package enum SignersManager {
   }
 
   /// Increments registry version and signs with the given signing key.
+  @discardableResult
   package static func bumpAndSignRegistry(
     keyURL: URL,
     at lockURL: URL? = nil
-  ) async throws {
+  ) async throws -> Int {
     let targetURL = lockURL ?? RegistryManager.registryURL()
     guard FileManager.default.fileExists(atPath: targetURL.path) else {
       throw SystemError.fileIOError("registry.lock not found at \(targetURL.path)")
@@ -121,5 +122,6 @@ package enum SignersManager {
     var registry = try CanonicalJSON.parse(data: data)
     registry.version += 1
     try await RegistryManager.saveAndSign(registry: registry, keyURL: keyURL)
+    return registry.version
   }
 }

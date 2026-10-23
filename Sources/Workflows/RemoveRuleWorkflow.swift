@@ -22,9 +22,19 @@ package enum RemoveRuleWorkflow {
 
     let ruleDir = repoRootURL.appendingPathComponent("invariants/rules/\(ruleId)")
 
-    // 3. Remove rule
+    // 3. Confirm before modifying any files or bumping version
+    let targetVersion = registry.version + 1
+    let confirm = try TerminalPrompt.promptConfirmation(
+      question: "Deactivate and remove invariant '\(ruleId)' from registry v\(targetVersion)?",
+      default: true
+    )
+    guard confirm else {
+      Terminal.info("Aborted.")
+      return
+    }
+
     registry.rules.removeValue(forKey: ruleId)
-    registry.version += 1
+    registry.version = targetVersion
 
     var pathsToCommit = [
       "invariants/registry.lock",
@@ -36,15 +46,6 @@ package enum RemoveRuleWorkflow {
         try fm.removeItem(at: ruleDir)
         pathsToCommit.append("invariants/rules/\(ruleId)")
       }
-    }
-
-    let confirm = try TerminalPrompt.promptConfirmation(
-      question: "Deactivate and remove invariant '\(ruleId)' from registry v\(registry.version + 1)?",
-      default: true
-    )
-    guard confirm else {
-      Terminal.info("Aborted.")
-      return
     }
 
     // 4. Sign updated registry

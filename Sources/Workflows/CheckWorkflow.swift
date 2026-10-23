@@ -85,6 +85,10 @@ package enum CheckWorkflow {
     if json {
       FileHandle.standardOutput.write(Data(ReportFormatter.formatJSON(report).utf8))
     } else {
+      if report.isShallowRepository {
+        let msg = "Notice: Running in a shallow clone. Configure 'fetch-depth: 0' in CI for complete history."
+        Terminal.warning(msg)
+      }
       FileHandle.standardOutput.write(Data(ReportFormatter.formatText(report).utf8))
     }
 

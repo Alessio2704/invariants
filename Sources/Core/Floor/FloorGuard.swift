@@ -95,9 +95,11 @@ public enum FloorGuard: Sendable {
   /// Verifies that every transition of registry.lock in commit history was signed by a key
   /// authorized in the parent commit's allowed_signers, and that any uncommitted changes
   /// in the working tree are valid against HEAD's allowed_signers.
+  @discardableResult
   public static func checkSignerAncestry(
     currentRegistry: Registry
-  ) async throws(FloorError) {
+  ) async throws(FloorError) -> Bool {
+    let isShallow = await GitClient.isShallowRepository()
     // 1. Walk commit history touching invariants/registry.lock
     let commits: [String]
     do {
@@ -158,10 +160,13 @@ public enum FloorGuard: Sendable {
         signersToVerifyAgainst = commitSigners
       }
 
+      let commitDate = await GitClient.commitDate(commit: commit)
+
       let isValid = try await verifySignatureAgainstSigners(
         signersContent: signersToVerifyAgainst,
         lockContent: commitLock,
-        sigContent: commitSig
+        sigContent: commitSig,
+        verifyTime: commitDate
       )
 
       if !isValid {
@@ -181,7 +186,7 @@ public enum FloorGuard: Sendable {
       let committedLock = lastCommitLock
     else {
       // No committed registry.lock history yet (initial repo setup), nothing to verify against ancestor.
-      return
+      return isShallow
     }
 
     let lockURL = RegistryManager.registryURL()
@@ -213,12 +218,15 @@ public enum FloorGuard: Sendable {
         )
       }
     }
+
+    return isShallow
   }
 
   private static func verifySignatureAgainstSigners(
     signersContent: String,
     lockContent: String,
-    sigContent: String
+    sigContent: String,
+    verifyTime: String? = nil
   ) async throws(FloorError) -> Bool {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent("ancestry_check_\(UUID().uuidString)")
@@ -247,7 +255,8 @@ public enum FloorGuard: Sendable {
         identity: "*",
         namespace: "invariants",
         signatureURL: sigURL,
-        fileURL: lockURL
+        fileURL: lockURL,
+        verifyTime: verifyTime
       )
     } catch {
       return false

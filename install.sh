@@ -32,6 +32,11 @@ echo "Cloning Invariants ($TAG) from $REPO_URL..."
 echo "Building release binary..."
 /usr/bin/xcrun swift build -c release --only-use-versions-from-resolved-file --package-path "$WORK"
 
+if [ -d "$WORK/kits/kit-ts" ] && command -v npm >/dev/null 2>&1; then
+  echo "Installing TypeScript kit runtime dependencies..."
+  (cd "$WORK/kits/kit-ts" && npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --ignore-scripts) || true
+fi
+
 echo "Installing version $V to $PREFIX..."
 if [ "${PREFIX#/usr/local/invariants}" != "$PREFIX" ]; then
   SUDO="sudo"

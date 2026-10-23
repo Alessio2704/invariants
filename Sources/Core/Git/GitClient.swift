@@ -135,7 +135,40 @@ public enum GitClient: Sendable {
     return output.exitCode == 0
   }
 
-  /// Stages files and commits them.
+  /// Returns the commit's author date in UTC formatted as "yyyyMMddHHmmss" for OpenSSH -Overify-time.
+  public static func commitDate(commit: String) async -> String? {
+    let repoRoot = RepoLocator.current
+    guard
+      let output = try? await SubprocessRunner.run(
+        binary: .git,
+        arguments: ["-C", repoRoot.path, "log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S", commit],
+        workingDirectory: repoRoot,
+        checkExitCode: false
+      )
+    else {
+      return nil
+    }
+    let trimmed = output.stdoutString.trimmed
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  /// Checks if the git repository is a shallow clone (e.g. cloned with --depth).
+  public static func isShallowRepository() async -> Bool {
+    let repoRoot = RepoLocator.current
+    guard
+      let output = try? await SubprocessRunner.run(
+        binary: .git,
+        arguments: ["-C", repoRoot.path, "rev-parse", "--is-shallow-repository"],
+        workingDirectory: repoRoot,
+        checkExitCode: false
+      )
+    else {
+      return false
+    }
+    return output.stdoutString.trimmed == "true"
+  }
+
+  /// Stages files and commits only the specified paths, keeping other staged files intact.
   public static func commit(
     paths: [String],
     message: String
@@ -157,15 +190,17 @@ public enum GitClient: Sendable {
       )
     }
 
+    var commitArgs = ["-C", repoRoot.path, "commit", "-m", message, "--"]
+    commitArgs.append(contentsOf: paths)
     let commitOutput = try await SubprocessRunner.run(
       binary: .git,
-      arguments: ["-C", repoRoot.path, "commit", "-m", message],
+      arguments: commitArgs,
       workingDirectory: repoRoot
     )
     guard commitOutput.exitCode == 0 else {
       throw SystemError.processFailed(
         executable: SystemBinary.git.path,
-        arguments: ["commit", "-m", message],
+        arguments: commitArgs,
         exitCode: commitOutput.exitCode,
         stderr: commitOutput.stderrString
       )

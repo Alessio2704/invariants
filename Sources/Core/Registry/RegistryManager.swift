@@ -18,7 +18,8 @@ public enum RegistryManager: Sendable {
   /// Loads, parses, and cryptographically verifies `registry.lock`.
   public static func loadAndVerify(
     installedEngineVersion: String = "1.0.0",
-    identity: String = "owner"
+    identity: String = "owner",
+    allowEngineMismatch: Bool = false
   ) async throws(RegistryError) -> Registry {
     let lockURL = Self.registryURL()
     let sigURL = Self.signatureURL()
@@ -77,8 +78,8 @@ public enum RegistryManager: Sendable {
       throw RegistryError.signatureInvalid("Signature in \(sigURL.path) is invalid for \(lockURL.path)")
     }
 
-    // Check engine semver range
-    if let currentSemver = Semver(string: installedEngineVersion) {
+    // Check engine semver range unless explicitly bypassed (e.g. during upgrade-registry)
+    if !allowEngineMismatch, let currentSemver = Semver(string: installedEngineVersion) {
       let range = SemverRange(registry.engine)
       if !range.satisfies(currentSemver) {
         throw RegistryError.engineVersionMismatch(required: registry.engine, installed: installedEngineVersion)

@@ -96,15 +96,24 @@ package enum HardwareKeyManager {
       try FileManager.default.moveItem(at: oldPubURL, to: backupPub)
     }
 
-    let authToken: BiometricAuthToken
-    if let token {
-      authToken = token
-    } else {
-      authToken = try await Authorizer.authorizeBiometrics(
-        reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
-      )
+    do {
+      let authToken: BiometricAuthToken
+      if let token {
+        authToken = token
+      } else {
+        authToken = try await Authorizer.authorizeBiometrics(
+          reason: "Touch your Touch ID sensor to enroll a new hardware signing key in Apple Secure Enclave"
+        )
+      }
+      try SigningClient.generateSigningKey(at: keyURL, token: authToken)
+    } catch {
+      // Rollback to prevent leaving the user without an active key if authorization or generation fails
+      try? FileManager.default.moveItem(at: backupKey, to: keyURL)
+      if FileManager.default.fileExists(atPath: backupPub.path) {
+        try? FileManager.default.moveItem(at: backupPub, to: oldPubURL)
+      }
+      throw error
     }
-    try SigningClient.generateSigningKey(at: keyURL, token: authToken)
 
     return (archivedKeyURL: backupKey, newKeyURL: keyURL)
   }

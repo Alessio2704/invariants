@@ -160,6 +160,10 @@ public enum SigningClient: Sendable {
     do {
       seKey = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: keyData, authenticationContext: authContext)
     } catch {
+      if let str = String(data: keyData.prefix(64), encoding: .utf8), str.contains("BEGIN") {
+        let msg = "Key at \(keyURL.path) is an OpenSSH key; Invariants requires an Apple Secure Enclave key handle."
+        throw SystemError.cryptographicError(msg)
+      }
       throw SystemError.cryptographicError(
         "Failed to load Secure Enclave key from \(keyURL.path): \(error.localizedDescription)"
       )
@@ -186,13 +190,41 @@ public enum SigningClient: Sendable {
     }
   }
 
+  /// Finds matching principal(s) for a signature from an allowed_signers file using `ssh-keygen -Y find-principals`.
+  public static func findPrincipal(
+    allowedSignersURL: URL,
+    signatureURL: URL
+  ) async throws(SystemError) -> String? {
+    guard FileManager.default.fileExists(atPath: allowedSignersURL.path),
+      FileManager.default.fileExists(atPath: signatureURL.path)
+    else {
+      return nil
+    }
+
+    let output = try await SubprocessRunner.run(
+      binary: .sshKeygen,
+      arguments: [
+        "-Y", "find-principals",
+        "-f", allowedSignersURL.path,
+        "-s", signatureURL.path,
+      ],
+      checkExitCode: false
+    )
+    guard output.exitCode == 0 else {
+      return nil
+    }
+    let principal = output.stdoutString.components(separatedBy: .newlines).map(\.trimmed).first { !$0.isEmpty }
+    return principal
+  }
+
   /// Verifies a file signature using `ssh-keygen -Y verify -f <allowedSigners> -I <identity> -n <namespace> -s <sigFile> < <file>`.
   public static func verify(
     allowedSignersURL: URL,
     identity: String = "owner",
     namespace: String = "invariants",
     signatureURL: URL,
-    fileURL: URL
+    fileURL: URL,
+    verifyTime: String? = nil
   ) async throws(SystemError) -> Bool {
     guard FileManager.default.fileExists(atPath: allowedSignersURL.path) else {
       return false
@@ -211,15 +243,34 @@ public enum SigningClient: Sendable {
       throw SystemError.fileIOError("Failed to read file for verification: \(error.localizedDescription)")
     }
 
+    let effectiveIdentity: String
+    let isDefaultIdentity = identity == "owner" || identity == "*"
+    let discovered: String?
+    if isDefaultIdentity {
+      discovered = try await findPrincipal(allowedSignersURL: allowedSignersURL, signatureURL: signatureURL)
+    } else {
+      discovered = nil
+    }
+    if let discovered, !discovered.isEmpty {
+      effectiveIdentity = discovered
+    } else {
+      effectiveIdentity = identity
+    }
+
+    var args = ["-Y", "verify"]
+    if let verifyTime, !verifyTime.isEmpty {
+      args.append("-Overify-time=\(verifyTime)")
+    }
+    args.append(contentsOf: [
+      "-f", allowedSignersURL.path,
+      "-I", effectiveIdentity,
+      "-n", namespace,
+      "-s", signatureURL.path,
+    ])
+
     let output = try await SubprocessRunner.run(
       binary: .sshKeygen,
-      arguments: [
-        "-Y", "verify",
-        "-f", allowedSignersURL.path,
-        "-I", identity,
-        "-n", namespace,
-        "-s", signatureURL.path,
-      ],
+      arguments: args,
       stdinData: fileData
     )
     return output.exitCode == 0

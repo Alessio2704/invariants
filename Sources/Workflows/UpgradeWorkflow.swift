@@ -13,9 +13,10 @@ package enum UpgradeWorkflow {
     // 1. Authorize signing session upfront (fail-fast)
     let session = try SigningSession.authorize(customPath: keyPath)
 
-    // 2. Load and verify registry
+    // 2. Load and verify registry (allow engine mismatch so new major versions can upgrade the lockfile)
     var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
+      installedEngineVersion: EngineVersion.current,
+      allowEngineMismatch: true
     )
 
     let newRange = "^\(EngineVersion.current)"

@@ -42,8 +42,8 @@ struct SignersCommand: AsyncParsableCommand {
       abstract: "Add an SSH public key to repository invariants/allowed_signers."
     )
 
-    @Argument(help: "Path to public key file (e.g. ~/.ssh/invariants_p256.pub) or raw public key string.")
-    var publicKey: String
+    @Argument(help: "Path to public key file, raw public key string, or '[identity] <publicKey>'.")
+    var arguments: [String] = []
 
     @Option(name: .long, help: "Identity / principal for the key (e.g. alice@plans.app).")
     var identity: String?
@@ -52,10 +52,25 @@ struct SignersCommand: AsyncParsableCommand {
     var signing: SigningOptions
 
     func run() async throws {
+      guard !arguments.isEmpty else {
+        Terminal.error("Error: Missing public key argument. Usage: invariants signers add [identity] <publicKey>")
+        throw ExitCode(1)
+      }
+
+      let resolvedKey: String
+      let resolvedIdentity: String?
+      if arguments.count >= 2 {
+        resolvedIdentity = arguments[0]
+        resolvedKey = arguments[1]
+      } else {
+        resolvedKey = arguments[0]
+        resolvedIdentity = identity
+      }
+
       do {
         let repoRoot = try RepoLocator.discover()
         try await RepoLocator.withRepoRoot(repoRoot) {
-          try await SignersWorkflow.add(key: publicKey, identity: identity, signingKey: signing.key)
+          try await SignersWorkflow.add(key: resolvedKey, identity: resolvedIdentity, signingKey: signing.key)
         }
       } catch {
         Terminal.error(error.localizedDescription)

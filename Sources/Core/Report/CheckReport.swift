@@ -44,19 +44,26 @@ public struct CheckReport: Sendable, Codable, Equatable {
   public let registryVersion: Int
   public let engineVersion: String
   public let rules: [RuleReportItem]
+  public let isShallowRepository: Bool
 
   public var totalViolations: Int {
     rules.reduce(0) { $0 + $1.violations.count }
   }
 
-  public var hasProblems: Bool {
-    rules.contains { $0.statusKind != .passed && $0.statusKind != .draft }
-  }
-
-  public init(registryVersion: Int, engineVersion: String, rules: [RuleReportItem]) {
+  public init(
+    registryVersion: Int,
+    engineVersion: String,
+    rules: [RuleReportItem],
+    isShallowRepository: Bool = false
+  ) {
     self.registryVersion = registryVersion
     self.engineVersion = engineVersion
     self.rules = rules
+    self.isShallowRepository = isShallowRepository
+  }
+
+  public var hasProblems: Bool {
+    rules.contains { $0.statusKind != .passed && $0.statusKind != .draft }
   }
 }
 

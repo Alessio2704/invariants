@@ -70,7 +70,7 @@ package enum SelfUpdateWorkflow {
       }
     }
 
-    // 1. Extract git archive into temporary sandbox
+    // 1. Extract git archive into temporary sandbox or clone release tag
     let workDir = fm.temporaryDirectory.appendingPathComponent("self_update_\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: workDir) }
@@ -79,8 +79,19 @@ package enum SelfUpdateWorkflow {
     let archiveCmd =
       "\(SystemBinary.git.path) archive '\(tag)' | \(SystemBinary.tar.path) -x -C '\(workDir.path)'"
     let extractOutput = try await SubprocessRunner.runShell(archiveCmd)
-    guard extractOutput.exitCode == 0 else {
-      throw SelfUpdateWorkflowError.archiveExtractionFailed(extractOutput.stderrString)
+    if extractOutput.exitCode != 0 {
+      Terminal.info("Release tag '\(tag)' not found in local git working tree. Cloning from remote repository...")
+      let repoURL =
+        ProcessInfo.processInfo.environment["INVARIANTS_REPO"] ?? "https://github.com/Alessio2704/invariants.git"
+      let cloneOutput = try await SubprocessRunner.run(
+        binary: .git,
+        arguments: ["clone", "--depth", "1", "--branch", tag, repoURL, workDir.path]
+      )
+      guard cloneOutput.exitCode == 0 else {
+        throw SelfUpdateWorkflowError.archiveExtractionFailed(
+          "Tag not found locally and clone failed:\n\(cloneOutput.stderrString)"
+        )
+      }
     }
 
     // 2. Build release binary

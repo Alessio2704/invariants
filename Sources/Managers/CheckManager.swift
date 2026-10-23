@@ -27,7 +27,7 @@ package enum CheckManager {
     )
 
     _ = try await FloorGuard.checkHistory(currentVersion: registry.version)
-    try await FloorGuard.checkSignerAncestry(currentRegistry: registry)
+    let isShallow = try await FloorGuard.checkSignerAncestry(currentRegistry: registry)
 
     let context = CheckContext(
       registry: registry,
@@ -40,7 +40,8 @@ package enum CheckManager {
     return CheckReport(
       registryVersion: registry.version,
       engineVersion: EngineVersion.current,
-      rules: activeItems + draftItems
+      rules: activeItems + draftItems,
+      isShallowRepository: isShallow
     )
   }
 

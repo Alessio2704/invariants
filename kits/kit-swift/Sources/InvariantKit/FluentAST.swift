@@ -195,7 +195,17 @@ private final class FunctionCallVisitor: SyntaxVisitor {
 
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
     let calleeName = node.calledExpression.trimmedDescription
-    if targetNames.contains(calleeName) {
+    let memberName: String?
+    if let memberAccess = node.calledExpression.as(MemberAccessExprSyntax.self) {
+      memberName = memberAccess.declName.baseName.text
+    } else if let declRef = node.calledExpression.as(DeclReferenceExprSyntax.self) {
+      memberName = declRef.baseName.text
+    } else {
+      memberName = nil
+    }
+
+    let isMatch = targetNames.contains(calleeName) || (memberName.map { targetNames.contains($0) } ?? false)
+    if isMatch {
       let loc = node.startLocation(converter: file.converter)
       var stringVal: String?
       var snippet = ""

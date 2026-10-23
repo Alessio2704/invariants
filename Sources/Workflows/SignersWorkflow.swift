@@ -46,15 +46,29 @@ package enum SignersWorkflow {
       throw SystemError.fileIOError("Invalid SSH public key format. Must start with 'ssh-', 'ecdsa-', or 'sk-'.")
     }
 
-    let principal = identity ?? "*"
+    let keyWithComment: String
+    if let identity, !identity.isEmpty, !keyContent.contains(identity) {
+      keyWithComment = "\(keyContent) \(identity)"
+    } else {
+      keyWithComment = keyContent
+    }
+
     try SignersManager.addSigner(
-      keyContent: keyContent,
-      principal: principal,
+      keyContent: keyWithComment,
+      principal: "*",
       at: signersURL
     )
 
-    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
-    Terminal.success("Added signer to \(signersURL.path) and signed updated registry.")
+    let newVersion = try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
+    try await GitClient.commit(
+      paths: [
+        "invariants/allowed_signers",
+        "invariants/registry.lock",
+        "invariants/registry.lock.sig",
+      ],
+      message: "Add invariant signer (registry v\(newVersion))"
+    )
+    Terminal.success("Added signer to \(signersURL.path) and committed updated registry v\(newVersion).")
   }
 
   package static func revoke(
@@ -77,9 +91,19 @@ package enum SignersWorkflow {
       return
     }
 
-    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
+    let newVersion = try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
+    try await GitClient.commit(
+      paths: [
+        "invariants/allowed_signers",
+        "invariants/registry.lock",
+        "invariants/registry.lock.sig",
+      ],
+      message: "Revoke invariant signer '\(pattern)' (registry v\(newVersion))"
+    )
     let mode = hard ? "Hard revoked (purged)" : "Soft revoked (valid-before set)"
-    Terminal.success("\(mode) \(matchedCount) signer(s) matching '\(pattern)' and signed updated registry.")
+    let revMsg =
+      "\(mode) \(matchedCount) signer(s) matching '\(pattern)' and committed updated registry v\(newVersion)."
+    Terminal.success(revMsg)
   }
 
   package static func rotate(
@@ -142,8 +166,18 @@ package enum SignersWorkflow {
       at: signersURL
     )
 
-    try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
-    Terminal.success("Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and signed updated registry.")
+    let newVersion = try await SignersManager.bumpAndSignRegistry(keyURL: session.privateKeyURL)
+    try await GitClient.commit(
+      paths: [
+        "invariants/allowed_signers",
+        "invariants/registry.lock",
+        "invariants/registry.lock.sig",
+      ],
+      message: "Rotate invariant signer (registry v\(newVersion))"
+    )
+    let rotMsg =
+      "Rotated signer in \(signersURL.path) (sunset: \(Int(sunset))s) and committed updated registry v\(newVersion)."
+    Terminal.success(rotMsg)
   }
 
   private static func isValidSSHKey(_ key: String) -> Bool {

@@ -130,8 +130,7 @@ A rule cannot be added or updated based on good intentions alone. Every invarian
 
 ```swift
 // should_fail/swift/case1.swift
-// expect: RAW-ENDPOINT-STRING
-let data = await apiClient.request("/api/v1/users/export")
+let data = await apiClient.request("/api/v1/users/export") // expect: RAW-ENDPOINT-STRING
 
 // should_pass/swift/case1.swift
 let data = await apiClient.request(APIEndpoint.Users.export)
@@ -290,28 +289,24 @@ invariants signers rotate
 ```bash
 invariants status
 ```
-Displays installed engine version, signature validity, Git floor, configured Git hooks, and the status of all active and draft rules.
+Displays installed engine version, signature validity, Git floor, and the status of all active and draft rules.
 
 ---
 
 ## Open Standards: Zero Proprietary Lock-in
 
-Trust resides in native OpenSSH cryptographic standards, not opaque proprietary formats. You can inspect, verify, and sign registries by hand using standard Unix tools:
+Trust resides in native OpenSSH cryptographic standards, not opaque proprietary formats. Public keys in `invariants/allowed_signers` use standard OpenSSH `allowed_signers` format, and `registry.lock.sig` uses standard `SSHSIG` signatures. Anyone can independently verify signatures using standard Unix tools without Invariants installed:
 
 ```bash
-# Verify signature manually using OpenSSH
+# Verify signature manually using native OpenSSH
 ssh-keygen -Y verify \
   -f invariants/allowed_signers \
   -I "*" \
   -n invariants \
   -s invariants/registry.lock.sig < invariants/registry.lock
-
-# Sign registry manually using your Touch ID key
-ssh-keygen -Y sign \
-  -f ~/.ssh/invariants_p256 \
-  -n invariants \
-  invariants/registry.lock
 ```
+
+> **Note on Signing:** Private keys are hardware-bound inside the Apple Secure Enclave (`~/.ssh/invariants_p256` contains an opaque hardware key handle, not a raw software private key). Signing requires physical Touch ID confirmation invoked through the `invariants` CLI or Apple CryptoKit.
 
 ---
 

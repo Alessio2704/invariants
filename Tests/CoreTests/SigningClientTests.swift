@@ -136,4 +136,94 @@ struct SigningClientTests {
     )
     #expect(isValid == false)
   }
+
+  @Test("SigningClient dynamically discovers principal from signature when principal is non-wildcard")
+  func testDynamicPrincipalDiscovery() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("test_principal_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let keyURL = tmpDir.appendingPathComponent("signing_key")
+    let pubURL = keyURL.appendingPathExtension("pub")
+    let messageURL = tmpDir.appendingPathComponent("registry.lock")
+    let signersURL = tmpDir.appendingPathComponent("allowed_signers")
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+
+    let messageContent = "{\"version\":1,\"rules\":[]}\n"
+    try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
+
+    // Allowed signers declares a specific identity instead of wildcard "*"
+    let pubKeyContent = try pubURL.readTrimmedUTF8()
+    let signersContent = "alice@acme.com namespaces=\"invariants\" \(pubKeyContent)\n"
+    try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
+
+    try await SigningClient.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
+    let sigURL = messageURL.appendingPathExtension("sig")
+
+    // Test findPrincipal directly
+    let discovered = try await SigningClient.findPrincipal(
+      allowedSignersURL: signersURL,
+      signatureURL: sigURL
+    )
+    #expect(discovered == "alice@acme.com")
+
+    // Verify that standard verification with default identity ("owner") succeeds via findPrincipal resolution
+    let isValid = try await SigningClient.verify(
+      allowedSignersURL: signersURL,
+      identity: "owner",
+      namespace: "invariants",
+      signatureURL: sigURL,
+      fileURL: messageURL
+    )
+    #expect(isValid == true)
+  }
+
+  @Test("SigningClient verify passes -Overify-time to validate signatures made prior to key expiration")
+  func testVerifyWithCommitTimestamp() async throws {
+    let tmpDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("test_verify_time_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let keyURL = tmpDir.appendingPathComponent("signing_key")
+    let pubURL = keyURL.appendingPathExtension("pub")
+    let messageURL = tmpDir.appendingPathComponent("registry.lock")
+    let signersURL = tmpDir.appendingPathComponent("allowed_signers")
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+
+    let messageContent = "{\"version\":1,\"rules\":[]}\n"
+    try messageContent.write(to: messageURL, atomically: true, encoding: .utf8)
+
+    // Key expired in 2020
+    let pubKeyContent = try pubURL.readTrimmedUTF8()
+    let signersContent = "* namespaces=\"invariants\",valid-before=\"20200101000000\" \(pubKeyContent)\n"
+    try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
+
+    try await SigningClient.sign(keyURL: keyURL, namespace: "invariants", fileURL: messageURL)
+    let sigURL = messageURL.appendingPathExtension("sig")
+
+    // Standard verification at current time should fail because key expired
+    let isExpiredAtCurrentTime = try await SigningClient.verify(
+      allowedSignersURL: signersURL,
+      identity: "owner",
+      namespace: "invariants",
+      signatureURL: sigURL,
+      fileURL: messageURL
+    )
+    #expect(isExpiredAtCurrentTime == false)
+
+    // Verification evaluated with -Overify-time at a time when the key was valid (e.g. 2019) must succeed
+    let isValidAtCommitTime = try await SigningClient.verify(
+      allowedSignersURL: signersURL,
+      identity: "owner",
+      namespace: "invariants",
+      signatureURL: sigURL,
+      fileURL: messageURL,
+      verifyTime: "20190101000000"
+    )
+    #expect(isValidAtCommitTime == true)
+  }
 }
