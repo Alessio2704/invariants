@@ -87,6 +87,40 @@ struct SecurityAttackTests {
     }
   }
 
+  @Test("Attack 2c: Rogue agent splits allowed_signers injection and registry signing across two commits")
+  func attack2c_splitCommitRogueSigner() async throws {
+    let repo = try await TestRepo()
+    try repo.withRule("attack-rule-2c")
+    try await repo.signed(version: 1)
+
+    let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue")
+    try SigningClient.generateThrowawayKey(at: rogueKeyURL)
+    let roguePub = try repo.repoURL.appendingPathComponent("id_rogue.pub").readTrimmedUTF8()
+
+    // Commit B: Attacker modifies ONLY allowed_signers (without touching registry.lock)
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
+    var signersContent = try signersURL.readUTF8()
+    signersContent.append("* namespaces=\"invariants\" \(roguePub)\n")
+    try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
+
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0")
+    try await repo.run {
+      try await GitClient.commit(
+        paths: ["invariants/allowed_signers"],
+        message: "Commit B: sneak rogue key into allowed_signers"
+      )
+
+      // Commit C: Attacker signs registry.lock v2 using rogue key and commits
+      try await RegistryManager.saveAndSign(registry: reg2, keyURL: rogueKeyURL)
+      try await GitClient.commit(paths: ["."], message: "Commit C: sign v2 with rogue key")
+
+      // Inductive ancestry check must verify Commit C against Commit A's verified allowed_signers, not Commit B!
+      await #expect(throws: FloorError.self) {
+        try await FloorGuard.checkSignerAncestry(currentRegistry: reg2)
+      }
+    }
+  }
+
   @Test("Attack 3: Replay / Rollback attack resets registry.lock to an older version")
   func attack3_rollbackAttack() async throws {
     let repo = try await TestRepo()

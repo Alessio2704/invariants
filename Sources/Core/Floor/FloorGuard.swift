@@ -108,20 +108,14 @@ public enum FloorGuard: Sendable {
       throw FloorError.systemError("Failed to inspect commit history for registry.lock: \(error)")
     }
 
-    for commit in commits {
-      let parentSignersContent: String
-      do {
-        parentSignersContent = try await GitClient.showFile(
-          commit: "\(commit)^",
-          relativePath: "invariants/allowed_signers"
-        )
-      } catch {
-        // Root commit or parent commit without allowed_signers: base of trust reached
-        continue
-      }
+    var trustedSignersContent: String?
+    var trustedVersion: Int = 1
+    var lastCommitLock: String?
 
+    for commit in commits.reversed() {
       let commitLock: String
       let commitSig: String
+      let commitSigners: String
       do {
         commitLock = try await GitClient.showFile(
           commit: commit,
@@ -131,23 +125,41 @@ public enum FloorGuard: Sendable {
           commit: commit,
           relativePath: "invariants/registry.lock.sig"
         )
+        commitSigners = try await GitClient.showFile(
+          commit: commit,
+          relativePath: "invariants/allowed_signers"
+        )
       } catch {
-        continue
+        throw FloorError.unauthorizedSigner(
+          version: currentRegistry.version,
+          parentVersion: trustedVersion
+        )
       }
 
       guard let commitData = commitLock.data(using: .utf8),
         let commitReg = try? CanonicalJSON.parse(data: commitData)
       else {
-        continue
+        throw FloorError.unauthorizedSigner(
+          version: currentRegistry.version,
+          parentVersion: trustedVersion
+        )
       }
 
-      let parentLock = try? await GitClient.showFile(commit: "\(commit)^", relativePath: "invariants/registry.lock")
-      let parentData = parentLock?.data(using: .utf8)
-      let parentReg = parentData.flatMap { try? CanonicalJSON.parse(data: $0) }
-      let parentVersion = parentReg?.version ?? max(1, commitReg.version - 1)
+      let signersToVerifyAgainst: String
+      if let previousTrustedSigners = trustedSignersContent {
+        signersToVerifyAgainst = previousTrustedSigners
+      } else if let parentSigners = try? await GitClient.showFile(
+        commit: "\(commit)^",
+        relativePath: "invariants/allowed_signers"
+      ) {
+        signersToVerifyAgainst = parentSigners
+      } else {
+        // Root/initial commit establishing invariants/registry.lock: base of trust
+        signersToVerifyAgainst = commitSigners
+      }
 
       let isValid = try await verifySignatureAgainstSigners(
-        signersContent: parentSignersContent,
+        signersContent: signersToVerifyAgainst,
         lockContent: commitLock,
         sigContent: commitSig
       )
@@ -155,26 +167,20 @@ public enum FloorGuard: Sendable {
       if !isValid {
         throw FloorError.unauthorizedSigner(
           version: commitReg.version,
-          parentVersion: parentVersion
+          parentVersion: trustedVersion
         )
       }
+
+      trustedSignersContent = commitSigners
+      trustedVersion = commitReg.version
+      lastCommitLock = commitLock
     }
 
-    // 2. Check uncommitted modifications in working tree against HEAD's allowed_signers
-    let headLock: String
-    do {
-      headLock = try await GitClient.showFile(
-        commit: "HEAD",
-        relativePath: "invariants/registry.lock"
-      )
-    } catch {
-      // No HEAD commit yet (initial repo setup), nothing to verify against ancestor.
-      return
-    }
-
-    guard let headData = headLock.data(using: .utf8),
-      let headRegistry = try? CanonicalJSON.parse(data: headData)
+    // 2. Check uncommitted modifications in working tree against the latest verified allowed_signers
+    guard let baseSigners = trustedSignersContent,
+      let committedLock = lastCommitLock
     else {
+      // No committed registry.lock history yet (initial repo setup), nothing to verify against ancestor.
       return
     }
 
@@ -182,22 +188,20 @@ public enum FloorGuard: Sendable {
     let sigURL = RegistryManager.signatureURL()
     let currentLockContent = try? lockURL.readUTF8()
     let currentSigContent = try? sigURL.readUTF8()
-    let isWorkingTreeModified = (currentLockContent != headLock)
+    let isWorkingTreeModified = (currentLockContent != committedLock)
 
-    if currentRegistry.version > headRegistry.version || isWorkingTreeModified {
-      guard
-        let headSignersContent = try? await GitClient.showFile(
-          commit: "HEAD",
-          relativePath: "invariants/allowed_signers"
-        ),
-        let currentLock = currentLockContent,
+    if currentRegistry.version > trustedVersion || isWorkingTreeModified {
+      guard let currentLock = currentLockContent,
         let currentSig = currentSigContent
       else {
-        return
+        throw FloorError.unauthorizedSigner(
+          version: currentRegistry.version,
+          parentVersion: trustedVersion
+        )
       }
 
       let isValid = try await verifySignatureAgainstSigners(
-        signersContent: headSignersContent,
+        signersContent: baseSigners,
         lockContent: currentLock,
         sigContent: currentSig
       )
@@ -205,7 +209,7 @@ public enum FloorGuard: Sendable {
       if !isValid {
         throw FloorError.unauthorizedSigner(
           version: currentRegistry.version,
-          parentVersion: headRegistry.version
+          parentVersion: trustedVersion
         )
       }
     }
