@@ -13,11 +13,18 @@ struct CheckCommand: AsyncParsableCommand {
   @Flag(name: .long, help: "Emit output in machine-readable JSON format.")
   var json: Bool = false
 
+  @Flag(
+    name: .long,
+    help:
+      "Enforce Git pre-push protection (rejects force-push or deletion of default branch) by reading ref lines from stdin."
+  )
+  var prePush: Bool = false
+
   func run() async throws {
     do {
       let repoRoot = try RepoLocator.discover()
       try await RepoLocator.withRepoRoot(repoRoot) {
-        let passed = try await CheckWorkflow.execute(json: json)
+        let passed = try await CheckWorkflow.execute(json: json, prePush: prePush)
         if !passed {
           throw ExitCode(1)
         }

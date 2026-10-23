@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Core
+@testable import Workflows
 
 @Suite("Autonomous Agent Hijacking & Trunk Protection Attacks", .tags(.scenario), .tags(.security))
 struct AgentHijackingAttackTests {
@@ -88,6 +89,13 @@ struct AgentHijackingAttackTests {
         )
       }
     }
+
+    // CheckWorkflow with prePush flag must reject force push as security violation
+    await #expect(throws: CheckWorkflowError.securityViolation) {
+      try await repo.run {
+        _ = try await CheckWorkflow.execute(json: false, prePush: true, stdinInput: nonFastForwardStdin)
+      }
+    }
   }
 
   @Test("Attack 4: Agent attempts force-push on custom signed trunk branch (e.g. develop)")
@@ -165,6 +173,13 @@ struct AgentHijackingAttackTests {
           pushedRefsInput: literalDeleteStdin,
           defaultBranch: "main"
         )
+      }
+    }
+
+    // CheckWorkflow with prePush flag must reject trunk branch deletion as security violation
+    await #expect(throws: CheckWorkflowError.securityViolation) {
+      try await repo.run {
+        _ = try await CheckWorkflow.execute(json: false, prePush: true, stdinInput: deleteStdin)
       }
     }
   }

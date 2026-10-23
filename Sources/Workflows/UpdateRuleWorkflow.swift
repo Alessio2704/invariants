@@ -128,15 +128,20 @@ package enum UpdateRuleWorkflow {
       newCases: newCases
     )
 
-    let (oldV, newV) = await countRepoViolations(context: context, runner: runner)
+    let (oldViolations, newViolations) = await collectRepoViolations(context: context, runner: runner)
+    let dropped = Set(oldViolations).subtracting(Set(newViolations))
 
-    if newV < oldV {
+    if !dropped.isEmpty {
       var updated = weakening.items
+      let fileList = dropped.prefix(3).map { "\($0.file):\($0.line)" }.joined(separator: ", ")
+      let extra = dropped.count > 3 ? " and \(dropped.count - 3) more" : ""
+      let droppedSummary = "Existing repo violations dropped: \(dropped.count) violation(s) no longer detected"
+      let locationSummary = "(\(fileList)\(extra)). Total: \(oldViolations.count) → \(newViolations.count)."
       updated.append(
         WeakeningItem(
           severity: .red,
           category: "repoViolationsDropped",
-          message: "Repo violations dropped from \(oldV) to \(newV) for unchanged product code."
+          message: "\(droppedSummary) \(locationSummary)"
         )
       )
       weakening = WeakeningReport(ruleId: context.input.id, items: updated)
@@ -172,9 +177,12 @@ package enum UpdateRuleWorkflow {
     }
   }
 
-  private static func countRepoViolations(context: WeakeningContext, runner: RuleRunner) async -> (Int, Int) {
-    var oldRepoViolationsCount = 0
-    var newRepoViolationsCount = 0
+  private static func collectRepoViolations(
+    context: WeakeningContext,
+    runner: RuleRunner
+  ) async -> (oldViolations: [ReportedViolation], newViolations: [ReportedViolation]) {
+    var oldViolations: [ReportedViolation] = []
+    var newViolations: [ReportedViolation] = []
 
     for target in context.newManifest.targets {
       guard let scope = context.newManifest.scope[target] else { continue }
@@ -213,10 +221,10 @@ package enum UpdateRuleWorkflow {
           engineVersion: EngineVersion.current
         )) ?? []
 
-      oldRepoViolationsCount += oldRes.count
-      newRepoViolationsCount += newRes.count
+      oldViolations.append(contentsOf: oldRes)
+      newViolations.append(contentsOf: newRes)
     }
-    return (oldRepoViolationsCount, newRepoViolationsCount)
+    return (oldViolations, newViolations)
   }
 
   private static func verifyFixtures(

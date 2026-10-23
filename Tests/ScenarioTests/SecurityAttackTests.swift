@@ -58,6 +58,35 @@ struct SecurityAttackTests {
     }
   }
 
+  @Test("Attack 2b: Rogue agent commits forged registry.lock to git; ancestry check still catches it")
+  func attack2b_committedRogueSigner() async throws {
+    let repo = try await TestRepo()
+    try repo.withRule("attack-rule-2b")
+    try await repo.signed(version: 1)
+
+    // Attacker generates rogue key, adds to allowed_signers, signs v2, AND COMMITS to git
+    let rogueKeyURL = repo.repoURL.appendingPathComponent("id_rogue")
+    try SigningClient.generateThrowawayKey(at: rogueKeyURL)
+    let roguePub = try repo.repoURL.appendingPathComponent("id_rogue.pub").readTrimmedUTF8()
+
+    let signersURL = repo.run { RegistryManager.allowedSignersURL() }
+    var signersContent = try signersURL.readUTF8()
+    signersContent.append("* namespaces=\"invariants\" \(roguePub)\n")
+    try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
+
+    let reg2 = Registry.forTesting(version: 2, engine: "^1.0.0")
+    try await repo.run {
+      try await RegistryManager.saveAndSign(registry: reg2, keyURL: rogueKeyURL)
+      try await GitClient.commit(paths: ["."], message: "Rogue commit forged v2")
+
+      // Ancestry verification must catch that rogueKey was not in parent commit's allowed_signers,
+      // EVEN AFTER the rogue changes were committed to git!
+      await #expect(throws: FloorError.self) {
+        try await FloorGuard.checkSignerAncestry(currentRegistry: reg2)
+      }
+    }
+  }
+
   @Test("Attack 3: Replay / Rollback attack resets registry.lock to an older version")
   func attack3_rollbackAttack() async throws {
     let repo = try await TestRepo()

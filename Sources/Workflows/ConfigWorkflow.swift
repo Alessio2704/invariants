@@ -142,9 +142,13 @@ package enum ConfigWorkflow {
             engineVersion: EngineVersion.current
           )) ?? []
 
-        if violationsNew.count < violationsOld.count {
+        let dropped = Set(violationsOld).subtracting(Set(violationsNew))
+        if !dropped.isEmpty {
+          let fileList = dropped.prefix(3).map { "\($0.file):\($0.line)" }.joined(separator: ", ")
+          let extra = dropped.count > 3 ? " and \(dropped.count - 3) more" : ""
+          let countSummary = "Total: \(violationsOld.count) → \(violationsNew.count)."
           Terminal.error(
-            "BLINDED: Rule '\(ruleId)' reports fewer violations (\(violationsOld.count) → \(violationsNew.count))!"
+            "BLINDED: Rule '\(ruleId)' dropped \(dropped.count) violation(s) (\(fileList)\(extra))! \(countSummary)"
           )
           hasBlindingIssue = true
         }

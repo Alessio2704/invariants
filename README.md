@@ -45,7 +45,7 @@ The agent optimizes for making the build pass and completing the task—not for 
                             │
 ┌───────────────────────────▼────────────────────────────┐
 │                    Human Engineer                      │
-│   • Apple Secure Enclave (~/.ssh/invariants_ed25519)   │
+│   • Apple Secure Enclave (~/.ssh/invariants_p256)      │
 │   • Physical Biometrics (Touch ID)                     │
 │   • Cryptographically Signs Registry Lockfile          │
 └────────────────────────────────────────────────────────┘
@@ -183,7 +183,7 @@ Because `default_branch` is inside the signed `registry.lock`, the engine enforc
 ```
 
 ### Local Developer Storage
-- `~/.ssh/invariants_ed25519`: Dedicated Touch ID SSH key generated in the Apple Secure Enclave.
+- `~/.ssh/invariants_p256`: Dedicated Touch ID SSH key generated in the Apple Secure Enclave.
 
 ---
 
@@ -243,6 +243,9 @@ invariants rule remove forbid-force-cast
 # Run full invariant enforcement pipeline (usable in pre-commit, pre-push, or CI)
 invariants check
 
+# Enforce pre-push protection (rejects force-push or branch deletion on default branch)
+invariants check --pre-push
+
 # Output in machine-readable JSON format
 invariants check --json
 ```
@@ -274,7 +277,7 @@ invariants key clean
 invariants signers list
 
 # Authorize a new teammate's public key (prompts for Touch ID to seal registry)
-invariants signers add alice@company.com "sk-ssh-ed25519@openssh.com AAAAGn..."
+invariants signers add alice@company.com "ecdsa-sha2-nistp256 AAAAE2..."
 
 # Revoke a departed or compromised key
 invariants signers revoke alice@company.com
@@ -305,7 +308,7 @@ ssh-keygen -Y verify \
 
 # Sign registry manually using your Touch ID key
 ssh-keygen -Y sign \
-  -f ~/.ssh/invariants_ed25519 \
+  -f ~/.ssh/invariants_p256 \
   -n invariants \
   invariants/registry.lock
 ```

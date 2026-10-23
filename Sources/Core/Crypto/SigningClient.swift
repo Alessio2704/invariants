@@ -119,28 +119,32 @@ public enum SigningClient: Sendable {
       throw SystemError.fileIOError("Failed to read file for signing at \(fileURL.path): \(error.localizedDescription)")
     }
 
-    // 1. Check if software P-256 test key (raw 32 bytes)
-    if keyData.count == 32, let softKey = try? P256.Signing.PrivateKey(rawRepresentation: keyData) {
-      let signedData = SSHSIG.buildSignedData(messageData: fileData, namespace: namespace)
-      let sig: P256.Signing.ECDSASignature
-      do {
-        sig = try softKey.signature(for: signedData)
-      } catch {
-        throw SystemError.cryptographicError("Failed to create software P-256 signature: \(error.localizedDescription)")
-      }
+    // 1. Check if software P-256 test key (raw 32 bytes) - permitted strictly in DEBUG test configuration
+    #if DEBUG
+      if keyData.count == 32, let softKey = try? P256.Signing.PrivateKey(rawRepresentation: keyData) {
+        let signedData = SSHSIG.buildSignedData(messageData: fileData, namespace: namespace)
+        let sig: P256.Signing.ECDSASignature
+        do {
+          sig = try softKey.signature(for: signedData)
+        } catch {
+          throw SystemError.cryptographicError(
+            "Failed to create software P-256 signature: \(error.localizedDescription)")
+        }
 
-      let armored = SSHSIG.buildArmoredSignature(
-        rawSignature: sig.rawRepresentation,
-        publicKey: softKey.publicKey,
-        namespace: namespace
-      )
-      do {
-        try armored.write(to: sigURL, atomically: true, encoding: .utf8)
-      } catch {
-        throw SystemError.fileIOError("Failed to write signature to \(sigURL.path): \(error.localizedDescription)")
+        let armored = SSHSIG.buildArmoredSignature(
+          rawSignature: sig.rawRepresentation,
+          publicKey: softKey.publicKey,
+          namespace: namespace
+        )
+        do {
+          try armored.write(to: sigURL, atomically: true, encoding: .utf8)
+        } catch {
+          throw SystemError.fileIOError(
+            "Failed to write signature to \(sigURL.path): \(error.localizedDescription)")
+        }
+        return
       }
-      return
-    }
+    #endif
 
     // 2. Apple Secure Enclave P-256 signing (triggers Touch ID prompt)
     guard SecureEnclave.isAvailable else {

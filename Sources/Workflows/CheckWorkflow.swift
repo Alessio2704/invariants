@@ -11,7 +11,43 @@ package enum CheckWorkflowError: LocalizedError, Sendable {
 /// Interactive CLI workflow to execute invariant checks and format report outputs.
 package enum CheckWorkflow {
   /// Executes the invariant check pipeline, formats output, and returns whether all active rules passed.
-  package static func execute(json: Bool) async throws -> Bool {
+  package static func execute(
+    json: Bool,
+    prePush: Bool = false,
+    stdinInput: String? = nil
+  ) async throws -> Bool {
+    if prePush {
+      let input: String
+      if let stdinInput {
+        input = stdinInput
+      } else {
+        let stdinData = FileHandle.standardInput.readDataToEndOfFile()
+        input = String(data: stdinData, encoding: .utf8) ?? ""
+      }
+
+      let registry = try await RegistryManager.loadAndVerify()
+      let defaultBranch = registry.defaultBranch
+      do {
+        try await FloorGuard.checkNoRewrite(
+          pushedRefsInput: input,
+          defaultBranch: defaultBranch
+        )
+      } catch let floorErr {
+        switch floorErr {
+        case .branchDeletion(let branch):
+          Terminal.error("invariants pre-push rejected: Deletion of protected branch '\(branch)' is forbidden.")
+          throw CheckWorkflowError.securityViolation
+        case .nonFastForwardPush(let branch):
+          Terminal.error(
+            "invariants pre-push rejected: Force-push (non-fast-forward) to protected branch '\(branch)' is forbidden.")
+          throw CheckWorkflowError.securityViolation
+        default:
+          Terminal.error("invariants pre-push error: \(floorErr)")
+          throw CheckWorkflowError.checkFailed
+        }
+      }
+    }
+
     let report: CheckReport
     do {
       report = try await CheckManager.runPipeline()

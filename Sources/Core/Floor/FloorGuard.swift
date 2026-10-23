@@ -92,13 +92,75 @@ public enum FloorGuard: Sendable {
     }
   }
 
-  /// Verifies that if registry.lock or allowed_signers was changed from HEAD,
-  /// the new signature is valid against the parent commit's allowed_signers.
+  /// Verifies that every transition of registry.lock in commit history was signed by a key
+  /// authorized in the parent commit's allowed_signers, and that any uncommitted changes
+  /// in the working tree are valid against HEAD's allowed_signers.
   public static func checkSignerAncestry(
     currentRegistry: Registry
   ) async throws(FloorError) {
-    let lockURL = RegistryManager.registryURL()
-    let sigURL = RegistryManager.signatureURL()
+    // 1. Walk commit history touching invariants/registry.lock
+    let commits: [String]
+    do {
+      commits = try await GitClient.commitHistoryTouching(
+        relativePath: "invariants/registry.lock"
+      )
+    } catch {
+      throw FloorError.systemError("Failed to inspect commit history for registry.lock: \(error)")
+    }
+
+    for commit in commits {
+      let parentSignersContent: String
+      do {
+        parentSignersContent = try await GitClient.showFile(
+          commit: "\(commit)^",
+          relativePath: "invariants/allowed_signers"
+        )
+      } catch {
+        // Root commit or parent commit without allowed_signers: base of trust reached
+        continue
+      }
+
+      let commitLock: String
+      let commitSig: String
+      do {
+        commitLock = try await GitClient.showFile(
+          commit: commit,
+          relativePath: "invariants/registry.lock"
+        )
+        commitSig = try await GitClient.showFile(
+          commit: commit,
+          relativePath: "invariants/registry.lock.sig"
+        )
+      } catch {
+        continue
+      }
+
+      guard let commitData = commitLock.data(using: .utf8),
+        let commitReg = try? CanonicalJSON.parse(data: commitData)
+      else {
+        continue
+      }
+
+      let parentLock = try? await GitClient.showFile(commit: "\(commit)^", relativePath: "invariants/registry.lock")
+      let parentData = parentLock?.data(using: .utf8)
+      let parentReg = parentData.flatMap { try? CanonicalJSON.parse(data: $0) }
+      let parentVersion = parentReg?.version ?? max(1, commitReg.version - 1)
+
+      let isValid = try await verifySignatureAgainstSigners(
+        signersContent: parentSignersContent,
+        lockContent: commitLock,
+        sigContent: commitSig
+      )
+
+      if !isValid {
+        throw FloorError.unauthorizedSigner(
+          version: commitReg.version,
+          parentVersion: parentVersion
+        )
+      }
+    }
+
+    // 2. Check uncommitted modifications in working tree against HEAD's allowed_signers
     let headLock: String
     do {
       headLock = try await GitClient.showFile(
@@ -111,56 +173,80 @@ public enum FloorGuard: Sendable {
     }
 
     guard let headData = headLock.data(using: .utf8),
-      let parentRegistry = try? CanonicalJSON.parse(data: headData)
+      let headRegistry = try? CanonicalJSON.parse(data: headData)
     else {
       return
     }
 
-    let isWorkingTreeRegistryModified: Bool
-    do {
-      let currentLockContent = try lockURL.readUTF8()
-      isWorkingTreeRegistryModified = (headLock != currentLockContent)
-    } catch {
-      isWorkingTreeRegistryModified = true
-    }
+    let lockURL = RegistryManager.registryURL()
+    let sigURL = RegistryManager.signatureURL()
+    let currentLockContent = try? lockURL.readUTF8()
+    let currentSigContent = try? sigURL.readUTF8()
+    let isWorkingTreeModified = (currentLockContent != headLock)
 
-    if currentRegistry.version > parentRegistry.version || isWorkingTreeRegistryModified {
-      let parentSignersContent: String
-      do {
-        parentSignersContent = try await GitClient.showFile(
+    if currentRegistry.version > headRegistry.version || isWorkingTreeModified {
+      guard
+        let headSignersContent = try? await GitClient.showFile(
           commit: "HEAD",
           relativePath: "invariants/allowed_signers"
-        )
-      } catch {
+        ),
+        let currentLock = currentLockContent,
+        let currentSig = currentSigContent
+      else {
         return
       }
 
-      let fm = FileManager.default
-      let tmpDir = fm.temporaryDirectory.appendingPathComponent("parent_signers_\(UUID().uuidString)")
-      try? fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-      defer { try? fm.removeItem(at: tmpDir) }
-
-      let parentSignersURL = tmpDir.appendingPathComponent("allowed_signers")
-      guard (try? parentSignersContent.write(to: parentSignersURL, atomically: true, encoding: .utf8)) != nil else {
-        return
-      }
-
-      let isValid: Bool
-      do {
-        isValid = try await SigningClient.verify(
-          allowedSignersURL: parentSignersURL,
-          identity: "*",
-          namespace: "invariants",
-          signatureURL: sigURL,
-          fileURL: lockURL
-        )
-      } catch {
-        throw FloorError.unauthorizedSigner(version: currentRegistry.version, parentVersion: parentRegistry.version)
-      }
+      let isValid = try await verifySignatureAgainstSigners(
+        signersContent: headSignersContent,
+        lockContent: currentLock,
+        sigContent: currentSig
+      )
 
       if !isValid {
-        throw FloorError.unauthorizedSigner(version: currentRegistry.version, parentVersion: parentRegistry.version)
+        throw FloorError.unauthorizedSigner(
+          version: currentRegistry.version,
+          parentVersion: headRegistry.version
+        )
       }
+    }
+  }
+
+  private static func verifySignatureAgainstSigners(
+    signersContent: String,
+    lockContent: String,
+    sigContent: String
+  ) async throws(FloorError) -> Bool {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent("ancestry_check_\(UUID().uuidString)")
+    do {
+      try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    } catch {
+      throw FloorError.systemError("Failed to create temporary directory for ancestry check: \(error)")
+    }
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    let signersURL = tmpDir.appendingPathComponent("allowed_signers")
+    let lockURL = tmpDir.appendingPathComponent("registry.lock")
+    let sigURL = tmpDir.appendingPathComponent("registry.lock.sig")
+
+    do {
+      try signersContent.write(to: signersURL, atomically: true, encoding: .utf8)
+      try lockContent.write(to: lockURL, atomically: true, encoding: .utf8)
+      try sigContent.write(to: sigURL, atomically: true, encoding: .utf8)
+    } catch {
+      throw FloorError.systemError("Failed to write temporary files for ancestry check: \(error)")
+    }
+
+    do {
+      return try await SigningClient.verify(
+        allowedSignersURL: signersURL,
+        identity: "*",
+        namespace: "invariants",
+        signatureURL: sigURL,
+        fileURL: lockURL
+      )
+    } catch {
+      return false
     }
   }
 }
