@@ -27,11 +27,27 @@ extension RuleRunner {
     } else if let debugBin, fm.fileExists(atPath: debugBin.path) {
       binaryURL = debugBin
     } else {
-      try await buildCompiledRule(
-        spec: compiled,
-        ruleDirectory: ruleDirectory,
-        cacheDirectory: cachesURL
-      )
+      do {
+        try await CompiledRuleBuildCoordinator.shared.coordinate(key: cachesURL.path) {
+          let fm = FileManager.default
+          let alreadyBuilt =
+            fm.fileExists(atPath: releaseBin.path)
+            || (debugBin.map { fm.fileExists(atPath: $0.path) } ?? false)
+          if alreadyBuilt {
+            return
+          }
+          try await self.buildCompiledRule(
+            spec: compiled,
+            ruleDirectory: ruleDirectory,
+            cacheDirectory: cachesURL
+          )
+        }
+      } catch let error as RuleRunnerError {
+        throw error
+      } catch {
+        throw RuleRunnerError.executableBuildFailed(error.localizedDescription)
+      }
+
       if fm.fileExists(atPath: releaseBin.path) {
         binaryURL = releaseBin
       } else if let debugBin, fm.fileExists(atPath: debugBin.path) {
@@ -133,8 +149,13 @@ extension RuleRunner {
         }
         try fm.copyItem(at: fileURL, to: destURL)
       } catch {
-        throw RuleRunnerError.executableBuildFailed(
-          "Failed to copy source file \(fileURL.lastPathComponent): \(error.localizedDescription)")
+        do {
+          try? fm.removeItem(at: destURL)
+          try fm.copyItem(at: fileURL, to: destURL)
+        } catch {
+          throw RuleRunnerError.executableBuildFailed(
+            "Failed to copy source file \(fileURL.lastPathComponent): \(error.localizedDescription)")
+        }
       }
     }
 
@@ -210,6 +231,34 @@ extension RuleRunner {
     guard buildOutput.exitCode == 0 else {
       throw RuleRunnerError.executableBuildFailed(
         "Build failed (code \(buildOutput.exitCode)): \(buildOutput.stderrString)")
+    }
+  }
+}
+
+// MARK: - In-Process Compilation Coordinator
+
+private actor CompiledRuleBuildCoordinator {
+  static let shared = CompiledRuleBuildCoordinator()
+
+  private var inFlightBuilds: [String: Task<Void, any Error>] = [:]
+
+  func coordinate(key: String, perform: @Sendable @escaping () async throws -> Void) async throws {
+    if let existing = inFlightBuilds[key] {
+      try await existing.value
+      return
+    }
+
+    let task = Task {
+      try await perform()
+    }
+    inFlightBuilds[key] = task
+
+    do {
+      try await task.value
+      inFlightBuilds.removeValue(forKey: key)
+    } catch {
+      inFlightBuilds.removeValue(forKey: key)
+      throw error
     }
   }
 }

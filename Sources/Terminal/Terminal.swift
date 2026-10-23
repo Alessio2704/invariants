@@ -16,12 +16,54 @@ package enum Terminal {
 
   // MARK: - TTY, Color & Interactive Inspection
 
+  #if DEBUG
+    package enum InteractiveMode: Sendable {
+      case automatic
+      case forceInteractive
+      case forceNonInteractive
+    }
+
+    @TaskLocal
+    package static var taskLocalInteractiveMode: InteractiveMode = .automatic
+
+    @TaskLocal
+    package static var taskLocalReadLine: (@Sendable () -> String?)?
+
+    /// Executes an async operation with simulated interactive terminal behavior scoped to the calling task.
+    package static func withInteractiveSession<T: Sendable>(
+      mode: InteractiveMode = .forceInteractive,
+      readLineHandler: (@Sendable () -> String?)? = { "y" },
+      operation: () async throws -> T
+    ) async rethrows -> T {
+      try await $taskLocalInteractiveMode.withValue(mode) {
+        try await $taskLocalReadLine.withValue(readLineHandler) {
+          try await operation()
+        }
+      }
+    }
+  #endif
+
   package static var isInteractive: Bool {
-    isatty(FileHandle.standardInput.fileDescriptor) != 0
+    #if DEBUG
+      switch taskLocalInteractiveMode {
+      case .forceInteractive:
+        return true
+      case .forceNonInteractive:
+        return false
+      case .automatic:
+        break
+      }
+    #endif
+    return isatty(FileHandle.standardInput.fileDescriptor) != 0
   }
 
   package static func readLine() -> String? {
-    Swift.readLine()
+    #if DEBUG
+      if let mock = taskLocalReadLine {
+        return mock()
+      }
+    #endif
+    return Swift.readLine()
   }
 
   package static func supportsColor(for stream: TerminalStream = .stdout) -> Bool {

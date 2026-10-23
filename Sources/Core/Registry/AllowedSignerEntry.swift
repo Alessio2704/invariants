@@ -99,10 +99,16 @@ public struct AllowedSignerEntry: Equatable, Sendable {
           let val = unquote(String(opt.dropFirst("namespaces=".count)))
           namespaces = val.split(separator: ",").map(String.init)
         } else if opt.hasPrefix("valid-after=") {
-          let val = unquote(String(opt.dropFirst("valid-after=".count)))
+          var val = unquote(String(opt.dropFirst("valid-after=".count)))
+          if val.hasSuffix("Z") || val.hasSuffix("z") {
+            val.removeLast()
+          }
           validAfter = dateFormatter.date(from: val)
         } else if opt.hasPrefix("valid-before=") {
-          let val = unquote(String(opt.dropFirst("valid-before=".count)))
+          var val = unquote(String(opt.dropFirst("valid-before=".count)))
+          if val.hasSuffix("Z") || val.hasSuffix("z") {
+            val.removeLast()
+          }
           validBefore = dateFormatter.date(from: val)
         } else if opt == "cert-authority" {
           certAuthority = true
@@ -134,10 +140,10 @@ public struct AllowedSignerEntry: Equatable, Sendable {
       options.append("namespaces=\"\(namespaces.joined(separator: ","))\"")
     }
     if let validAfter {
-      options.append("valid-after=\"\(Self.dateFormatter.string(from: validAfter))\"")
+      options.append("valid-after=\"\(Self.dateFormatter.string(from: validAfter))Z\"")
     }
     if let validBefore {
-      options.append("valid-before=\"\(Self.dateFormatter.string(from: validBefore))\"")
+      options.append("valid-before=\"\(Self.dateFormatter.string(from: validBefore))Z\"")
     }
 
     var parts: [String] = [principalsStr]
