@@ -52,12 +52,11 @@ public struct CheckReport: Sendable, Codable, Equatable {
 
   public init(
     registryVersion: Int,
-    engineVersion: String = EngineVersion.current,
     rules: [RuleReportItem],
     isShallowRepository: Bool = false
   ) {
     self.registryVersion = registryVersion
-    self.engineVersion = engineVersion
+    self.engineVersion = EngineVersion.current
     self.rules = rules
     self.isShallowRepository = isShallowRepository
   }
