@@ -31,23 +31,6 @@ public struct ReportedViolation: Sendable, Codable, Equatable, Hashable {
   public let column: Int
   public let message: String
   public let fix: String
-
-  // periphery:ignore
-  public init(
-    code: String,
-    file: String,
-    line: Int,
-    column: Int,
-    message: String,
-    fix: String
-  ) {
-    self.code = code
-    self.file = file
-    self.line = line
-    self.column = column
-    self.message = message
-    self.fix = fix
-  }
 }
 
 /// Declarative manifest specification for building compiled rule packages.

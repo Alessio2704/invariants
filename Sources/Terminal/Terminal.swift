@@ -28,20 +28,6 @@ package enum Terminal {
 
     @TaskLocal
     package static var taskLocalReadLine: (@Sendable () -> String?)?
-
-    // periphery:ignore
-    /// Executes an async operation with simulated interactive terminal behavior scoped to the calling task.
-    package static func withInteractiveSession<T: Sendable>(
-      mode: InteractiveMode = .forceInteractive,
-      readLineHandler: (@Sendable () -> String?)? = { "y" },
-      operation: () async throws -> T
-    ) async rethrows -> T {
-      try await $taskLocalInteractiveMode.withValue(mode) {
-        try await $taskLocalReadLine.withValue(readLineHandler) {
-          try await operation()
-        }
-      }
-    }
   #endif
 
   package static var isInteractive: Bool {
