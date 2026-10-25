@@ -170,7 +170,7 @@ struct ElevationAndInstallationTests {
 
     let protectedURL = SystemPaths.defaultPrefixURL.appendingPathComponent("test-file")
     let request = ProcessRequest(
-      binary: .mkdir,
+      executableURL: SystemBinary.mkdir.url,
       arguments: ["-p", protectedURL.path],
       targetURL: protectedURL
     )
@@ -190,7 +190,7 @@ struct ElevationAndInstallationTests {
       expirationInterval: 300.0
     )
     let request = ProcessRequest(
-      binary: .mkdir,
+      executableURL: SystemBinary.mkdir.url,
       arguments: ["-p", protectedURL.path],
       targetURL: protectedURL,
       elevationToken: expiredToken

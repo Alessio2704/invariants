@@ -41,9 +41,6 @@ public protocol AnyLanguageSpec: Sendable {
   /// Constructs a configuration instance polymorphically from selected path(s).
   static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)?
 
-  /// Automatically discovers configuration without user intervention.
-  static func autoDiscover() async -> (any LanguageConfiguration)?
-
   /// Returns a human-readable description of this language's configured inputs.
   static func describeConfig(in languages: LanguagesConfig) -> String
 
@@ -121,27 +118,12 @@ extension AnyLanguageSpec {
     }
     return false
   }
-
-  public static func autoDiscover() async -> (any LanguageConfiguration)? {
-    let candidates = discoverAnalysisInputs()
-    guard !candidates.isEmpty else { return nil }
-    switch configPromptDescriptor.selectionStyle {
-    case .single:
-      guard let first = candidates.first else { return nil }
-      return makeConfig(from: [first])
-    case .multiple:
-      return makeConfig(from: candidates)
-    }
-  }
 }
 
 /// Contract for a supported language specification, binding language identity to its compile-time configuration schema.
 public protocol LanguageSpec: AnyLanguageSpec {
   /// The strongly-typed project configuration schema required by this language.
   associatedtype Config: LanguageConfiguration, Equatable
-
-  /// Strongly-typed automatic discovery.
-  static func autoDiscover() async -> Config?
 }
 
 extension LanguageSpec {
@@ -152,17 +134,5 @@ extension LanguageSpec {
   public static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws {
     guard let typed = config as? Config else { return }
     try typed.encode(to: encoder)
-  }
-
-  public static func autoDiscover() async -> Config? {
-    let candidates = discoverAnalysisInputs()
-    guard !candidates.isEmpty else { return nil }
-    switch configPromptDescriptor.selectionStyle {
-    case .single:
-      guard let first = candidates.first else { return nil }
-      return makeConfig(from: [first]) as? Config
-    case .multiple:
-      return makeConfig(from: candidates) as? Config
-    }
   }
 }

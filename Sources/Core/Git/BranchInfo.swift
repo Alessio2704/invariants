@@ -26,11 +26,6 @@ extension GitClient {
       role == .remoteTrunk || role == .activeTrunk
     }
 
-    /// Whether this branch is the recommended default trunk fallback.
-    public var isRecommended: Bool {
-      role == .recommended
-    }
-
     /// Human-readable annotation describing this branch's role for terminal display.
     public var annotation: String? {
       role.annotation

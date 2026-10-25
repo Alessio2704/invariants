@@ -15,20 +15,11 @@ struct SystemPathsTests {
     #expect(SystemPaths.binaryRelativeSubpath == "bin/invariants")
     #expect(SystemPaths.versionsDirectoryName == "versions")
     #expect(SystemPaths.currentLinkName == "current")
-    #expect(SystemPaths.defaultKeyDirectoryName == ".ssh")
-    #expect(SystemPaths.defaultKeyFileName == "invariants_p256")
     #expect(SystemPaths.defaultKeySubpath == ".ssh/invariants_p256")
     #expect(SystemPaths.keyBackupPrefix == "invariants_p256.bak-")
     #expect(SystemPaths.devWorkspaceSubpath == "invariants/.dev")
     #expect(SystemPaths.kitsDirectorySubpath == "kits")
     #expect(SystemPaths.universalIgnoredPaths == [".git", "invariants/.dev", "kits"])
-  }
-
-  @Test("SystemEnvironment.Paths is synonymous with SystemPaths")
-  func systemEnvironmentPathsAlias() {
-    #expect(SystemEnvironment.Paths.defaultPrefixPath == SystemPaths.defaultPrefixPath)
-    #expect(SystemEnvironment.Paths.defaultBinaryPath == SystemPaths.defaultBinaryPath)
-    #expect(SystemEnvironment.Paths.defaultKeySubpath == SystemPaths.defaultKeySubpath)
   }
 
   @Test("SystemEnvironment.standard initializes with SystemPaths defaults")

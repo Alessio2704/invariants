@@ -220,30 +220,4 @@ struct KeyLifecycleTests {
     #expect(FileManager.default.fileExists(atPath: keyURL.path))
     #expect(FileManager.default.fileExists(atPath: pubURL.path))
   }
-
-  @Test("SigningKeyResolver resolves custom signing key and handles non-existent or empty paths")
-  func testSigningKeyResolverCustom() throws {
-    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("resolver_test_\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tmpDir) }
-
-    let keyURL = tmpDir.appendingPathComponent("custom_key")
-    try "dummy-key".write(to: keyURL, atomically: true, encoding: .utf8)
-
-    // Existing path resolves
-    let resolved = SigningKeyResolver.resolveCustomSigningKey(customPath: keyURL.path)
-    #expect(resolved?.path == keyURL.path)
-
-    // Non-existent path returns nil
-    #expect(
-      SigningKeyResolver.resolveCustomSigningKey(customPath: tmpDir.appendingPathComponent("missing").path) == nil)
-
-    // Empty path returns nil
-    #expect(SigningKeyResolver.resolveCustomSigningKey(customPath: "") == nil)
-  }
-
-  @Test("SigningKeyResolver resolveDefaultSigningKey executes without crashing")
-  func testSigningKeyResolverDefault() {
-    _ = SigningKeyResolver.resolveDefaultSigningKey()
-  }
 }

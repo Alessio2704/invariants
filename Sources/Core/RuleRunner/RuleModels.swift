@@ -32,6 +32,7 @@ public struct ReportedViolation: Sendable, Codable, Equatable, Hashable {
   public let message: String
   public let fix: String
 
+  // periphery:ignore
   public init(
     code: String,
     file: String,

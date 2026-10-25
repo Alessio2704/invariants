@@ -22,17 +22,6 @@ public enum SupportedLanguage: String, CodingKey, Sendable, Codable, CaseIterabl
 public typealias TargetLanguage = SupportedLanguage
 
 extension SupportedLanguage {
-  /// Aggregates all default ignored paths across all supported languages and universal system paths.
-  public static var allDefaultIgnoredPaths: [String] {
-    let languagePaths = allCases.flatMap { $0.spec.defaultIgnoredPaths }
-    return Array(Set(SystemPaths.universalIgnoredPaths + languagePaths)).sorted()
-  }
-
-  /// Aggregates all default ignored extensions across all supported languages.
-  public static var allDefaultIgnoredExtensions: [String] {
-    Array(Set(allCases.flatMap { $0.spec.defaultIgnoredExtensions })).sorted()
-  }
-
   /// Checks if a relative path should be skipped across any supported language or universal system path.
   public static func shouldSkipAny(relativePath: String) -> Bool {
     for universal in SystemPaths.universalIgnoredPaths

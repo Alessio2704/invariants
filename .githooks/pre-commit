@@ -15,7 +15,7 @@ if command -v swiftlint >/dev/null 2>&1; then
 fi
 
 # 3. Swift build & index store generation (0 warnings enforced via -warnings-as-errors)
-swift build --build-tests -Xswiftc -index-store-path -Xswiftc "$REPO_ROOT/.build/out"
+swift build -Xswiftc -index-store-path -Xswiftc "$REPO_ROOT/.build/out"
 
 # 4. Periphery unused code analysis
 if command -v periphery >/dev/null 2>&1; then

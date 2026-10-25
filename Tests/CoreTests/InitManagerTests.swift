@@ -108,7 +108,7 @@ struct InitManagerTests {
     try SigningClient.generateThrowawayKey(at: keyURL)
 
     try await RepoLocator.withRepoRoot(repoURL) {
-      let detected = (await GitClient.discoverBranches()).first
+      let detected = (await GitClient.discoverRepoInfo()).branches.first?.name
       #expect(detected == "develop")
 
       var languages = LanguagesConfig()

@@ -32,8 +32,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: candidateDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: tmpDir) }
 
-    let discovered = await RepoLocator.withRepoRoot(tmpDir) {
-      await SwiftLanguage.autoDiscover()
+    let discovered = RepoLocator.withRepoRoot(tmpDir) {
+      let inputs = SwiftLanguage.discoverAnalysisInputs()
+      return SwiftLanguage.makeConfig(from: inputs) as? SwiftLanguage.Config
     }
     #expect(discovered != nil)
     #expect(discovered?.indexStore == "build/Index.noindex/DataStore")
@@ -64,8 +65,9 @@ struct LanguageSpecTests {
     try fm.createDirectory(at: pkgTsconfigDir, withIntermediateDirectories: true)
     try Data("{}".utf8).write(to: pkgTsconfigDir.appendingPathComponent("tsconfig.json"))
 
-    let discovered = await RepoLocator.withRepoRoot(tmpDir) {
-      await TypeScriptLanguage.autoDiscover()
+    let discovered = RepoLocator.withRepoRoot(tmpDir) {
+      let inputs = TypeScriptLanguage.discoverAnalysisInputs()
+      return TypeScriptLanguage.makeConfig(from: inputs) as? TypeScriptLanguage.Config
     }
     #expect(discovered != nil)
     let paths = discovered?.tsconfig ?? []
@@ -284,7 +286,7 @@ struct LanguageSpecTests {
     #expect(sample != nil)
   }
 
-  @Test("Polymorphic autoDiscover on AnyLanguageSpec")
+  @Test("Polymorphic discoverAnalysisInputs and makeConfig on AnyLanguageSpec")
   func polymorphicAutoDiscover() async throws {
     let fm = FileManager.default
     let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -295,12 +297,14 @@ struct LanguageSpecTests {
     try Data("{}".utf8).write(to: tmpDir.appendingPathComponent("tsconfig.json"))
     defer { try? fm.removeItem(at: tmpDir) }
 
-    await RepoLocator.withRepoRoot(tmpDir) {
-      let swiftConfig = await SupportedLanguage.swift.spec.autoDiscover()
+    RepoLocator.withRepoRoot(tmpDir) {
+      let swiftInputs = SupportedLanguage.swift.spec.discoverAnalysisInputs()
+      let swiftConfig = SupportedLanguage.swift.spec.makeConfig(from: swiftInputs)
       #expect(swiftConfig != nil)
       #expect((swiftConfig as? SwiftLanguage.Config)?.indexStore == "build/Index.noindex/DataStore")
 
-      let tsConfig = await SupportedLanguage.ts.spec.autoDiscover()
+      let tsInputs = SupportedLanguage.ts.spec.discoverAnalysisInputs()
+      let tsConfig = SupportedLanguage.ts.spec.makeConfig(from: tsInputs)
       #expect(tsConfig != nil)
       #expect((tsConfig as? TypeScriptLanguage.Config)?.tsconfig.contains("tsconfig.json") == true)
     }
@@ -316,19 +320,6 @@ struct LanguageSpecTests {
     #expect(TypeScriptLanguage.defaultIgnoredPaths.contains("dist"))
     #expect(TypeScriptLanguage.defaultIgnoredExtensions.contains("d.ts"))
     #expect(TypeScriptLanguage.defaultIgnoredExtensions.contains("map"))
-
-    let allPaths = SupportedLanguage.allDefaultIgnoredPaths
-    #expect(allPaths.contains(".git"))
-    #expect(allPaths.contains("invariants/.dev"))
-    #expect(allPaths.contains("kits"))
-    #expect(allPaths.contains(".build"))
-    #expect(allPaths.contains("build"))
-    #expect(allPaths.contains("node_modules"))
-    #expect(allPaths.contains("dist"))
-
-    let allExts = SupportedLanguage.allDefaultIgnoredExtensions
-    #expect(allExts.contains("d.ts"))
-    #expect(allExts.contains("map"))
   }
 
   @Test("AnyLanguageSpec shouldSkip correctly filters ignored paths and extensions")

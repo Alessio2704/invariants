@@ -12,11 +12,6 @@ extension GitClient {
     /// All discovered branches in prioritized order (remote trunk, main, or master first).
     public let branches: [BranchInfo]
 
-    /// The default primary branch (first discovered branch, typically remote trunk or main).
-    public var defaultBranch: BranchInfo? {
-      branches.first
-    }
-
     public init(
       currentBranch: BranchInfo?,
       remoteTrunk: BranchInfo?,
@@ -24,12 +19,6 @@ extension GitClient {
     ) {
       self.currentBranch = currentBranch
       self.remoteTrunk = remoteTrunk
-      self.branches = branches
-    }
-
-    public init(branches: [BranchInfo]) {
-      self.currentBranch = branches.first(where: \.isActive)
-      self.remoteTrunk = branches.first(where: \.isTrunk)
       self.branches = branches
     }
   }

@@ -30,12 +30,6 @@ public enum SystemPaths: Sendable {
   /// Symlink name for active version (`current`).
   public static let currentLinkName: String = "current"
 
-  /// Default SSH directory name (`.ssh`).
-  public static let defaultKeyDirectoryName: String = ".ssh"
-
-  /// Default signing key filename (`invariants_p256`).
-  public static let defaultKeyFileName: String = "invariants_p256"
-
   /// Relative path under home directory for default key (`.ssh/invariants_p256`).
   public static let defaultKeySubpath: String = ".ssh/invariants_p256"
 
@@ -54,9 +48,4 @@ public enum SystemPaths: Sendable {
     devWorkspaceSubpath,
     kitsDirectorySubpath,
   ]
-}
-
-extension SystemEnvironment {
-  /// Typealias to `SystemPaths` for nested discovery under `SystemEnvironment.Paths`.
-  public typealias Paths = SystemPaths
 }

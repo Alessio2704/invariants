@@ -33,28 +33,4 @@ public struct ProcessRequest: Sendable, Equatable {
     self.checkExitCode = checkExitCode
     self.elevationToken = elevationToken
   }
-
-  public init(
-    binary: SystemBinary,
-    arguments: [String] = [],
-    targetURL: URL? = nil,
-    workingDirectory: URL? = nil,
-    environment: [String: String]? = nil,
-    stdinData: Data? = nil,
-    timeoutSeconds: Double = SubprocessRunner.defaultTimeoutSeconds,
-    checkExitCode: Bool = false,
-    elevationToken: ElevationToken? = nil
-  ) {
-    self.init(
-      executableURL: binary.url,
-      arguments: arguments,
-      targetURL: targetURL,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      stdinData: stdinData,
-      timeoutSeconds: timeoutSeconds,
-      checkExitCode: checkExitCode,
-      elevationToken: elevationToken
-    )
-  }
 }

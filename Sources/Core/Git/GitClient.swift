@@ -286,11 +286,6 @@ public enum GitClient: Sendable {
     return RepoInfo(currentBranch: currentBranchInfo, remoteTrunk: remoteTrunkInfo, branches: branchInfos)
   }
 
-  /// Discovers all available branch names in the repository, prioritizing remote trunk and canonical branches first.
-  public static func discoverBranches() async -> [String] {
-    await discoverRepoInfo().branches.map(\.name)
-  }
-
   private static func localBranchHeads() async -> [String] {
     let repoRoot = RepoLocator.current
     guard
