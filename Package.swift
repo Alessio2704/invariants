@@ -34,7 +34,7 @@ let package = Package(
             dependencies: [
                 "Extensions",
             ],
-            path: "Sources/VersionGenTool",
+            path: "Plugins/VersionGenTool",
             swiftSettings: swiftSettings
         ),
         .plugin(
