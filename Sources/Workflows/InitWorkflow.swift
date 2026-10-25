@@ -52,7 +52,6 @@ package enum InitWorkflow {
 
     // 4. Initialize repository
     let options = InitOptions(
-      engineVersion: EngineVersion.current,
       defaultBranch: defaultBranch,
       languages: languagesConfig,
       keyURL: session.privateKeyURL

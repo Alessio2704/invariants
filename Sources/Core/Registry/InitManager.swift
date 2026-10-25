@@ -2,18 +2,18 @@ public import Foundation
 
 /// Options for initializing invariants in a repository.
 public struct InitOptions: Sendable {
-  public var engineVersion: String
+  public var engine: String
   public var defaultBranch: String
   public var languages: LanguagesConfig
   public var keyURL: URL
 
   public init(
-    engineVersion: String = EngineVersion.current,
+    engine: String = EngineVersion.defaultRange,
     defaultBranch: String = "main",
     languages: LanguagesConfig,
     keyURL: URL
   ) {
-    self.engineVersion = engineVersion
+    self.engine = engine
     self.defaultBranch = defaultBranch
     self.languages = languages
     self.keyURL = keyURL
@@ -44,7 +44,7 @@ public enum InitManager: Sendable {
     // 2. Create Registry v1
     let registry = Registry(
       version: 1,
-      engine: "^\(options.engineVersion)",
+      engine: options.engine,
       defaultBranch: options.defaultBranch,
       languages: options.languages,
       rules: [:]

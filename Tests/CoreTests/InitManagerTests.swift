@@ -33,7 +33,7 @@ struct InitManagerTests {
     languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
 
     let options = InitOptions(
-      engineVersion: "1.0.0",
+      engine: "^1.0.0",
       languages: languages,
       keyURL: keyURL
     )
@@ -115,7 +115,7 @@ struct InitManagerTests {
       languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
 
       let options = InitOptions(
-        engineVersion: "1.0.0",
+        engine: "^1.0.0",
         defaultBranch: "develop",
         languages: languages,
         keyURL: keyURL
@@ -125,6 +125,39 @@ struct InitManagerTests {
 
       let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
       #expect(loaded.defaultBranch == "develop")
+    }
+  }
+
+  @Test("Initializes with default engine version sets EngineVersion.defaultRange")
+  func initializeWithDefaultEngineRange() async throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent("init_default_engine_\(UUID().uuidString)")
+    let repoURL = tmpDir.appendingPathComponent("test-project")
+    let keyURL = tmpDir.appendingPathComponent("id_p256")
+
+    try fm.createDirectory(at: repoURL, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "init", "-b", "main"])
+    _ = try await SubprocessRunner.run(
+      binary: .git, arguments: ["-C", repoURL.path, "config", "user.name", "Default Engine Tester"])
+    _ = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", repoURL.path, "config", "user.email", "engine@invariants.local"])
+
+    try SigningClient.generateThrowawayKey(at: keyURL)
+
+    try await RepoLocator.withRepoRoot(repoURL) {
+      let options = InitOptions(
+        languages: LanguagesConfig(),
+        keyURL: keyURL
+      )
+
+      try await InitManager.initialize(options: options)
+
+      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: EngineVersion.current)
+      #expect(loaded.engine == EngineVersion.defaultRange)
     }
   }
 }

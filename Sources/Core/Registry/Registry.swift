@@ -20,7 +20,7 @@ public struct Registry: Sendable, Equatable, Codable {
 
   public init(
     version: Int = 1,
-    engine: String = "^1.0.0",
+    engine: String = EngineVersion.defaultRange,
     defaultBranch: String = "main",
     languages: LanguagesConfig,
     rules: [String: String] = [:],

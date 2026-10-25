@@ -19,7 +19,7 @@ package enum UpgradeWorkflow {
       allowEngineMismatch: true
     )
 
-    let newRange = "^\(EngineVersion.current)"
+    let newRange = EngineVersion.defaultRange
     Terminal.info("Re-verifying all active rules under engine \(EngineVersion.current)...")
 
     for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
