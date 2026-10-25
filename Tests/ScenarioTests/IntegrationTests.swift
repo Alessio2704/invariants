@@ -52,8 +52,7 @@ struct IntegrationTests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: "integration_test_hash",
-      request: cleanReq,
-      engineVersion: "1.0.0"
+      request: cleanReq
     )
     #expect(cleanViolations.isEmpty)
 
@@ -69,8 +68,7 @@ struct IntegrationTests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: "integration_test_hash",
-      request: violatingReq,
-      engineVersion: "1.0.0"
+      request: violatingReq
     )
     #expect(violations.count == 1)
     let first = try #require(violations.first)
@@ -132,8 +130,7 @@ struct IntegrationTests {
       target: .ts,
       ruleDirectory: ruleDir,
       ruleTreeHash: "ts_integration_hash",
-      request: cleanReq,
-      engineVersion: "1.0.0"
+      request: cleanReq
     )
     #expect(cleanViolations.isEmpty)
 
@@ -149,8 +146,7 @@ struct IntegrationTests {
       target: .ts,
       ruleDirectory: ruleDir,
       ruleTreeHash: "ts_integration_hash",
-      request: violatingReq,
-      engineVersion: "1.0.0"
+      request: violatingReq
     )
     #expect(violations.count == 1)
     let first = try #require(violations.first)

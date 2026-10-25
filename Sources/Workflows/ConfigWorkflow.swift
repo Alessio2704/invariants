@@ -17,9 +17,7 @@ package enum ConfigWorkflow {
     // 1. Authorize signing session upfront (fail-fast)
     let session = try SigningSession.authorize(customPath: keyPath)
 
-    var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
-    )
+    var registry = try await RegistryManager.loadAndVerify()
 
     guard
       let targetLanguages = try resolveTargetLanguages(
@@ -94,8 +92,7 @@ package enum ConfigWorkflow {
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            request: req,
-            engineVersion: EngineVersion.current
+            request: req
           )
           if fixtureCase.isShouldPass && !violations.isEmpty {
             throw ConfigWorkflowError.fixtureFailed(ruleId)
@@ -129,8 +126,7 @@ package enum ConfigWorkflow {
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            request: reqOld,
-            engineVersion: EngineVersion.current
+            request: reqOld
           )) ?? []
 
         let violationsNew =
@@ -138,8 +134,7 @@ package enum ConfigWorkflow {
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            request: reqNew,
-            engineVersion: EngineVersion.current
+            request: reqNew
           )) ?? []
 
         let dropped = Set(violationsOld).subtracting(Set(violationsNew))

@@ -16,9 +16,7 @@ package enum TestRuleWorkflow {
 
     let registry: Registry
     do {
-      registry = try await RegistryManager.loadAndVerify(
-        installedEngineVersion: EngineVersion.current
-      )
+      registry = try await RegistryManager.loadAndVerify()
     } catch {
       Terminal.error("Registry verification failed: \(error)")
       return false
@@ -85,8 +83,7 @@ package enum TestRuleWorkflow {
             target: target,
             ruleDirectory: ruleDir,
             ruleTreeHash: "working_tree",
-            request: req,
-            engineVersion: EngineVersion.current
+            request: req
           )
         } catch let runnerErr {
           let harnessErr: HarnessError

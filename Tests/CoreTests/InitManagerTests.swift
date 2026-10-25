@@ -56,7 +56,7 @@ struct InitManagerTests {
       #expect(fm.fileExists(atPath: sigURL.path))
 
       // 3. Verify registry can be loaded and cryptographically verified
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.version == 1)
       #expect(loaded.defaultBranch == "main")
       #expect(loaded.languages[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
@@ -123,7 +123,7 @@ struct InitManagerTests {
 
       try await InitManager.initialize(options: options)
 
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.defaultBranch == "develop")
     }
   }
@@ -156,7 +156,7 @@ struct InitManagerTests {
 
       try await InitManager.initialize(options: options)
 
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: EngineVersion.current)
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.engine == EngineVersion.defaultRange)
     }
   }

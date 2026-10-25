@@ -8,15 +8,15 @@ public actor FixtureCache {
 
   public init() {}
 
-  private func cacheKey(engineVersion: String, ruleTreeHash: String) -> String {
-    "\(engineVersion):\(ruleTreeHash)"
+  private func cacheKey(ruleTreeHash: String) -> String {
+    "\(EngineVersion.current):\(ruleTreeHash)"
   }
 
-  public func isCachedPass(engineVersion: String, ruleTreeHash: String) -> Bool {
-    passedHashes.contains(cacheKey(engineVersion: engineVersion, ruleTreeHash: ruleTreeHash))
+  public func isCachedPass(ruleTreeHash: String) -> Bool {
+    passedHashes.contains(cacheKey(ruleTreeHash: ruleTreeHash))
   }
 
-  public func recordPass(engineVersion: String, ruleTreeHash: String) {
-    passedHashes.insert(cacheKey(engineVersion: engineVersion, ruleTreeHash: ruleTreeHash))
+  public func recordPass(ruleTreeHash: String) {
+    passedHashes.insert(cacheKey(ruleTreeHash: ruleTreeHash))
   }
 }

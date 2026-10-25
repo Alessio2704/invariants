@@ -12,9 +12,7 @@ package enum RemoveRuleWorkflow {
     let session = try SigningSession.authorize(customPath: keyPath)
 
     // 2. Load registry
-    var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
-    )
+    var registry = try await RegistryManager.loadAndVerify()
 
     guard registry.rules[ruleId] != nil else {
       throw RemoveRuleWorkflowError.notInRegistry(ruleId)

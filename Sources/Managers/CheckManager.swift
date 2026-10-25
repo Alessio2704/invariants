@@ -22,9 +22,7 @@ package enum CheckManager {
   package static func runPipeline(
     environment: SystemEnvironment = .standard
   ) async throws -> CheckReport {
-    let registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
-    )
+    let registry = try await RegistryManager.loadAndVerify()
 
     _ = try await FloorGuard.checkHistory(currentVersion: registry.version)
     let isShallow = try await FloorGuard.checkSignerAncestry(currentRegistry: registry)
@@ -39,7 +37,6 @@ package enum CheckManager {
 
     return CheckReport(
       registryVersion: registry.version,
-      engineVersion: EngineVersion.current,
       rules: activeItems + draftItems,
       isShallowRepository: isShallow
     )
@@ -144,7 +141,6 @@ package enum CheckManager {
     context: CheckContext
   ) async -> String? {
     let isCachedPass = await FixtureCache.shared.isCachedPass(
-      engineVersion: EngineVersion.current,
       ruleTreeHash: signedTreeHash
     )
     if isCachedPass {
@@ -172,8 +168,7 @@ package enum CheckManager {
               target: target,
               ruleDirectory: tempSnapshotDir,
               ruleTreeHash: signedTreeHash,
-              request: req,
-              engineVersion: EngineVersion.current
+              request: req
             )
           } catch let runnerErr {
             switch runnerErr {
@@ -202,7 +197,6 @@ package enum CheckManager {
     }
 
     await FixtureCache.shared.recordPass(
-      engineVersion: EngineVersion.current,
       ruleTreeHash: signedTreeHash
     )
     return nil
@@ -234,8 +228,7 @@ package enum CheckManager {
           target: target,
           ruleDirectory: ruleCtx.tempSnapshotDir,
           ruleTreeHash: ruleCtx.signedTreeHash,
-          request: req,
-          engineVersion: EngineVersion.current
+          request: req
         )
         try ManifestValidator.validateReportedViolations(
           manifest: ruleCtx.manifest,
@@ -330,8 +323,7 @@ package enum CheckManager {
           target: target,
           ruleDirectory: draftDir,
           ruleTreeHash: "draft",
-          request: req,
-          engineVersion: EngineVersion.current
+          request: req
         ) {
           if (fixtureCase.isShouldPass && res.isEmpty) || (!fixtureCase.isShouldPass && !res.isEmpty) {
             draftPassed += 1

@@ -17,7 +17,6 @@ public enum RegistryManager: Sendable {
 
   /// Loads, parses, and cryptographically verifies `registry.lock`.
   public static func loadAndVerify(
-    installedEngineVersion: String = "1.0.0",
     identity: String = "owner",
     allowEngineMismatch: Bool = false
   ) async throws(RegistryError) -> Registry {
@@ -79,10 +78,13 @@ public enum RegistryManager: Sendable {
     }
 
     // Check engine semver range unless explicitly bypassed (e.g. during upgrade-registry)
-    if !allowEngineMismatch, let currentSemver = Semver(string: installedEngineVersion) {
+    if !allowEngineMismatch {
       let range = SemverRange(registry.engine)
-      if !range.satisfies(currentSemver) {
-        throw RegistryError.engineVersionMismatch(required: registry.engine, installed: installedEngineVersion)
+      if !range.satisfies(EngineVersion.semver) {
+        throw RegistryError.engineVersionMismatch(
+          required: registry.engine,
+          installed: EngineVersion.current
+        )
       }
     }
 

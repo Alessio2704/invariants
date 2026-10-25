@@ -20,7 +20,7 @@ struct ScenarioTests {
     try await repo.signed(version: 1)
 
     try await repo.run {
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.version == 1)
       #expect(loaded.rules["toy"] != nil)
 
@@ -82,21 +82,21 @@ struct ScenarioTests {
 
     await #expect(throws: RegistryError.self) {
       try await repo.run {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
 
     // 2. Engine range mismatch
     let repo2 = try await TestRepo()
     try repo2.withRule("toy2", targets: [.swift])
-    let reg2 = Registry.forTesting(version: 1, engine: "^2.0.0", rules: [:])
+    let reg2 = Registry.forTesting(version: 1, engine: "^99.0.0", rules: [:])
     try await repo2.run {
       try await RegistryManager.saveAndSign(registry: reg2, keyURL: repo2.keyURL)
     }
 
-    await #expect(throws: RegistryError.engineVersionMismatch(required: "^2.0.0", installed: "1.0.0")) {
+    await #expect(throws: RegistryError.engineVersionMismatch(required: "^99.0.0", installed: EngineVersion.current)) {
       try await repo2.run {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }
@@ -157,7 +157,7 @@ struct ScenarioTests {
       ),
     ]
 
-    let report = CheckReport(registryVersion: 5, engineVersion: "1.0.0", rules: items)
+    let report = CheckReport(registryVersion: 5, rules: items)
     #expect(report.hasProblems == true)
 
     let textOutput = ReportFormatter.formatText(report)

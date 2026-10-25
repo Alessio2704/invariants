@@ -130,7 +130,7 @@ struct RegistryTests {
       try await RegistryManager.saveAndSign(registry: reg, keyURL: keyURL)
 
       // Verify valid
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.version == reg.version)
       #expect(loaded.signersHash != nil)
 
@@ -142,7 +142,7 @@ struct RegistryTests {
 
       // Verification must throw signatureInvalid
       await #expect(throws: RegistryError.self) {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }

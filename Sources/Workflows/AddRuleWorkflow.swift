@@ -13,9 +13,7 @@ package enum AddRuleWorkflow {
     let session = try SigningSession.authorize(customPath: keyPath)
 
     // 2. Load registry
-    var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
-    )
+    var registry = try await RegistryManager.loadAndVerify()
 
     guard registry.rules[ruleId] == nil else {
       throw AddRuleWorkflowError.alreadyActive(ruleId)
@@ -56,8 +54,7 @@ package enum AddRuleWorkflow {
           target: target,
           ruleDirectory: ruleDir,
           ruleTreeHash: "add_preview",
-          request: req,
-          engineVersion: EngineVersion.current
+          request: req
         )
 
         let expected = Set(fixtureCase.expectedViolations)
@@ -97,8 +94,7 @@ package enum AddRuleWorkflow {
         target: target,
         ruleDirectory: ruleDir,
         ruleTreeHash: "add_preview",
-        request: req,
-        engineVersion: EngineVersion.current
+        request: req
       )
       repoViolationsCount += violations.count
     }

@@ -11,29 +11,27 @@ struct UpgradeWorkflowTests {
   func testLoadAndVerifyWithEngineMismatchAllowed() async throws {
     let repo = try await TestRepo()
     try repo.withRule("test-semver-rule")
-    // Version 1 requires engine "^1.0.0"
-    try await repo.signed(version: 1, defaultBranch: "main")
+    // Version 1 requires incompatible engine "^99.0.0"
+    try await repo.signed(version: 1, engine: "^99.0.0", defaultBranch: "main")
 
-    // Attempting to load registry with installed engine "2.0.0" without allowEngineMismatch must throw
-    await #expect(throws: RegistryError.self) {
+    // Attempting to load registry without allowEngineMismatch must throw
+    await #expect(throws: RegistryError.engineVersionMismatch(required: "^99.0.0", installed: EngineVersion.current)) {
       try await repo.run {
         _ = try await RegistryManager.loadAndVerify(
-          installedEngineVersion: "2.0.0",
           identity: "*",
           allowEngineMismatch: false
         )
       }
     }
 
-    // Attempting to load registry with installed engine "2.0.0" WITH allowEngineMismatch must succeed
+    // Attempting to load registry WITH allowEngineMismatch must succeed
     let registry = try await repo.run {
       try await RegistryManager.loadAndVerify(
-        installedEngineVersion: "2.0.0",
         identity: "*",
         allowEngineMismatch: true
       )
     }
     #expect(registry.version == 1)
-    #expect(registry.engine == "^1.0.0")
+    #expect(registry.engine == "^99.0.0")
   }
 }

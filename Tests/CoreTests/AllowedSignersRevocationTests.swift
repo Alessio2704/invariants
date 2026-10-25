@@ -32,7 +32,7 @@ struct AllowedSignersRevocationTests {
 
       // loadAndVerify must reject expired key
       await #expect(throws: RegistryError.self) {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }
@@ -63,7 +63,7 @@ struct AllowedSignersRevocationTests {
 
       // loadAndVerify must reject not-yet-valid key
       await #expect(throws: RegistryError.self) {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }
@@ -92,7 +92,7 @@ struct AllowedSignersRevocationTests {
       try await RegistryManager.saveAndSign(registry: reg, keyURL: keyURL)
 
       // Valid initially
-      let loaded = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.version == 1)
 
       // Tamper allowed_signers in working tree (e.g. Rogue AI appends key)
@@ -104,7 +104,7 @@ struct AllowedSignersRevocationTests {
 
       // loadAndVerify must immediately throw signatureInvalid due to signers hash mismatch
       await #expect(throws: RegistryError.self) {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }
@@ -138,7 +138,7 @@ struct AllowedSignersRevocationTests {
       try await RegistryManager.saveAndSign(registry: reg, keyURL: keyB)
 
       // Initially valid when signed by B
-      let loaded1 = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded1 = try await RegistryManager.loadAndVerify()
       #expect(loaded1.version == 1)
 
       // 3. Senior A hard revokes B: purges B completely from allowed_signers and bumps to v2
@@ -150,7 +150,7 @@ struct AllowedSignersRevocationTests {
       try await RegistryManager.saveAndSign(registry: reg2, keyURL: keyA)
 
       // Verified with Senior A's signature
-      let loaded2 = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+      let loaded2 = try await RegistryManager.loadAndVerify()
       #expect(loaded2.version == 2)
 
       // 4. Revoked B tries to forge a signature on registry v3
@@ -163,7 +163,7 @@ struct AllowedSignersRevocationTests {
 
       // loadAndVerify must reject because Key B is not in allowed_signers
       await #expect(throws: RegistryError.self) {
-        _ = try await RegistryManager.loadAndVerify(installedEngineVersion: "1.0.0")
+        _ = try await RegistryManager.loadAndVerify()
       }
     }
   }

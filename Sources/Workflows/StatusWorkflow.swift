@@ -13,9 +13,7 @@ package enum StatusWorkflow {
     // 1. Registry & Signature
     var registry: Registry?
     do {
-      let loaded = try await RegistryManager.loadAndVerify(
-        installedEngineVersion: EngineVersion.current
-      )
+      let loaded = try await RegistryManager.loadAndVerify()
       registry = loaded
       Terminal.field("Engine:", value: "\(EngineVersion.current) (satisfies range '\(loaded.engine)')")
       Terminal.field("Signature:", value: "✓ valid (verified against allowed_signers)")

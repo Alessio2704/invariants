@@ -132,6 +132,7 @@ final class TestRepo: @unchecked Sendable {
   @discardableResult
   func signed(
     version: Int = 1,
+    engine: String = EngineVersion.defaultRange,
     defaultBranch: String = "main",
     languages: LanguagesConfig = TestRepo.defaultLanguages
   ) async throws -> TestRepo {
@@ -148,7 +149,7 @@ final class TestRepo: @unchecked Sendable {
 
       let reg = Registry(
         version: version,
-        engine: "^1.0.0",
+        engine: engine,
         defaultBranch: defaultBranch,
         languages: languages,
         rules: ruleMap

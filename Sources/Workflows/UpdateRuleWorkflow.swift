@@ -26,9 +26,7 @@ package enum UpdateRuleWorkflow {
     // 1. Authorize signing session upfront (fail-fast)
     let session = try SigningSession.authorize(customPath: input.keyPath)
 
-    var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current
-    )
+    var registry = try await RegistryManager.loadAndVerify()
 
     guard let oldSignedTreeHash = registry.rules[input.id] else {
       throw UpdateRuleWorkflowError.notActive(input.id)
@@ -208,8 +206,7 @@ package enum UpdateRuleWorkflow {
           target: target,
           ruleDirectory: context.tempOldSnapshot,
           ruleTreeHash: context.oldSignedTreeHash,
-          request: oldReq,
-          engineVersion: EngineVersion.current
+          request: oldReq
         )) ?? []
 
       let newRes =
@@ -217,8 +214,7 @@ package enum UpdateRuleWorkflow {
           target: target,
           ruleDirectory: context.ruleDir,
           ruleTreeHash: "update_preview",
-          request: newReq,
-          engineVersion: EngineVersion.current
+          request: newReq
         )) ?? []
 
       oldViolations.append(contentsOf: oldRes)
@@ -252,8 +248,7 @@ package enum UpdateRuleWorkflow {
           target: target,
           ruleDirectory: ruleDir,
           ruleTreeHash: "update_preview",
-          request: req,
-          engineVersion: EngineVersion.current
+          request: req
         )
 
         let expected = Set(fixtureCase.expectedViolations)

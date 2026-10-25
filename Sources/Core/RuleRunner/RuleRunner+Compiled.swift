@@ -5,13 +5,13 @@ extension RuleRunner {
     spec: RuleExecutionSpec,
     ruleDirectory: URL,
     ruleTreeHash: String,
-    request: RuleRequest,
-    engineVersion: String
+    request: RuleRequest
   ) async throws(RuleRunnerError) -> [ReportedViolation] {
     guard case .compiled(let compiled) = spec.model else { return [] }
     let reporting = spec.reporting
 
     let fm = FileManager.default
+    let engineVersion = EngineVersion.current
     let cachesURL: URL
     if let userCache = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
       cachesURL = userCache.appendingPathComponent("invariants/rules/\(engineVersion)/\(ruleTreeHash)")

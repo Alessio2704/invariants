@@ -18,8 +18,7 @@ public struct RuleRunner: Sendable {
     target: TargetLanguage,
     ruleDirectory: URL,
     ruleTreeHash: String,
-    request: RuleRequest,
-    engineVersion: String = EngineVersion.current
+    request: RuleRequest
   ) async throws(RuleRunnerError) -> [ReportedViolation] {
     let spec = target.spec.executionSpec
     switch spec.model {
@@ -28,8 +27,7 @@ public struct RuleRunner: Sendable {
         spec: spec,
         ruleDirectory: ruleDirectory,
         ruleTreeHash: ruleTreeHash,
-        request: request,
-        engineVersion: engineVersion
+        request: request
       )
     case .interpreted(let interpreted):
       return try await executeInterpretedRule(

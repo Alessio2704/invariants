@@ -67,9 +67,7 @@ struct InitWorkflowTests {
         )
       )
 
-      let reg = try await RegistryManager.loadAndVerify(
-        installedEngineVersion: EngineVersion.current
-      )
+      let reg = try await RegistryManager.loadAndVerify()
       #expect(reg.version == 1)
       #expect(reg.defaultBranch == "main")
       #expect(reg.languages[SwiftLanguage.self] != nil)

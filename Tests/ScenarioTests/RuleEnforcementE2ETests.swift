@@ -76,8 +76,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: cleanReq,
-      engineVersion: "1.0.0"
+      request: cleanReq
     )
     #expect(cleanViolations.isEmpty)
 
@@ -95,8 +94,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: violatingReq,
-      engineVersion: "1.0.0"
+      request: violatingReq
     )
     #expect(repoViolations.count == 1)
     let first = try #require(repoViolations.first)
@@ -110,8 +108,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: violatingReq,
-      engineVersion: "1.0.0"
+      request: violatingReq
     )
     #expect(resolvedViolations.isEmpty)
   }
@@ -219,8 +216,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: swiftCleanReq,
-      engineVersion: "1.0.0"
+      request: swiftCleanReq
     )
     #expect(swiftCleanViolations.isEmpty)
 
@@ -235,8 +231,7 @@ struct RuleEnforcementE2ETests {
       target: .ts,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: tsCleanReq,
-      engineVersion: "1.0.0"
+      request: tsCleanReq
     )
     #expect(tsCleanViolations.isEmpty)
 
@@ -257,8 +252,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: swiftViolatingReq,
-      engineVersion: "1.0.0"
+      request: swiftViolatingReq
     )
     #expect(swiftViolations.count == 1)
     let swiftV = try #require(swiftViolations.first)
@@ -276,8 +270,7 @@ struct RuleEnforcementE2ETests {
       target: .ts,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: tsViolatingReq,
-      engineVersion: "1.0.0"
+      request: tsViolatingReq
     )
     #expect(tsViolations.count == 1)
     let tsV = try #require(tsViolations.first)
@@ -291,8 +284,7 @@ struct RuleEnforcementE2ETests {
       target: .swift,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: swiftViolatingReq,
-      engineVersion: "1.0.0"
+      request: swiftViolatingReq
     )
     #expect(swiftResolved.isEmpty)
 
@@ -300,8 +292,7 @@ struct RuleEnforcementE2ETests {
       target: .ts,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      request: tsViolatingReq,
-      engineVersion: "1.0.0"
+      request: tsViolatingReq
     )
     #expect(tsResolved.isEmpty)
   }
@@ -332,8 +323,7 @@ struct RuleEnforcementE2ETests {
         target: target,
         ruleDirectory: ruleDir,
         ruleTreeHash: ruleTreeHash,
-        request: req,
-        engineVersion: "1.0.0"
+        request: req
       )
       let fixtureError = fixtureCase.evaluateExpectations(reportedViolations: violations)
       #expect(fixtureError == nil)

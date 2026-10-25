@@ -15,7 +15,6 @@ package enum UpgradeWorkflow {
 
     // 2. Load and verify registry (allow engine mismatch so new major versions can upgrade the lockfile)
     var registry = try await RegistryManager.loadAndVerify(
-      installedEngineVersion: EngineVersion.current,
       allowEngineMismatch: true
     )
 
@@ -51,8 +50,7 @@ package enum UpgradeWorkflow {
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            request: req,
-            engineVersion: EngineVersion.current
+            request: req
           )
           if fixtureCase.isShouldPass && !violations.isEmpty {
             throw UpgradeWorkflowError.fixtureFailed(ruleId)
@@ -75,8 +73,7 @@ package enum UpgradeWorkflow {
           target: target,
           ruleDirectory: tempSnapshot,
           ruleTreeHash: signedTreeHash,
-          request: req,
-          engineVersion: EngineVersion.current
+          request: req
         )
       }
     }
