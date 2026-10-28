@@ -6,27 +6,21 @@ cd "$REPO_ROOT"
 
 echo "Running full verification checks..."
 
-# 1. Swift format lint
 swift format lint --strict --recursive Sources Tests kits
 
-# 2. SwiftLint
 if command -v swiftlint >/dev/null 2>&1; then
   swiftlint lint --strict
 fi
 
-# 3. Swift build & index store generation (0 warnings enforced via -warnings-as-errors)
 swift build -Xswiftc -index-store-path -Xswiftc "$REPO_ROOT/.build/out"
 
-# 4. Periphery unused code analysis
 if command -v periphery >/dev/null 2>&1; then
   echo "Running Periphery unused code analysis..."
   periphery scan --index-store-path "$REPO_ROOT/.build/out" --skip-build
 fi
 
-# 5. Full Swift test suite (InvariantCore, InvariantKit, ScenarioTests)
 swift test
 
-# 6. Kit-TS checks & test coverage
 (
   if [ -d "$REPO_ROOT/kits/kit-ts" ]; then
     cd "$REPO_ROOT/kits/kit-ts"
