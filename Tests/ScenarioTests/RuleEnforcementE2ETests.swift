@@ -158,6 +158,8 @@ struct RuleEnforcementE2ETests {
       ruleSwiftBody: ruleSwiftBody,
       ruleTsBody: ruleTsBody,
       extraFiles: [
+        "tsconfig.json":
+          "{\n  \"compilerOptions\": { \"target\": \"ES2022\", \"module\": \"NodeNext\" },\n  \"include\": [\"src/**/*.ts\"]\n}\n",
         "Sources/App/Engine.swift": "struct Engine { let power = 100 }\n",
         "src/parser/engine.ts": "export const engine = { power: 100 };\n",
       ]

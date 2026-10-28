@@ -107,6 +107,8 @@ struct IntegrationTests {
       targets: [.ts],
       ruleTsBody: ruleTs,
       extraFiles: [
+        "tsconfig.json":
+          "{\n  \"compilerOptions\": { \"target\": \"ES2022\", \"module\": \"NodeNext\" },\n  \"include\": [\"src/**/*.ts\"]\n}\n",
         "src/CleanModule.ts": "export const config = { port: 8080 };\n",
         "src/ViolatingModule.ts": "console.log('unauthorized leak');\n",
       ]

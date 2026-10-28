@@ -12,6 +12,7 @@ describe("@invariants/kit API", () => {
             line: 1,
             column: 1,
             message: "Test violation",
+            fix: "Remediate test violation",
           },
         ];
       },

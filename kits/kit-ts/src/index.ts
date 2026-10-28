@@ -11,7 +11,7 @@ export interface Violation {
   readonly line: number;
   readonly column: number;
   readonly message: string;
-  readonly fix?: string | undefined;
+  readonly fix: string;
 }
 
 /**

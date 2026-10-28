@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { API } from "typescript/unstable/sync";
-import type { RuleContext, RuleDefinition, Violation } from "./index.js";
+import type { RuleContext, RuleDefinition } from "./index.js";
 
 interface RequestPayload {
   readonly mode: "repo" | "fixture";
@@ -10,11 +10,9 @@ interface RequestPayload {
   readonly ruleDir: string;
   readonly files: readonly string[];
   readonly languages: {
-    readonly ts?:
-      | {
-          readonly tsconfig?: readonly string[] | undefined;
-        }
-      | undefined;
+    readonly ts?: {
+      readonly tsconfig?: readonly string[];
+    };
   };
 }
 
@@ -25,8 +23,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const rulePath = path.resolve(args[0] ?? "");
-  const requestPath = path.resolve(args[1] ?? "");
+  const ruleArg = args[0];
+  const requestArg = args[1];
+  if (!ruleArg || !requestArg) {
+    process.stderr.write("Usage: runner <rule.ts> <request.json>\n");
+    process.exit(1);
+  }
+
+  const rulePath = path.resolve(ruleArg);
+  const requestPath = path.resolve(requestArg);
 
   const requestContent = fs.readFileSync(requestPath, "utf8");
   const request = JSON.parse(requestContent) as RequestPayload;
@@ -35,21 +40,33 @@ async function main(): Promise<void> {
   let tempConfigDir: string | undefined;
 
   try {
-    let resolvedConfigPath = "";
-    if (request.languages.ts?.tsconfig && request.languages.ts.tsconfig.length > 0) {
-      const firstConfig = request.languages.ts.tsconfig[0];
-      if (firstConfig) {
-        const candidate = path.resolve(request.repoRoot, firstConfig);
-        if (fs.existsSync(candidate)) {
-          resolvedConfigPath = candidate;
-        }
-      }
-    }
+    const resolvedConfigPaths: string[] = [];
 
-    if (!resolvedConfigPath) {
-      // Synthesize minimal tsconfig for fixture or loose files
+    if (request.mode === "repo") {
+      const tsConfig = request.languages.ts;
+      if (!tsConfig || !Array.isArray(tsConfig.tsconfig) || tsConfig.tsconfig.length === 0) {
+        process.stderr.write(
+          "INDEX STALE: TypeScript analysis requires at least one configured tsconfig in registry.lock\n",
+        );
+        process.exit(2);
+      }
+
+      for (const relConfig of tsConfig.tsconfig) {
+        if (typeof relConfig !== "string" || relConfig.trim().length === 0) {
+          process.stderr.write("INDEX STALE: Invalid tsconfig path in configuration\n");
+          process.exit(2);
+        }
+        const candidate = path.resolve(request.repoRoot, relConfig);
+        if (!fs.existsSync(candidate)) {
+          process.stderr.write(`INDEX STALE: Configured tsconfig does not exist: ${candidate}\n`);
+          process.exit(2);
+        }
+        resolvedConfigPaths.push(candidate);
+      }
+    } else if (request.mode === "fixture") {
+      // Synthesize minimal tsconfig scoped strictly to the fixture files under test
       tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "inv_ts_"));
-      resolvedConfigPath = path.join(tempConfigDir, "tsconfig.json");
+      const syntheticConfigPath = path.join(tempConfigDir, "tsconfig.json");
       const syntheticConfig = {
         compilerOptions: {
           target: "ES2022",
@@ -58,13 +75,15 @@ async function main(): Promise<void> {
         },
         files: request.files.map((f) => path.resolve(request.repoRoot, f)),
       };
-      fs.writeFileSync(resolvedConfigPath, JSON.stringify(syntheticConfig, null, 2));
+      fs.writeFileSync(syntheticConfigPath, JSON.stringify(syntheticConfig, null, 2));
+      resolvedConfigPaths.push(syntheticConfigPath);
+    } else {
+      throw new Error(`Invalid request mode: ${String((request as { mode?: unknown }).mode)}`);
     }
 
-    const snapshot = api.updateSnapshot({ openProjects: [resolvedConfigPath] });
-    const project = snapshot.getProjects()[0];
-    const program = project?.program;
-    const checker = project?.checker;
+    const snapshot = api.updateSnapshot({ openProjects: resolvedConfigPaths });
+    const projects = snapshot.getProjects();
+    const primaryProject = projects[0];
 
     const ctx: RuleContext = {
       mode: request.mode,
@@ -76,9 +95,13 @@ async function main(): Promise<void> {
         const full = path.isAbsolute(filePath)
           ? filePath
           : path.resolve(request.repoRoot, filePath);
-        return program?.getSourceFile(full);
+        for (const proj of projects) {
+          const sf = proj.program?.getSourceFile(full);
+          if (sf) return sf;
+        }
+        return undefined;
       },
-      checker,
+      checker: primaryProject?.checker,
     };
 
     // Register bundled TS loader so that rule.ts can be loaded directly and resolve @invariants/kit
@@ -99,10 +122,32 @@ async function main(): Promise<void> {
       throw new Error(`Rule at ${rulePath} does not export a check() function`);
     }
 
-    const violations = await Promise.resolve(rule.check(ctx));
-    const output: readonly Violation[] = violations ?? [];
+    const result = await Promise.resolve(rule.check(ctx));
+    if (!Array.isArray(result)) {
+      throw new Error(
+        `Rule contract violation at ${rulePath}: check() must return an Array of Violation objects. Received: ${typeof result}`,
+      );
+    }
 
-    process.stdout.write(`${JSON.stringify(output)}\n`);
+    for (let i = 0; i < result.length; i++) {
+      const v = result[i];
+      if (
+        typeof v !== "object" ||
+        v === null ||
+        typeof v.code !== "string" ||
+        typeof v.file !== "string" ||
+        typeof v.line !== "number" ||
+        typeof v.column !== "number" ||
+        typeof v.message !== "string" ||
+        typeof v.fix !== "string"
+      ) {
+        throw new Error(
+          `Violation contract violation at ${rulePath} (index ${i}): every violation must be an object with string 'code', 'file', 'message', 'fix' and number 'line', 'column'. Received: ${JSON.stringify(v)}`,
+        );
+      }
+    }
+
+    process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (err) {
     const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
     process.stderr.write(`TS Rule execution error: ${message}\n`);
