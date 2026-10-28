@@ -101,6 +101,10 @@ struct RegistryTests {
     let tilde = SemverRange("~1.2.0")
     #expect(tilde.satisfies(v1_2_3))
     #expect(!tilde.satisfies(v1_3_0))
+
+    #expect(Semver(string: "1.0.-") == nil)
+    #expect(Semver(string: "1.0.+build") == nil)
+    #expect(Semver(string: "1.0")?.patch == 0)
   }
 
   @Test("SigningClient sign and verify with throwaway key")

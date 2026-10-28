@@ -51,8 +51,9 @@ else {
 
 let patch: Int
 if parts.count >= 3 {
-  let patchPart = parts[2].split(whereSeparator: { $0 == "-" || $0 == "+" })[0]
-  guard let p = Int(patchPart) else {
+  guard let patchPart = parts[2].split(whereSeparator: { $0 == "-" || $0 == "+" }).first,
+    let p = Int(patchPart)
+  else {
     fputs("VersionGenTool: Failed to parse patch component from '\(parts[2])'.\n", stderr)
     exit(1)
   }

@@ -2,10 +2,16 @@ public import Foundation
 
 /// Strict JSON parser for `manifest.json` ensuring no unknown keys and exact types.
 public enum ManifestParser {
-  /// Loads and parses a `manifest.json` file from a URL.
+  /// Loads and parses a `manifest.json` file from a file or directory URL.
   public static func load(from url: URL, expectedId: String? = nil) throws(ManifestError) -> RuleManifest {
-    guard FileManager.default.fileExists(atPath: url.path) else {
-      throw ManifestError.fileNotFound(url)
+    var isDir: ObjCBool = false
+    let targetURL =
+      (FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue)
+      ? url.appendingPathComponent("manifest.json")
+      : url
+
+    guard FileManager.default.fileExists(atPath: targetURL.path) else {
+      throw ManifestError.fileNotFound(targetURL)
     }
     let data: Data
     do {

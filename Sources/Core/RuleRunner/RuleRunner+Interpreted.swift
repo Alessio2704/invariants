@@ -25,53 +25,13 @@ extension RuleRunner {
       throw RuleRunnerError.kitNotFound("\(spec.kitDirectoryName) runner not found at \(runnerScriptURL.path)")
     }
 
-    let tempReqURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-      "req_\(UUID().uuidString).json"
+    return try await executeProcessAndParseViolations(
+      executableURL: runtimeURL,
+      arguments: { [runnerScriptURL.path, ruleFileURL.path, $0.path] },
+      request: request,
+      reporting: reporting,
+      timeoutSeconds: timeoutSeconds
     )
-    defer {
-      try? FileManager.default.removeItem(at: tempReqURL)
-    }
-
-    do {
-      let data = try JSONEncoder().encode(request)
-      try data.write(to: tempReqURL, options: .atomic)
-    } catch {
-      throw RuleRunnerError.systemError("Failed to write request JSON: \(error.localizedDescription)")
-    }
-
-    let output: ProcessOutput
-    do {
-      output = try await SubprocessRunner.run(
-        executableURL: runtimeURL,
-        arguments: [runnerScriptURL.path, ruleFileURL.path, tempReqURL.path],
-        workingDirectory: URL(fileURLWithPath: request.repoRoot),
-        timeoutSeconds: timeoutSeconds
-      )
-    } catch let sysErr {
-      switch sysErr {
-      case .processTimedOut(_, let timeout):
-        throw RuleRunnerError.ruleHung(timeoutSeconds: timeout)
-      default:
-        throw RuleRunnerError.systemError("Interpreted subprocess error: \(sysErr)")
-      }
-    }
-
-    let stderr = output.stderrString
-    if let marker = reporting.staleIndexStderrMarker {
-      if stderr.contains(marker) || output.stdoutString.contains(marker) {
-        throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
-      }
-    }
-
-    if output.exitCode == reporting.staleIndexExitCode {
-      throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
-    }
-
-    guard output.exitCode == reporting.successExitCode else {
-      throw RuleRunnerError.ruleCrashed(exitCode: output.exitCode, stderr: output.stderrString)
-    }
-
-    return try parseViolations(from: output.stdoutData)
   }
 
   func resolveKitURL(named name: String) -> URL {
@@ -91,27 +51,21 @@ extension RuleRunner {
         return candidate
       }
     }
-    // Check compile-time source repo root (for Xcode test runner & local dev)
-    let repoRoot = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-    let kitsCandidate =
-      repoRoot
-      .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
-      .appendingPathComponent(name)
-    if FileManager.default.fileExists(atPath: kitsCandidate.path) {
-      return kitsCandidate
+    // Check discovered repo root (for Xcode test runner & local dev)
+    if let discoveredRoot = try? RepoLocator.discover() {
+      let kitsCandidate =
+        discoveredRoot
+        .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
+        .appendingPathComponent(name)
+      if FileManager.default.fileExists(atPath: kitsCandidate.path) {
+        return kitsCandidate
+      }
+      let candidate = discoveredRoot.appendingPathComponent(name)
+      if FileManager.default.fileExists(atPath: candidate.path) {
+        return candidate
+      }
     }
-    let candidate = repoRoot.appendingPathComponent(name)
-    if FileManager.default.fileExists(atPath: candidate.path) {
-      return candidate
-    }
-    if FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent("Package.swift").path) {
-      return repoRoot
-    }
-    // In local development / tests: use current repo root
+    // In local development / tests: check current working directory
     let localKitsCandidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
       .appendingPathComponent(SystemPaths.kitsDirectorySubpath)
       .appendingPathComponent(name)

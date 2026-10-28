@@ -47,6 +47,8 @@ public enum HarnessError: Error, Equatable, Sendable, CustomStringConvertible {
   case ruleHung(caseId: String)
   case missingCodeCoverage(codes: [String])
   case ioError(String)
+  case expectationMismatch(caseId: String, message: String)
+  case manifestError(String)
 
   public var description: String {
     switch self {
@@ -66,6 +68,10 @@ public enum HarnessError: Error, Equatable, Sendable, CustomStringConvertible {
       return "rule manifest codes not covered by should_fail fixtures: \(codes.joined(separator: ", "))"
     case .ioError(let msg):
       return "fixture I/O error: \(msg)"
+    case .expectationMismatch(let caseId, let msg):
+      return "fixture '\(caseId)' expectation mismatch: \(msg)"
+    case .manifestError(let msg):
+      return "manifest fixture error: \(msg)"
     }
   }
 }

@@ -12,7 +12,6 @@ package enum ConfigWorkflow {
     let repoRootURL = RepoLocator.current
     let env = SystemEnvironment.standard
     let runner = RuleRunner(environment: env)
-    let fm = FileManager.default
 
     // 1. Authorize signing session upfront (fail-fast)
     let session = try SigningSession.authorize(customPath: keyPath)
@@ -64,90 +63,69 @@ package enum ConfigWorkflow {
     // Verify impact on every active rule
     var hasBlindingIssue = false
     for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
-      let tempSnapshot = fm.temporaryDirectory.appendingPathComponent("cfg_check_\(ruleId)_\(UUID().uuidString)")
-      defer { try? fm.removeItem(at: tempSnapshot) }
+      try await RuleSnapshotService.withSnapshot(treeHash: signedTreeHash) { tempSnapshot, manifest in
+        // 1. Fixtures must still pass with newLanguages (strictly enforcing should_pass and should_fail)
+        do {
+          try await FixtureExecutionService.verifyAllFixtures(
+            manifest: manifest,
+            ruleDirectory: tempSnapshot,
+            ruleTreeHash: signedTreeHash,
+            languages: newLanguages,
+            runner: runner
+          )
+        } catch {
+          throw ConfigWorkflowError.fixtureFailed(ruleId)
+        }
 
-      try fm.createDirectory(at: tempSnapshot, withIntermediateDirectories: true)
-      try await GitClient.archiveExtract(
-        treeHash: signedTreeHash,
-        destinationURL: tempSnapshot
-      )
+        // 2. Repo check: compare old vs new files and violations
+        for target in manifest.targets {
+          guard let targetScope = manifest.scope[target] else { continue }
+          let scopedFiles = ManifestValidator.resolveScopedFiles(
+            scope: targetScope, target: target)
 
-      let manifest = try ManifestParser.load(
-        from: tempSnapshot.appendingPathComponent("manifest.json"), expectedId: ruleId)
-
-      // 1. Fixtures must still pass with newLanguages
-      for target in manifest.targets {
-        let cases = try FixtureDiscoverer.discover(
-          ruleDirectory: tempSnapshot, target: target, manifestCodes: manifest.codes)
-        for fixtureCase in cases {
-          let req = RuleRequest(
-            mode: "fixture",
-            repoRoot: fixtureCase.rootURL.path,
+          let reqOld = RuleRequest(
+            mode: "repo",
+            repoRoot: repoRootURL.path,
             ruleDir: tempSnapshot.path,
-            files: fixtureCase.files.map { $0.path },
+            files: scopedFiles.map { $0.path },
+            languages: oldLanguages
+          )
+          let reqNew = RuleRequest(
+            mode: "repo",
+            repoRoot: repoRootURL.path,
+            ruleDir: tempSnapshot.path,
+            files: scopedFiles.map { $0.path },
             languages: newLanguages
           )
-          let violations = try await runner.execute(
-            target: target,
-            ruleDirectory: tempSnapshot,
-            ruleTreeHash: signedTreeHash,
-            request: req
-          )
-          if fixtureCase.isShouldPass && !violations.isEmpty {
-            throw ConfigWorkflowError.fixtureFailed(ruleId)
+
+          // SEC-06b: Propagate runner execution errors instead of swallowing with try? ?? []
+          // Swallowing runner crashes blinded config validation and allowed signing broken configs
+          let violationsOld =
+            try await runner.execute(
+              target: target,
+              ruleDirectory: tempSnapshot,
+              ruleTreeHash: signedTreeHash,
+              request: reqOld
+            )
+
+          let violationsNew =
+            try await runner.execute(
+              target: target,
+              ruleDirectory: tempSnapshot,
+              ruleTreeHash: signedTreeHash,
+              request: reqNew
+            )
+
+          let dropped = Set(violationsOld).subtracting(Set(violationsNew))
+          if !dropped.isEmpty {
+            let fileList = dropped.prefix(3).map { "\($0.file):\($0.line)" }.joined(separator: ", ")
+            let extra = dropped.count > 3 ? " and \(dropped.count - 3) more" : ""
+            let countSummary = "Total: \(violationsOld.count) → \(violationsNew.count)."
+            Terminal.error(
+              "BLINDED: Rule '\(ruleId)' dropped \(dropped.count) violation(s) (\(fileList)\(extra))! \(countSummary)"
+            )
+            hasBlindingIssue = true
           }
-        }
-      }
-
-      // 2. Repo check: compare old vs new files and violations
-      for target in manifest.targets {
-        guard let targetScope = manifest.scope[target] else { continue }
-        let scopedFiles = ManifestValidator.resolveScopedFiles(
-          scope: targetScope, target: target)
-
-        let reqOld = RuleRequest(
-          mode: "repo",
-          repoRoot: repoRootURL.path,
-          ruleDir: tempSnapshot.path,
-          files: scopedFiles.map { $0.path },
-          languages: oldLanguages
-        )
-        let reqNew = RuleRequest(
-          mode: "repo",
-          repoRoot: repoRootURL.path,
-          ruleDir: tempSnapshot.path,
-          files: scopedFiles.map { $0.path },
-          languages: newLanguages
-        )
-
-        // SEC-06b: Propagate runner execution errors instead of swallowing with try? ?? []
-        // Swallowing runner crashes blinded config validation and allowed signing broken configs
-        let violationsOld =
-          try await runner.execute(
-            target: target,
-            ruleDirectory: tempSnapshot,
-            ruleTreeHash: signedTreeHash,
-            request: reqOld
-          )
-
-        let violationsNew =
-          try await runner.execute(
-            target: target,
-            ruleDirectory: tempSnapshot,
-            ruleTreeHash: signedTreeHash,
-            request: reqNew
-          )
-
-        let dropped = Set(violationsOld).subtracting(Set(violationsNew))
-        if !dropped.isEmpty {
-          let fileList = dropped.prefix(3).map { "\($0.file):\($0.line)" }.joined(separator: ", ")
-          let extra = dropped.count > 3 ? " and \(dropped.count - 3) more" : ""
-          let countSummary = "Total: \(violationsOld.count) → \(violationsNew.count)."
-          Terminal.error(
-            "BLINDED: Rule '\(ruleId)' dropped \(dropped.count) violation(s) (\(fileList)\(extra))! \(countSummary)"
-          )
-          hasBlindingIssue = true
         }
       }
     }

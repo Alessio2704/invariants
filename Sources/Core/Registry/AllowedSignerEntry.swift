@@ -174,8 +174,7 @@ public struct AllowedSignerEntry: Equatable, Sendable {
 
   /// Matches against a raw public key string or key data.
   public func matches(keyString: String) -> Bool {
-    let trimmed = keyString.trimmed
-    return trimmed.contains(keyData) || trimmed.contains(keyType) && trimmed.contains(keyData)
+    keyString.trimmed.contains(keyData)
   }
 
   // MARK: - Internal Parsing Helpers

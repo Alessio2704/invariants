@@ -74,64 +74,49 @@ package enum CheckManager {
     )
     let isModified = (workingTreeHash != signedTreeHash)
 
-    let tempSnapshotDir = fileManager.temporaryDirectory.appendingPathComponent(
-      "signed_snapshot_\(ruleId)_\(UUID().uuidString)")
-    defer {
-      try? fileManager.removeItem(at: tempSnapshotDir)
-    }
-
     do {
-      try fileManager.createDirectory(at: tempSnapshotDir, withIntermediateDirectories: true)
-      try await GitClient.archiveExtract(
+      return try await RuleSnapshotService.withSnapshot(
         treeHash: signedTreeHash,
-        destinationURL: tempSnapshotDir
-      )
+        expectedId: ruleId
+      ) { tempSnapshotDir, manifest in
+        do {
+          try ManifestValidator.validateStructure(
+            ruleDirectory: tempSnapshotDir,
+            manifest: manifest,
+            registry: context.registry,
+            isFixtureMode: false
+          )
+        } catch {
+          return RuleReportItem(
+            ruleId: ruleId, statusKind: .broken, message: "Signed manifest validation failed: \(error)")
+        }
+
+        if let fixtureFailure = await runSignedFixtures(
+          manifest: manifest,
+          signedTreeHash: signedTreeHash,
+          tempSnapshotDir: tempSnapshotDir,
+          context: context
+        ) {
+          return RuleReportItem(ruleId: ruleId, statusKind: .broken, message: fixtureFailure)
+        }
+
+        let ruleCtx = ActiveRuleContext(
+          ruleId: ruleId,
+          manifest: manifest,
+          signedTreeHash: signedTreeHash,
+          workingTreeHash: workingTreeHash,
+          isModified: isModified,
+          tempSnapshotDir: tempSnapshotDir
+        )
+        return await executeRepoEnforcement(ruleCtx: ruleCtx, context: context)
+      }
     } catch {
       return RuleReportItem(
         ruleId: ruleId,
         statusKind: .broken,
-        message: "Failed to extract signed snapshot tree \(signedTreeHash): \(error)"
+        message: "Failed to extract or validate signed snapshot tree \(signedTreeHash): \(error)"
       )
     }
-
-    let manifestURL = tempSnapshotDir.appendingPathComponent("manifest.json")
-    let manifest: RuleManifest
-    do {
-      manifest = try ManifestParser.load(from: manifestURL, expectedId: ruleId)
-    } catch {
-      return RuleReportItem(
-        ruleId: ruleId, statusKind: .broken, message: "manifest.json invalid in signed snapshot: \(error)")
-    }
-
-    do {
-      try ManifestValidator.validateStructure(
-        ruleDirectory: tempSnapshotDir,
-        manifest: manifest,
-        registry: context.registry,
-        isFixtureMode: false
-      )
-    } catch {
-      return RuleReportItem(ruleId: ruleId, statusKind: .broken, message: "Signed manifest validation failed: \(error)")
-    }
-
-    if let fixtureFailure = await runSignedFixtures(
-      manifest: manifest,
-      signedTreeHash: signedTreeHash,
-      tempSnapshotDir: tempSnapshotDir,
-      context: context
-    ) {
-      return RuleReportItem(ruleId: ruleId, statusKind: .broken, message: fixtureFailure)
-    }
-
-    let ruleCtx = ActiveRuleContext(
-      ruleId: ruleId,
-      manifest: manifest,
-      signedTreeHash: signedTreeHash,
-      workingTreeHash: workingTreeHash,
-      isModified: isModified,
-      tempSnapshotDir: tempSnapshotDir
-    )
-    return await executeRepoEnforcement(ruleCtx: ruleCtx, context: context)
   }
 
   private static func runSignedFixtures(
@@ -147,53 +132,19 @@ package enum CheckManager {
       return nil
     }
 
-    for target in manifest.targets {
-      do {
-        let cases = try FixtureDiscoverer.discover(
-          ruleDirectory: tempSnapshotDir,
-          target: target,
-          manifestCodes: manifest.codes
-        )
-        for fixtureCase in cases {
-          let req = RuleRequest(
-            mode: "fixture",
-            repoRoot: fixtureCase.rootURL.path,
-            ruleDir: tempSnapshotDir.path,
-            files: fixtureCase.files.map { $0.path },
-            languages: context.registry.languages
-          )
-          let violations: [ReportedViolation]
-          do {
-            violations = try await context.ruleRunner.execute(
-              target: target,
-              ruleDirectory: tempSnapshotDir,
-              ruleTreeHash: signedTreeHash,
-              request: req
-            )
-          } catch let runnerErr {
-            switch runnerErr {
-            case .ruleCrashed(_, let stderr):
-              return HarnessError.ruleCrashed(caseId: fixtureCase.id, message: stderr).description
-            case .ruleHung:
-              return HarnessError.ruleHung(caseId: fixtureCase.id).description
-            default:
-              return "Self-test runner error on '\(fixtureCase.id)': \(runnerErr)"
-            }
-          }
-
-          if let error = fixtureCase.evaluateExpectations(reportedViolations: violations) {
-            return error.description
-          }
-
-          do {
-            try ManifestValidator.validateReportedViolations(manifest: manifest, violations: violations)
-          } catch {
-            return error.description
-          }
-        }
-      } catch {
-        return "Self-test error: \(error)"
+    do {
+      let outcome = try await FixtureExecutionService.evaluateFixtures(
+        manifest: manifest,
+        ruleDirectory: tempSnapshotDir,
+        ruleTreeHash: signedTreeHash,
+        languages: context.registry.languages,
+        runner: context.ruleRunner
+      )
+      if let failure = outcome.failures.first {
+        return failure.message
       }
+    } catch {
+      return "Self-test error: \(error)"
     }
 
     await FixtureCache.shared.recordPass(
@@ -292,8 +243,6 @@ package enum CheckManager {
     dirName: String,
     context: CheckContext
   ) async -> (Int, Int) {
-    var draftPassed = 0
-    var draftTotal = 0
     let draftHash = (try? await FingerprintEngine.computeFingerprint(ruleId: dirName)) ?? "draft_\(dirName)"
     guard
       let manifest = try? ManifestParser.load(
@@ -304,34 +253,18 @@ package enum CheckManager {
       return (0, 0)
     }
 
-    for target in manifest.targets {
-      guard
-        let cases = try? FixtureDiscoverer.discover(
-          ruleDirectory: draftDir, target: target, manifestCodes: manifest.codes)
-      else {
-        continue
-      }
-      draftTotal += cases.count
-      for fixtureCase in cases {
-        let req = RuleRequest(
-          mode: "fixture",
-          repoRoot: fixtureCase.rootURL.path,
-          ruleDir: draftDir.path,
-          files: fixtureCase.files.map { $0.path },
-          languages: context.registry.languages
-        )
-        if let res = try? await context.ruleRunner.execute(
-          target: target,
-          ruleDirectory: draftDir,
-          ruleTreeHash: draftHash,
-          request: req
-        ) {
-          if (fixtureCase.isShouldPass && res.isEmpty) || (!fixtureCase.isShouldPass && !res.isEmpty) {
-            draftPassed += 1
-          }
-        }
-      }
+    guard
+      let outcome = try? await FixtureExecutionService.evaluateFixtures(
+        manifest: manifest,
+        ruleDirectory: draftDir,
+        ruleTreeHash: draftHash,
+        languages: context.registry.languages,
+        runner: context.ruleRunner
+      )
+    else {
+      return (0, 0)
     }
-    return (draftPassed, draftTotal)
+
+    return (outcome.passedCases, outcome.totalCases)
   }
 }

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Core
+@testable import Managers
 
 @Suite("InitManager Repository Initialization Tests", .tags(.unit))
 struct InitManagerTests {

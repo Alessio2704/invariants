@@ -37,61 +37,50 @@ package enum UpdateRuleWorkflow {
       throw UpdateRuleWorkflowError.directoryMissing(ruleDir.path)
     }
 
-    let tempOldSnapshot = fm.temporaryDirectory.appendingPathComponent("old_snapshot_\(input.id)_\(UUID().uuidString)")
-    defer { try? fm.removeItem(at: tempOldSnapshot) }
+    try await RuleSnapshotService.withSnapshot(treeHash: oldSignedTreeHash) { tempOldSnapshot, oldManifest in
+      let newManifest = try ManifestParser.load(
+        from: ruleDir.appendingPathComponent("manifest.json"),
+        expectedId: input.id
+      )
 
-    try fm.createDirectory(at: tempOldSnapshot, withIntermediateDirectories: true)
-    try await GitClient.archiveExtract(
-      treeHash: oldSignedTreeHash,
-      destinationURL: tempOldSnapshot
-    )
+      try ManifestValidator.validateStructure(
+        ruleDirectory: ruleDir,
+        manifest: newManifest,
+        registry: registry,
+        isFixtureMode: false
+      )
 
-    let oldManifest = try ManifestParser.load(
-      from: tempOldSnapshot.appendingPathComponent("manifest.json"),
-      expectedId: input.id
-    )
-    let newManifest = try ManifestParser.load(
-      from: ruleDir.appendingPathComponent("manifest.json"),
-      expectedId: input.id
-    )
+      let context = WeakeningContext(
+        input: input,
+        oldManifest: oldManifest,
+        newManifest: newManifest,
+        ruleDir: ruleDir,
+        tempOldSnapshot: tempOldSnapshot,
+        registry: registry,
+        oldSignedTreeHash: oldSignedTreeHash,
+        env: env
+      )
 
-    try ManifestValidator.validateStructure(
-      ruleDirectory: ruleDir,
-      manifest: newManifest,
-      registry: registry,
-      isFixtureMode: false
-    )
+      // Check weakening
+      try await checkWeakening(context: context)
 
-    let context = WeakeningContext(
-      input: input,
-      oldManifest: oldManifest,
-      newManifest: newManifest,
-      ruleDir: ruleDir,
-      tempOldSnapshot: tempOldSnapshot,
-      registry: registry,
-      oldSignedTreeHash: oldSignedTreeHash,
-      env: env
-    )
+      // Verify fixtures
+      try await verifyFixtures(
+        ruleId: input.id,
+        ruleDir: ruleDir,
+        manifest: newManifest,
+        languages: registry.languages,
+        env: env
+      )
 
-    // Check weakening
-    try await checkWeakening(context: context)
-
-    // Verify fixtures
-    try await verifyFixtures(
-      ruleId: input.id,
-      ruleDir: ruleDir,
-      manifest: newManifest,
-      languages: registry.languages,
-      env: env
-    )
-
-    // Save and commit
-    try await saveAndCommitUpdate(
-      input: input,
-      oldSignedTreeHash: oldSignedTreeHash,
-      registry: &registry,
-      session: session
-    )
+      // Save and commit
+      try await saveAndCommitUpdate(
+        input: input,
+        oldSignedTreeHash: oldSignedTreeHash,
+        registry: &registry,
+        session: session
+      )
+    }
   }
 
   private static func checkWeakening(context: WeakeningContext) async throws {
@@ -251,40 +240,16 @@ package enum UpdateRuleWorkflow {
     Terminal.info("Verifying fixtures for '\(ruleId)'...")
     let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "update_\(ruleId)"
 
-    for target in manifest.targets {
-      let cases = try FixtureDiscoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
-      for fixtureCase in cases {
-        let req = RuleRequest(
-          mode: "fixture",
-          repoRoot: fixtureCase.rootURL.path,
-          ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path },
-          languages: languages
-        )
-        let violations = try await runner.execute(
-          target: target,
-          ruleDirectory: ruleDir,
-          ruleTreeHash: ruleTreeHash,
-          request: req
-        )
-
-        let expected = Set(fixtureCase.expectedViolations)
-        let reported = Set(
-          violations.map {
-            ExpectedViolation(
-              relativePath: URL(fileURLWithPath: $0.file).lastPathComponent,
-              line: $0.line,
-              code: $0.code
-            )
-          })
-
-        if fixtureCase.isShouldPass && !violations.isEmpty {
-          throw UpdateRuleWorkflowError.fixtureFailed(
-            "Fixture '\(fixtureCase.id)' failed: expected 0, got \(violations.count)")
-        } else if !fixtureCase.isShouldPass && expected != reported {
-          throw UpdateRuleWorkflowError.fixtureFailed("Fixture '\(fixtureCase.id)' mismatch")
-        }
-      }
+    do {
+      try await FixtureExecutionService.verifyAllFixtures(
+        manifest: manifest,
+        ruleDirectory: ruleDir,
+        ruleTreeHash: ruleTreeHash,
+        languages: languages,
+        runner: runner
+      )
+    } catch {
+      throw UpdateRuleWorkflowError.fixtureFailed("Fixture verification failed: \(error)")
     }
     Terminal.success("All fixtures green.")
   }

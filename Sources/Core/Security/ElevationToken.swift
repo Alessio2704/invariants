@@ -1,7 +1,7 @@
 public import Foundation
 
 /// An unforgeable capability token proving root privilege elevation was authorized by Authorizer.
-public struct ElevationToken: Sendable, Equatable {
+public struct ElevationToken: CapabilityToken, Sendable, Equatable {
   /// The timestamp when elevation was authorized.
   public let authorizedAt: Date
 

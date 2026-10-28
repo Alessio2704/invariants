@@ -1,3 +1,4 @@
+public import Core
 public import Foundation
 
 /// Options for initializing invariants in a repository.

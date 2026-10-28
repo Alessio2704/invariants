@@ -50,4 +50,59 @@ public struct RuleRunner: Sendable {
         "Could not parse JSON violations from output: \(text). Error: \(error.localizedDescription)")
     }
   }
+
+  func executeProcessAndParseViolations(
+    executableURL: URL,
+    arguments: (URL) -> [String],
+    request: RuleRequest,
+    reporting: RuleReportingProtocol,
+    timeoutSeconds: Double
+  ) async throws(RuleRunnerError) -> [ReportedViolation] {
+    let fm = FileManager.default
+    let tempReqURL = fm.temporaryDirectory.appendingPathComponent("req_\(UUID().uuidString).json")
+    defer {
+      try? fm.removeItem(at: tempReqURL)
+    }
+
+    do {
+      let data = try JSONEncoder().encode(request)
+      try data.write(to: tempReqURL, options: .atomic)
+    } catch {
+      throw RuleRunnerError.systemError("Failed to write request JSON: \(error.localizedDescription)")
+    }
+
+    let output: ProcessOutput
+    do {
+      output = try await SubprocessRunner.run(
+        executableURL: executableURL,
+        arguments: arguments(tempReqURL),
+        workingDirectory: URL(fileURLWithPath: request.repoRoot),
+        timeoutSeconds: timeoutSeconds
+      )
+    } catch let sysErr {
+      switch sysErr {
+      case .processTimedOut(_, let timeout):
+        throw RuleRunnerError.ruleHung(timeoutSeconds: timeout)
+      default:
+        throw RuleRunnerError.systemError("Execution error: \(sysErr)")
+      }
+    }
+
+    let stderr = output.stderrString
+    if let marker = reporting.staleIndexStderrMarker {
+      if stderr.contains(marker) || output.stdoutString.contains(marker) {
+        throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
+      }
+    }
+
+    if output.exitCode == reporting.staleIndexExitCode {
+      throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
+    }
+
+    guard output.exitCode == reporting.successExitCode else {
+      throw RuleRunnerError.ruleCrashed(exitCode: output.exitCode, stderr: stderr)
+    }
+
+    return try parseViolations(from: output.stdoutData)
+  }
 }

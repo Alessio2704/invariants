@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import Core
+@testable import Managers
 
 @Suite("Branching & Trunk Lifecycle Scenarios", .tags(.scenario))
 struct BranchingScenarioTests {

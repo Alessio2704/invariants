@@ -38,45 +38,16 @@ package enum AddRuleWorkflow {
     Terminal.info("Running fixture self-test for '\(ruleId)'...")
     let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "add_\(ruleId)"
 
-    for target in manifest.targets {
-      let cases = try FixtureDiscoverer.discover(
+    do {
+      try await FixtureExecutionService.verifyAllFixtures(
+        manifest: manifest,
         ruleDirectory: ruleDir,
-        target: target,
-        manifestCodes: manifest.codes
+        ruleTreeHash: ruleTreeHash,
+        languages: registry.languages,
+        runner: runner
       )
-      for fixtureCase in cases {
-        let req = RuleRequest(
-          mode: "fixture",
-          repoRoot: fixtureCase.rootURL.path,
-          ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path },
-          languages: registry.languages
-        )
-        let violations = try await runner.execute(
-          target: target,
-          ruleDirectory: ruleDir,
-          ruleTreeHash: ruleTreeHash,
-          request: req
-        )
-
-        let expected = Set(fixtureCase.expectedViolations)
-        let reported = Set(
-          violations.map {
-            ExpectedViolation(
-              relativePath: URL(fileURLWithPath: $0.file).lastPathComponent,
-              line: $0.line,
-              code: $0.code
-            )
-          })
-
-        if fixtureCase.isShouldPass && !violations.isEmpty {
-          throw AddRuleWorkflowError.fixtureFailed(
-            "Fixture '\(fixtureCase.id)' failed: expected 0 violations, got \(violations.count)"
-          )
-        } else if !fixtureCase.isShouldPass && expected != reported {
-          throw AddRuleWorkflowError.fixtureFailed("Fixture '\(fixtureCase.id)' expectation mismatch")
-        }
-      }
+    } catch {
+      throw AddRuleWorkflowError.fixtureFailed("Fixture self-test failed: \(error)")
     }
     Terminal.success("All fixtures passed.")
 

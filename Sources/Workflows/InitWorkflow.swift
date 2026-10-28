@@ -1,5 +1,6 @@
 package import Core
 import Foundation
+import Managers
 import Terminal
 
 /// Interactive CLI workflow responsible for end-to-end repository initialization.

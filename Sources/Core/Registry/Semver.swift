@@ -25,8 +25,11 @@ public struct Semver: Sendable, Equatable, Comparable, CustomStringConvertible {
     let pat: Int
     if parts.count >= 3 {
       // Strip any build metadata or prerelease after hyphen/plus
-      let patchPart = parts[2].split(whereSeparator: { $0 == "-" || $0 == "+" })[0]
-      guard let p = Int(patchPart) else { return nil }
+      guard let patchPart = parts[2].split(whereSeparator: { $0 == "-" || $0 == "+" }).first,
+        let p = Int(patchPart)
+      else {
+        return nil
+      }
       pat = p
     } else {
       pat = 0

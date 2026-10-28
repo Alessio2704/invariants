@@ -59,52 +59,13 @@ extension RuleRunner {
       }
     }
 
-    // Write request.json to temp file
-    let requestURL = cachesURL.appendingPathComponent("request_\(UUID().uuidString).json")
-    defer {
-      try? fm.removeItem(at: requestURL)
-    }
-
-    do {
-      let data = try JSONEncoder().encode(request)
-      try data.write(to: requestURL, options: .atomic)
-    } catch {
-      throw RuleRunnerError.systemError("Failed to write request.json: \(error.localizedDescription)")
-    }
-
-    let output: ProcessOutput
-    do {
-      output = try await SubprocessRunner.run(
-        executableURL: binaryURL,
-        arguments: ["--request", requestURL.path],
-        workingDirectory: URL(fileURLWithPath: request.repoRoot),
-        timeoutSeconds: timeoutSeconds
-      )
-    } catch let sysErr {
-      switch sysErr {
-      case .processTimedOut(_, let timeout):
-        throw RuleRunnerError.ruleHung(timeoutSeconds: timeout)
-      default:
-        throw RuleRunnerError.systemError("Execution error: \(sysErr)")
-      }
-    }
-
-    let stderr = output.stderrString
-    if let marker = reporting.staleIndexStderrMarker {
-      if stderr.contains(marker) || output.stdoutString.contains(marker) {
-        throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
-      }
-    }
-
-    if output.exitCode == reporting.staleIndexExitCode {
-      throw RuleRunnerError.indexStale(stderr.isEmpty ? output.stdoutString : stderr)
-    }
-
-    guard output.exitCode == reporting.successExitCode else {
-      throw RuleRunnerError.ruleCrashed(exitCode: output.exitCode, stderr: stderr)
-    }
-
-    return try parseViolations(from: output.stdoutData)
+    return try await executeProcessAndParseViolations(
+      executableURL: binaryURL,
+      arguments: { ["--request", $0.path] },
+      request: request,
+      reporting: reporting,
+      timeoutSeconds: timeoutSeconds
+    )
   }
 
   private func buildCompiledRule(
@@ -149,13 +110,8 @@ extension RuleRunner {
         }
         try fm.copyItem(at: fileURL, to: destURL)
       } catch {
-        do {
-          try? fm.removeItem(at: destURL)
-          try fm.copyItem(at: fileURL, to: destURL)
-        } catch {
-          throw RuleRunnerError.executableBuildFailed(
-            "Failed to copy source file \(fileURL.lastPathComponent): \(error.localizedDescription)")
-        }
+        throw RuleRunnerError.executableBuildFailed(
+          "Failed to copy source file \(fileURL.lastPathComponent): \(error.localizedDescription)")
       }
     }
 

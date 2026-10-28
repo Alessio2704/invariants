@@ -46,9 +46,6 @@ let package = Package(
             name: "Core",
             dependencies: [
                 "Extensions",
-                .product(name: "IndexStoreDB", package: "indexstore-db"),
-                .product(name: "SwiftSyntax", package: "swift-syntax"),
-                .product(name: "SwiftParser", package: "swift-syntax"),
             ],
             swiftSettings: swiftSettings,
             plugins: ["VersionPlugin"]
@@ -90,7 +87,6 @@ let package = Package(
             name: "invariants",
             dependencies: [
                 "Core",
-                "InvariantKit",
                 "Terminal",
                 "Workflows",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -99,7 +95,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CoreTests",
-            dependencies: ["Core", "Extensions", "Terminal"],
+            dependencies: ["Core", "Extensions", "Managers", "Terminal"],
             swiftSettings: swiftSettings
         ),
         .testTarget(

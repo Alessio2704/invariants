@@ -44,14 +44,20 @@ package enum TestRuleWorkflow {
     var totalCases = 0
     var passedCases = 0
     let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "rule_\(ruleId)"
+    let fixtureContext = FixtureContext(
+      manifest: manifest,
+      ruleDirectory: ruleDir,
+      ruleTreeHash: ruleTreeHash,
+      languages: registry.languages
+    )
 
     for target in manifest.targets {
-      let cases: [FixtureCase]
+      let results: [FixtureCaseExecutionResult]
       do {
-        cases = try FixtureDiscoverer.discover(
-          ruleDirectory: ruleDir,
+        results = try await FixtureExecutionService.evaluateTargetFixtures(
           target: target,
-          manifestCodes: manifest.codes
+          context: fixtureContext,
+          runner: runner
         )
       } catch {
         Terminal.error("Error discovering fixtures for \(target.rawValue): \(error)")
@@ -60,67 +66,26 @@ package enum TestRuleWorkflow {
 
       var coveredCodes: Set<String> = []
 
-      for fixtureCase in cases {
-        if !fixtureCase.isShouldPass {
-          for exp in fixtureCase.expectedViolations {
+      for res in results {
+        if !res.fixtureCase.isShouldPass {
+          for exp in res.fixtureCase.expectedViolations {
             coveredCodes.insert(exp.code)
           }
         }
         totalCases += 1
         let caseLabel =
-          "\(fixtureCase.isShouldPass ? "should_pass" : "should_fail")/\(target.rawValue)/\(fixtureCase.id)"
+          "\(res.fixtureCase.isShouldPass ? "should_pass" : "should_fail")/\(target.rawValue)/\(res.fixtureCase.id)"
 
-        let req = RuleRequest(
-          mode: "fixture",
-          repoRoot: fixtureCase.rootURL.path,
-          ruleDir: ruleDir.path,
-          files: fixtureCase.files.map { $0.path },
-          languages: registry.languages
-        )
-
-        let reportedViolations: [ReportedViolation]
-        do {
-          reportedViolations = try await runner.execute(
-            target: target,
-            ruleDirectory: ruleDir,
-            ruleTreeHash: ruleTreeHash,
-            request: req
-          )
-        } catch let runnerErr {
-          let harnessErr: HarnessError
-          switch runnerErr {
-          case .ruleCrashed(_, let stderr):
-            harnessErr = .ruleCrashed(caseId: fixtureCase.id, message: stderr)
-          case .ruleHung:
-            harnessErr = .ruleHung(caseId: fixtureCase.id)
-          default:
-            Terminal.statusItem("✗", label: caseLabel, detail: "execution failed: \(runnerErr)")
-            hasFailures = true
-            continue
-          }
-          Terminal.statusItem("✗", label: caseLabel, detail: harnessErr.description)
-          hasFailures = true
-          continue
-        }
-
-        if let error = fixtureCase.evaluateExpectations(reportedViolations: reportedViolations) {
-          Terminal.statusItem("✗", label: caseLabel, detail: error.description)
-          hasFailures = true
+        if res.isPassed {
+          let detail =
+            res.fixtureCase.isShouldPass
+            ? "0 violations (pass)"
+            : "matched all \(res.fixtureCase.expectedViolations.count) expected violations"
+          Terminal.statusItem("✓", label: caseLabel, detail: detail)
+          passedCases += 1
         } else {
-          do {
-            try ManifestValidator.validateReportedViolations(manifest: manifest, violations: reportedViolations)
-            if fixtureCase.isShouldPass {
-              Terminal.statusItem("✓", label: caseLabel, detail: "0 violations (pass)")
-            } else {
-              Terminal.statusItem(
-                "✓", label: caseLabel,
-                detail: "matched all \(fixtureCase.expectedViolations.count) expected violations")
-            }
-            passedCases += 1
-          } catch {
-            Terminal.statusItem("✗", label: caseLabel, detail: "\(error)")
-            hasFailures = true
-          }
+          Terminal.statusItem("✗", label: caseLabel, detail: res.errorDescription ?? "Failed")
+          hasFailures = true
         }
       }
 

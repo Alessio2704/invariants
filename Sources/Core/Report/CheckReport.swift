@@ -78,7 +78,10 @@ public enum ReportFormatter {
     } else {
       let regVer = "registry v\(report.registryVersion)"
       let engVer = "engine \(report.engineVersion)"
-      let problems = "\(report.totalViolations) problems in \(problemRules.count) rules"
+      let problemCount = max(report.totalViolations, problemRules.count)
+      let problems =
+        "\(problemCount) problem" + (problemCount == 1 ? "" : "s") + " in \(problemRules.count) rule"
+        + (problemRules.count == 1 ? "" : "s")
       lines.append(
         "✗ invariants check — \(problems) (\(regVer), \(engVer))\n"
       )

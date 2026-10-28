@@ -2,7 +2,7 @@ public import Foundation
 @preconcurrency import LocalAuthentication
 
 /// An unforgeable capability token proving biometric physical presence was authenticated by Apple LocalAuthentication.
-public struct BiometricAuthToken: @unchecked Sendable {
+public struct BiometricAuthToken: CapabilityToken, @unchecked Sendable {
   /// The timestamp when the biometric authorization occurred.
   public let authorizedAt: Date
 

@@ -93,9 +93,7 @@ public enum ManifestValidator: Sendable {
     let repoPath = repoRoot.standardizedFileURL.path
 
     for case let fileURL as URL in enumerator {
-      guard let isRegularFile = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile,
-        isRegularFile
-      else {
+      guard let values = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey]) else {
         continue
       }
 
@@ -106,21 +104,22 @@ public enum ManifestValidator: Sendable {
         relPath = String(relPath.dropFirst())
       }
 
-      // Ignore rule definitions and fixtures from repo file scans
-      if relPath.hasPrefix("invariants/rules/") || relPath == "invariants/rules" {
-        enumerator.skipDescendants()
+      // Skip and prune directories
+      if values.isDirectory == true {
+        let shouldPrune =
+          relPath.hasPrefix("invariants/rules/") || relPath == "invariants/rules"
+          || SupportedLanguage.shouldSkipAny(relativePath: relPath)
+        if shouldPrune {
+          enumerator.skipDescendants()
+        }
         continue
       }
 
+      guard values.isRegularFile == true else { continue }
+
       // Exclude skipped paths and extensions based on target language or all supported languages
-      let isSkipped: Bool
-      if let target {
-        isSkipped =
-          target.spec.shouldSkip(relativePath: relPath)
-          || SupportedLanguage.shouldSkipAny(relativePath: relPath)
-      } else {
-        isSkipped = SupportedLanguage.shouldSkipAny(relativePath: relPath)
-      }
+      let isSkipped =
+        target?.spec.shouldSkip(relativePath: relPath) ?? SupportedLanguage.shouldSkipAny(relativePath: relPath)
       if isSkipped {
         continue
       }
