@@ -106,6 +106,12 @@ public enum ManifestValidator: Sendable {
         relPath = String(relPath.dropFirst())
       }
 
+      // Ignore rule definitions and fixtures from repo file scans
+      if relPath.hasPrefix("invariants/rules/") || relPath == "invariants/rules" {
+        enumerator.skipDescendants()
+        continue
+      }
+
       // Exclude skipped paths and extensions based on target language or all supported languages
       let isSkipped: Bool
       if let target {

@@ -120,10 +120,16 @@ public enum SubprocessRunner: Sendable {
       stderrPipe.fileHandleForReading.readDataToEndOfFile()
     }
 
+    final class TimeoutTracker: @unchecked Sendable {
+      var didTimeout = false
+    }
+    let tracker = TimeoutTracker()
+
     let monitorTask = Task.detached {
       do {
         try await Task.sleep(nanoseconds: timeoutNano)
         if process.isRunning {
+          tracker.didTimeout = true
           process.terminate()
         }
       } catch {
@@ -134,8 +140,8 @@ public enum SubprocessRunner: Sendable {
     process.waitUntilExit()
     monitorTask.cancel()
 
-    if !process.isRunning && process.terminationReason == .uncaughtSignal {
-      // Process was terminated due to timeout
+    // DRIFT-05: Only report timeout when monitorTask actually fired and timed out
+    if tracker.didTimeout {
       throw SystemError.processTimedOut(executable: executable.path, timeoutSeconds: request.timeoutSeconds)
     }
 
@@ -148,11 +154,11 @@ public enum SubprocessRunner: Sendable {
       stderrData: stderrData
     )
 
-    if request.checkExitCode && output.exitCode != 0 {
+    if process.terminationReason == .uncaughtSignal || (request.checkExitCode && output.exitCode != 0) {
       throw SystemError.processFailed(
         executable: executable.path,
         arguments: arguments,
-        exitCode: output.exitCode,
+        exitCode: output.exitCode != 0 ? output.exitCode : (128 + process.terminationStatus),
         stderr: output.stderrString
       )
     }
@@ -214,6 +220,7 @@ public enum SubprocessRunner: Sendable {
     )
   }
 
+  // periphery:ignore
   /// Runs a shell command via `/bin/sh -c`.
   @discardableResult
   public static func runShell(

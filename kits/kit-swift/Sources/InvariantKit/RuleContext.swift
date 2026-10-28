@@ -107,6 +107,13 @@ public final class RuleContext: @unchecked Sendable {
 
   private var cachedIndex: IndexStoreDB?
   private let indexLock = NSLock()
+  private var tempDirsToClean: [URL] = []
+
+  deinit {
+    for dir in tempDirsToClean {
+      try? FileManager.default.removeItem(at: dir)
+    }
+  }
 
   /// Initializes a RuleContext.
   public init(
@@ -160,6 +167,8 @@ public final class RuleContext: @unchecked Sendable {
       try? FileManager.default.createDirectory(at: tmpStore, withIntermediateDirectories: true)
       storePath = tmpStore.path
       tempDbDir = FileManager.default.temporaryDirectory.appendingPathComponent("fixture_db_\(UUID().uuidString)")
+      tempDirsToClean.append(tmpStore)
+      tempDirsToClean.append(tempDbDir)
 
       // Run swiftc -typecheck -index-store-path
       let process = Process()
@@ -179,6 +188,7 @@ public final class RuleContext: @unchecked Sendable {
       }
       storePath = fullPath
       tempDbDir = FileManager.default.temporaryDirectory.appendingPathComponent("invariants_db_\(UUID().uuidString)")
+      tempDirsToClean.append(tempDbDir)
     }
 
     guard let libPath = Self.locateLibIndexStore() else {

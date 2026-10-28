@@ -20,8 +20,15 @@ if [ -z "$TAG" ]; then
   TAG="${LATEST_TAG:-main}"
 fi
 
+# Strict character validation for TAG to prevent command injection
+if ! expr "$TAG" : '^[0-9a-zA-Z._/-]*$' >/dev/null 2>&1; then
+  echo "Error: Invalid tag format '$TAG'" >&2
+  exit 1
+fi
+
 V="${TAG#v}"
 PREFIX="${INVARIANTS_PREFIX:-/usr/local/invariants}"
+BIN_DIR="${BIN_DIR:-/usr/local/bin}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -44,26 +51,31 @@ else
   SUDO=""
 fi
 
-$SUDO /bin/sh -c "set -e
-  mkdir -p '$PREFIX/versions/$V'
-  cp '$WORK/.build/release/invariants' '$PREFIX/versions/$V/'
+$SUDO /bin/sh -c 'set -e
+  prefix="$1"
+  v="$2"
+  work="$3"
+  bin_dir="$4"
 
-  if [ -d '$WORK/kits' ]; then
-    mkdir -p '$PREFIX/versions/$V/kits'
-    cp -R '$WORK/kits'/* '$PREFIX/versions/$V/kits/'
+  mkdir -p "$prefix/versions/$v"
+  cp "$work/.build/release/invariants" "$prefix/versions/$v/"
 
-    for kit_dir in '$PREFIX/versions/$V/kits'/*; do
-      [ -d \"\$kit_dir\" ] || continue
-      kit_name=\"\$(basename \"\$kit_dir\")\"
-      ln -sfn \"kits/\$kit_name\" \"$PREFIX/versions/$V/\$kit_name\"
+  if [ -d "$work/kits" ]; then
+    mkdir -p "$prefix/versions/$v/kits"
+    cp -R "$work/kits"/* "$prefix/versions/$v/kits/"
+
+    for kit_dir in "$prefix/versions/$v/kits"/*; do
+      [ -d "$kit_dir" ] || continue
+      kit_name="$(basename "$kit_dir")"
+      ln -sfn "kits/$kit_name" "$prefix/versions/$v/$kit_name"
     done
   fi
 
-  ln -sfn '$PREFIX/versions/$V' '$PREFIX/current'
-  mkdir -p /usr/local/bin
-  ln -sfn '$PREFIX/current/invariants' /usr/local/bin/invariants
-  chown -R root:wheel '$PREFIX' 2>/dev/null || true
-  chmod -R go-w '$PREFIX' 2>/dev/null || true
-"
+  ln -sfn "$prefix/versions/$v" "$prefix/current"
+  mkdir -p "$bin_dir"
+  ln -sfn "$prefix/current/invariants" "$bin_dir/invariants"
+  chown -R root:wheel "$prefix" 2>/dev/null || true
+  chmod -R go-w "$prefix" 2>/dev/null || true
+' _ "$PREFIX" "$V" "$WORK" "$BIN_DIR"
 
 echo "✓ Successfully installed invariants v$V to $PREFIX"

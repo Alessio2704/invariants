@@ -193,7 +193,8 @@ public enum SigningClient: Sendable {
   /// Finds matching principal(s) for a signature from an allowed_signers file using `ssh-keygen -Y find-principals`.
   public static func findPrincipal(
     allowedSignersURL: URL,
-    signatureURL: URL
+    signatureURL: URL,
+    verifyTime: String? = nil
   ) async throws(SystemError) -> String? {
     guard FileManager.default.fileExists(atPath: allowedSignersURL.path),
       FileManager.default.fileExists(atPath: signatureURL.path)
@@ -201,13 +202,18 @@ public enum SigningClient: Sendable {
       return nil
     }
 
+    var args = [
+      "-Y", "find-principals",
+      "-f", allowedSignersURL.path,
+      "-s", signatureURL.path,
+    ]
+    if let verifyTime, !verifyTime.isEmpty {
+      args.append(contentsOf: ["-O", "verify-time=\(verifyTime)"])
+    }
+
     let output = try await SubprocessRunner.run(
       binary: .sshKeygen,
-      arguments: [
-        "-Y", "find-principals",
-        "-f", allowedSignersURL.path,
-        "-s", signatureURL.path,
-      ],
+      arguments: args,
       checkExitCode: false
     )
     guard output.exitCode == 0 else {
@@ -247,7 +253,11 @@ public enum SigningClient: Sendable {
     let isDefaultIdentity = identity == "owner" || identity == "*"
     let discovered: String?
     if isDefaultIdentity {
-      discovered = try await findPrincipal(allowedSignersURL: allowedSignersURL, signatureURL: signatureURL)
+      discovered = try await findPrincipal(
+        allowedSignersURL: allowedSignersURL,
+        signatureURL: signatureURL,
+        verifyTime: verifyTime
+      )
     } else {
       discovered = nil
     }

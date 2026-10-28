@@ -88,7 +88,7 @@ public enum GitClient: Sendable {
     let repoRoot = RepoLocator.current
     let output = try await SubprocessRunner.run(
       binary: .git,
-      arguments: ["-C", repoRoot.path, "log", "--format=%H", "--", relativePath],
+      arguments: ["-C", repoRoot.path, "log", "--full-history", "--format=%H", "--", relativePath],
       workingDirectory: repoRoot
     )
     guard output.exitCode == 0 else {
@@ -141,8 +141,9 @@ public enum GitClient: Sendable {
     guard
       let output = try? await SubprocessRunner.run(
         binary: .git,
-        arguments: ["-C", repoRoot.path, "log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S", commit],
+        arguments: ["-C", repoRoot.path, "log", "-1", "--format=%cd", "--date=format-local:%Y%m%d%H%M%SZ", commit],
         workingDirectory: repoRoot,
+        environment: ["TZ": "UTC"],
         checkExitCode: false
       )
     else {

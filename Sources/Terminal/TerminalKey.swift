@@ -12,6 +12,7 @@ package enum TerminalKey: Equatable, Sendable {
   case customInput
   case escape
   case ctrlC
+  case eof
   case unknown
 }
 

@@ -41,6 +41,11 @@ public struct AllowedSignersFile: Equatable, Sendable {
     principal: String = "*",
     namespaces: [String] = ["invariants"]
   ) throws -> AllowedSignerEntry {
+    // SEC-08b: Guard against embedded newlines to prevent signer injection
+    guard !keyString.contains("\n") && !keyString.contains("\r") else {
+      throw SystemError.fileIOError("Invalid SSH public key: key string must not contain newline characters.")
+    }
+
     let parts = keyString.trimmed
       .split(separator: " ", omittingEmptySubsequences: true)
       .map(String.init)
@@ -65,13 +70,17 @@ public struct AllowedSignersFile: Equatable, Sendable {
   /// Revokes a key by setting `valid-before` to the specified timestamp (defaults to now).
   @discardableResult
   public mutating func revoke(keyDataOrSubstring: String, effectiveDate: Date = Date()) -> Int {
+    let query = keyDataOrSubstring.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return 0 }
     var count = 0
     for i in 0..<entries.count {
+      // SEC-08a: Require exact match on keyData, keyString, principal, or comment
+      // Loose substring match on base64 keyData was prone to wiping all keys on short prefixes
       let matches =
-        entries[i].keyData.contains(keyDataOrSubstring)
-        || entries[i].matches(keyString: keyDataOrSubstring)
-        || entries[i].principals.contains(keyDataOrSubstring)
-        || entries[i].comment?.contains(keyDataOrSubstring) == true
+        entries[i].keyData == query
+        || entries[i].matches(keyString: query)
+        || entries[i].principals.contains(query)
+        || entries[i].comment == query
       if matches {
         entries[i].validBefore = effectiveDate
         count += 1
@@ -87,11 +96,21 @@ public struct AllowedSignersFile: Equatable, Sendable {
     sunsetDuration: TimeInterval = 86400,
     now: Date = Date()
   ) throws {
+    let oldQuery = oldKeyDataOrSubstring.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !oldQuery.isEmpty else {
+      throw SystemError.fileIOError("Old signing key identifier must not be empty.")
+    }
+
     var rotatedOld = false
     let sunsetDate = now.addingTimeInterval(sunsetDuration)
 
     for i in 0..<entries.count {
-      if entries[i].keyData.contains(oldKeyDataOrSubstring) || entries[i].matches(keyString: oldKeyDataOrSubstring) {
+      let matches =
+        entries[i].keyData == oldQuery
+        || entries[i].matches(keyString: oldQuery)
+        || entries[i].principals.contains(oldQuery)
+        || entries[i].comment == oldQuery
+      if matches {
         entries[i].validBefore = sunsetDate
         rotatedOld = true
       }

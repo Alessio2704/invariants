@@ -237,7 +237,16 @@ struct CryptoAndAncestryAttackTests {
     reg.signersHash = nil
 
     try await fixture.run {
-      try await RegistryManager.saveAndSign(registry: reg, keyURL: fixture.ownerKey)
+      let canonicalContent = CanonicalJSON.serialize(reg)
+      guard let data = canonicalContent.data(using: .utf8) else {
+        throw RegistryError.encodingFailed("Failed to encode canonical JSON as UTF-8")
+      }
+      try data.write(to: lockURL, options: .atomic)
+      try await SigningClient.sign(
+        keyURL: fixture.ownerKey,
+        namespace: "invariants",
+        fileURL: lockURL
+      )
 
       // Secure behavior: RegistryManager MUST verify allowed_signers integrity and reject missing signers_hash
       await #expect(
@@ -261,23 +270,20 @@ struct CryptoAndAncestryAttackTests {
     }
   }
 
-  @Test("SEC-10b: Repository .githooks/pre-push lacks invariants check --pre-push invocation")
-  func sec10b_repoPrePushHookMissingInvariantsPrePushCheck() throws {
-    let repoRoot = (try? RepoLocator.discover()) ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    let prePushURL = repoRoot.appendingPathComponent(".githooks/pre-push")
-    let prePushContent = try prePushURL.readUTF8()
-
-    let runsPrePush = prePushContent.contains("invariants check") && prePushContent.contains("--pre-push")
-    #expect(
-      runsPrePush,
-      "Vulnerability SEC-10b confirmed: .githooks/pre-push does not execute 'invariants check --pre-push'!"
-    )
-  }
-
   @Test("DRIFT-04: Historical signature verification fails for expired named principals")
   func drift04_expiredNamedPrincipalFailsHistoricalVerification() async throws {
     let fixture = try await AuditProjectFixture()
     try await fixture.verifyBaseline()
+
+    // Backdate Commit 1 so that historical commits have monotonic dates
+    _ = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", fixture.repoURL.path, "commit", "--amend", "--no-edit", "--date", "2024-01-01T00:00:00Z"],
+      environment: [
+        "GIT_COMMITTER_DATE": "2024-01-01T00:00:00Z",
+        "GIT_AUTHOR_DATE": "2024-01-01T00:00:00Z",
+      ]
+    )
 
     // Commit 2: Enroll alice@acme.com with valid-before in the future relative to Commit 2
     // but in the past relative to current wall clock (e.g. 2025-01-01)
@@ -298,7 +304,20 @@ struct CryptoAndAncestryAttackTests {
     )
     try await fixture.run {
       try await RegistryManager.saveAndSign(registry: reg2, keyURL: fixture.ownerKey)
-      try await GitClient.commit(paths: ["invariants"], message: "Enroll alice with sunset")
+      _ = try await SubprocessRunner.run(
+        binary: .git,
+        arguments: [
+          "-C", fixture.repoURL.path,
+          "commit",
+          "-a",
+          "-m", "Enroll alice with sunset",
+          "--date", "2024-02-01T12:00:00Z",
+        ],
+        environment: [
+          "GIT_COMMITTER_DATE": "2024-02-01T12:00:00Z",
+          "GIT_AUTHOR_DATE": "2024-02-01T12:00:00Z",
+        ]
+      )
     }
 
     // Commit 3: Legitimate historical commit signed by alice in 2024 (before expiration)

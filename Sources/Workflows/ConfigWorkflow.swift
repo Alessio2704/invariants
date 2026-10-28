@@ -121,21 +121,23 @@ package enum ConfigWorkflow {
           languages: newLanguages
         )
 
+        // SEC-06b: Propagate runner execution errors instead of swallowing with try? ?? []
+        // Swallowing runner crashes blinded config validation and allowed signing broken configs
         let violationsOld =
-          (try? await runner.execute(
+          try await runner.execute(
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: reqOld
-          )) ?? []
+          )
 
         let violationsNew =
-          (try? await runner.execute(
+          try await runner.execute(
             target: target,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
             request: reqNew
-          )) ?? []
+          )
 
         let dropped = Set(violationsOld).subtracting(Set(violationsNew))
         if !dropped.isEmpty {

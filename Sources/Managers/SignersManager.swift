@@ -89,20 +89,24 @@ package enum SignersManager {
   package static func detectOldBackupKey(
     matching signers: [AllowedSignerEntry],
     in directory: URL = SystemEnvironment.defaultSigningKeyURL.deletingLastPathComponent()
-  ) -> String? {
+  ) -> (keyContent: String, privateKeyURL: URL)? {
     guard let items = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else {
       return nil
     }
     let backupPubs = items.filter {
-      $0.hasPrefix(SystemPaths.keyBackupPrefix) && $0.hasSuffix(".pub")
+      $0.contains(".bak-") && $0.hasSuffix(".pub")
     }.sorted(by: >)
 
     for backupFile in backupPubs {
-      let backupURL = directory.appendingPathComponent(backupFile)
-      if let content = try? backupURL.readTrimmedUTF8(), !content.isEmpty {
-        if signers.contains(where: { $0.matches(keyString: content) && $0.isActive() }) {
-          return content
-        }
+      let backupPubURL = directory.appendingPathComponent(backupFile)
+      let backupKeyURL = directory.appendingPathComponent(String(backupFile.dropLast(4)))
+      guard FileManager.default.fileExists(atPath: backupKeyURL.path),
+        let content = try? backupPubURL.readTrimmedUTF8(), !content.isEmpty
+      else {
+        continue
+      }
+      if signers.contains(where: { $0.matches(keyString: content) && $0.isActive() }) {
+        return (content, backupKeyURL)
       }
     }
     return nil

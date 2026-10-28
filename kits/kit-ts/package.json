@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "biome check src test",
     "lint:fix": "biome check --write src test",
-    "knip": "node ./scripts/ensure-ts-compat.cjs && knip --strict"
+    "knip": "NODE_OPTIONS=\"--require ./scripts/ensure-ts-compat.cjs\" knip --strict"
   },
   "dependencies": {
     "typescript": "7.0.2"

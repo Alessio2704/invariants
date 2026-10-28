@@ -43,20 +43,24 @@ public enum RegistryManager: Sendable {
 
     let registry = try CanonicalJSON.parse(data: lockData)
 
-    // Verify signers_hash binding if declared in registry.lock
-    if let expectedSignersHash = registry.signersHash, !expectedSignersHash.isEmpty {
-      let signersData: Data
-      do {
-        signersData = try Data(contentsOf: signersURL)
-      } catch {
-        throw RegistryError.signatureInvalid("Failed to read repository allowed_signers: \(error.localizedDescription)")
-      }
-      let actualHash = SHA256.hash(data: signersData).map { String(format: "%02x", $0) }.joined()
-      guard actualHash == expectedSignersHash else {
-        throw RegistryError.signatureInvalid(
-          "Allowed signers hash mismatch: repository allowed_signers has been modified without re-signing."
-        )
-      }
+    // Verify signers_hash binding in registry.lock
+    guard let expectedSignersHash = registry.signersHash, !expectedSignersHash.isEmpty else {
+      throw RegistryError.signatureInvalid(
+        "Registry lockfile is missing mandatory signers_hash integrity binding."
+      )
+    }
+
+    let signersData: Data
+    do {
+      signersData = try Data(contentsOf: signersURL)
+    } catch {
+      throw RegistryError.signatureInvalid("Failed to read repository allowed_signers: \(error.localizedDescription)")
+    }
+    let actualHash = SHA256.hash(data: signersData).map { String(format: "%02x", $0) }.joined()
+    guard actualHash == expectedSignersHash else {
+      throw RegistryError.signatureInvalid(
+        "Allowed signers hash mismatch: repository allowed_signers has been modified without re-signing."
+      )
     }
 
     // Verify cryptographic signature against in-repo allowed_signers

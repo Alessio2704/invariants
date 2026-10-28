@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
 
 interface ResolveContext {
   conditions: string[];
@@ -47,24 +47,6 @@ export async function resolve(
   return nextResolve(specifier, context);
 }
 
-interface TranspileOptions {
-  compilerOptions: {
-    module?: number | undefined;
-    target?: number | undefined;
-  };
-  fileName?: string | undefined;
-}
-
-interface TranspileResult {
-  outputText: string;
-}
-
-interface TSCompiler {
-  transpileModule(source: string, options: TranspileOptions): TranspileResult;
-  ModuleKind?: { ESNext: number } | undefined;
-  ScriptTarget?: { ES2022: number } | undefined;
-}
-
 export async function load(
   url: string,
   context: LoadContext,
@@ -73,20 +55,10 @@ export async function load(
   if (url.endsWith(".ts")) {
     const filePath = fileURLToPath(url);
     const sourceText = fs.readFileSync(filePath, "utf8");
-    const rawTs =
-      (ts as unknown as { default?: TSCompiler }).default ?? (ts as unknown as TSCompiler);
-    const moduleKind = rawTs.ModuleKind?.ESNext ?? 99;
-    const scriptTarget = rawTs.ScriptTarget?.ES2022 ?? 9;
-    const transpiled = rawTs.transpileModule(sourceText, {
-      compilerOptions: {
-        module: moduleKind,
-        target: scriptTarget,
-      },
-      fileName: filePath,
-    });
+    const transpiledSource = stripTypeScriptTypes(sourceText);
     return {
       format: "module",
-      source: transpiled.outputText,
+      source: transpiledSource,
       shortCircuit: true,
     };
   }

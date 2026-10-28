@@ -57,8 +57,12 @@ public enum FloorGuard: Sendable {
     let zeroSha = "0000000000000000000000000000000000000000"
     let targetRef = "refs/heads/\(defaultBranch)"
 
-    let lines = pushedRefsInput.split(separator: "\n").map(\.trimmed)
-    for line in lines where !line.isEmpty {
+    let lines = pushedRefsInput.split(separator: "\n").map(\.trimmed).filter { !$0.isEmpty }
+    guard !lines.isEmpty else {
+      throw FloorError.systemError("Pre-push hook received empty stdin refspec input. Verification aborted.")
+    }
+
+    for line in lines {
       let parts = line.split(separator: " ").map { String($0) }
       guard parts.count >= 4 else { continue }
       let localRef = parts[0]
@@ -113,6 +117,7 @@ public enum FloorGuard: Sendable {
     var trustedSignersContent: String?
     var trustedVersion: Int = 1
     var lastCommitLock: String?
+    var lastCommitDate: String?
 
     for commit in commits.reversed() {
       let commitLock: String
@@ -157,10 +162,29 @@ public enum FloorGuard: Sendable {
         signersToVerifyAgainst = parentSigners
       } else {
         // Root/initial commit establishing invariants/registry.lock: base of trust
+        // SEC-05a: Shallow clones must not treat truncated HEAD as a trusted root commit
+        if isShallow {
+          throw FloorError.unauthorizedSigner(
+            version: commitReg.version,
+            parentVersion: trustedVersion
+          )
+        }
         signersToVerifyAgainst = commitSigners
       }
 
       let commitDate = await GitClient.commitDate(commit: commit)
+
+      // SEC-04a: Commit timestamps must be strictly monotonic across parent -> child transitions
+      // to prevent backdated commit date spoofing to revive expired keys
+      if let commitDate, let previousDate = lastCommitDate {
+        if commitDate < previousDate {
+          throw FloorError.unauthorizedSigner(
+            version: commitReg.version,
+            parentVersion: trustedVersion
+          )
+        }
+      }
+      lastCommitDate = commitDate
 
       let isValid = try await verifySignatureAgainstSigners(
         signersContent: signersToVerifyAgainst,

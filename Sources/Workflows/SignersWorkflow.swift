@@ -53,9 +53,15 @@ package enum SignersWorkflow {
       keyWithComment = keyContent
     }
 
+    let assignedPrincipal: String
+    if let identity, !identity.isEmpty {
+      assignedPrincipal = identity
+    } else {
+      assignedPrincipal = "*"
+    }
     try SignersManager.addSigner(
       keyContent: keyWithComment,
-      principal: "*",
+      principal: assignedPrincipal,
       at: signersURL
     )
 
@@ -112,11 +118,28 @@ package enum SignersWorkflow {
     sunset: TimeInterval = 86400,
     signingKey: String?
   ) async throws {
-    // 1. Authorize signing session upfront (fail-fast before mutating allowed_signers)
-    let session = try SigningSession.authorize(customPath: signingKey)
-
     let signersURL = RegistryManager.allowedSignersURL()
     let currentEntries = try SignersManager.loadSigners(at: signersURL)
+
+    let keyDir: URL
+    if let signingKey {
+      keyDir = URL(fileURLWithPath: (signingKey as NSString).expandingTildeInPath).deletingLastPathComponent()
+    } else {
+      keyDir = SystemEnvironment.defaultSigningKeyURL.deletingLastPathComponent()
+    }
+
+    // 1. Authorize signing session upfront (fail-fast before mutating allowed_signers)
+    // DRIFT-03a: If the signingKey was just rotated and not yet enrolled, check for an active backup key
+    let session: SigningSession
+    do {
+      session = try SigningSession.authorize(customPath: signingKey)
+    } catch let error {
+      if let (_, backupKeyURL) = SignersManager.detectOldBackupKey(matching: currentEntries, in: keyDir) {
+        session = try SigningSession.authorize(customPath: backupKeyURL.path)
+      } else {
+        throw error
+      }
+    }
 
     // 2. Resolve new public key content
     let newKeyContent: String
@@ -151,7 +174,7 @@ package enum SignersWorkflow {
         oldKeyPattern = old.trimmed
       }
     } else {
-      guard let detectedOldKey = SignersManager.detectOldBackupKey(matching: currentEntries) else {
+      guard let (detectedOldKey, _) = SignersManager.detectOldBackupKey(matching: currentEntries, in: keyDir) else {
         throw SystemError.fileIOError(
           "Could not detect old key from ~/.ssh/ backups. Please specify --old <pattern-or-key>."
         )

@@ -100,15 +100,19 @@ public enum WeakeningDetector: Sendable {
     // 4. Fixtures - should_fail
     let oldFailCases = oldCases.filter { !$0.isShouldPass }
     let newFailCases = newCases.filter { !$0.isShouldPass }
-    let newFailMap = Dictionary(uniqueKeysWithValues: newFailCases.map { ($0.id, $0) })
+    let newFailMap = Dictionary(
+      newFailCases.map { ("\($0.target.rawValue)/\($0.id)", $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
 
     for oldCase in oldFailCases {
-      guard let newCase = newFailMap[oldCase.id] else {
+      let key = "\(oldCase.target.rawValue)/\(oldCase.id)"
+      guard let newCase = newFailMap[key] else {
         items.append(
           WeakeningItem(
             severity: .red,
             category: "Fixture",
-            message: "should_fail case '\(oldCase.id)' was removed"
+            message: "[\(oldCase.target.rawValue)] should_fail case '\(oldCase.id)' was removed"
           ))
         continue
       }
@@ -129,8 +133,12 @@ public enum WeakeningDetector: Sendable {
     }
 
     // 5. Green flags - added should_pass and should_fail
-    let oldPassMap = Dictionary(uniqueKeysWithValues: oldCases.filter { $0.isShouldPass }.map { ($0.id, $0) })
-    for newPass in newCases.filter({ $0.isShouldPass }) where oldPassMap[newPass.id] == nil {
+    let oldPassMap = Dictionary(
+      oldCases.filter { $0.isShouldPass }.map { ("\($0.target.rawValue)/\($0.id)", $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
+    let newPassCases = newCases.filter { $0.isShouldPass }
+    for newPass in newPassCases where oldPassMap["\(newPass.target.rawValue)/\(newPass.id)"] == nil {
       items.append(
         WeakeningItem(
           severity: .green,
@@ -139,8 +147,8 @@ public enum WeakeningDetector: Sendable {
         ))
     }
 
-    let oldFailIdSet = Set(oldFailCases.map { $0.id })
-    for newFail in newFailCases where !oldFailIdSet.contains(newFail.id) {
+    let oldFailIdSet = Set(oldFailCases.map { "\($0.target.rawValue)/\($0.id)" })
+    for newFail in newFailCases where !oldFailIdSet.contains("\(newFail.target.rawValue)/\(newFail.id)") {
       items.append(
         WeakeningItem(
           severity: .green,

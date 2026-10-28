@@ -77,7 +77,7 @@ package struct MultiSelectEngine<T: Sendable>: Sendable {
     case .enter:
       let sortedSelected = options.indices.filter { selectedIndices.contains($0) }.map { options[$0].value }
       return .submit(sortedSelected)
-    case .escape, .ctrlC:
+    case .escape, .ctrlC, .eof:
       return .cancel
     default:
       return .continue
@@ -163,7 +163,7 @@ package struct SingleSelectEngine<T: Sendable>: Sendable {
     case .enter:
       guard options.indices.contains(cursorIndex) else { return .cancel }
       return .submit(options[cursorIndex].value)
-    case .escape, .ctrlC:
+    case .escape, .ctrlC, .eof:
       return .cancel
     default:
       return .continue

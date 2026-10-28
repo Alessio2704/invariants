@@ -75,11 +75,16 @@ package enum SelfUpdateWorkflow {
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: workDir) }
 
+    // Validate tag format to prevent shell metacharacter injection or directory traversal
+    let tagRegex = try? Regex("^[a-zA-Z0-9._/-]+$")
+    guard let tagRegex, tag.wholeMatch(of: tagRegex) != nil, !tag.contains("..") else {
+      throw SelfUpdateWorkflowError.archiveExtractionFailed("Invalid version tag format: '\(tag)'")
+    }
+
     Terminal.info("Extracting \(tag) archive...")
-    let archiveCmd =
-      "\(SystemBinary.git.path) archive '\(tag)' | \(SystemBinary.tar.path) -x -C '\(workDir.path)'"
-    let extractOutput = try await SubprocessRunner.runShell(archiveCmd)
-    if extractOutput.exitCode != 0 {
+    do {
+      try await GitClient.archiveExtract(treeHash: tag, destinationURL: workDir)
+    } catch {
       Terminal.info("Release tag '\(tag)' not found in local git working tree. Cloning from remote repository...")
       let repoURL =
         ProcessInfo.processInfo.environment["INVARIANTS_REPO"] ?? "https://github.com/Alessio2704/invariants.git"
@@ -116,6 +121,28 @@ package enum SelfUpdateWorkflow {
     let kitsDest = stageDir.appendingPathComponent("kits")
     if fm.fileExists(atPath: kitsSrc.path) {
       try fm.copyItem(at: kitsSrc, to: kitsDest)
+
+      let kitTsDir = kitsDest.appendingPathComponent("kit-ts")
+      if fm.fileExists(atPath: kitTsDir.appendingPathComponent("package.json").path) {
+        Terminal.info("Installing TypeScript kit runtime dependencies...")
+        // DRIFT-07: Install runtime dependencies with npm ci (fallback npm install)
+        let npmProc = Process()
+        npmProc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        npmProc.arguments = ["npm", "ci", "--omit=dev", "--ignore-scripts"]
+        npmProc.currentDirectoryURL = kitTsDir
+        if (try? npmProc.run()) != nil {
+          npmProc.waitUntilExit()
+          if npmProc.terminationStatus != 0 {
+            let fallback = Process()
+            fallback.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            fallback.arguments = ["npm", "install", "--omit=dev", "--ignore-scripts"]
+            fallback.currentDirectoryURL = kitTsDir
+            try? fallback.run()
+            fallback.waitUntilExit()
+          }
+        }
+      }
+
       if let kitNames = try? fm.contentsOfDirectory(atPath: kitsDest.path) {
         for kitName in kitNames where !kitName.hasPrefix(".") {
           _ = try? fm.createSymbolicLink(

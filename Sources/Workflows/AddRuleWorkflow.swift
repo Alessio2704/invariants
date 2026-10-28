@@ -36,6 +36,8 @@ package enum AddRuleWorkflow {
 
     // 4. Self-test fixtures
     Terminal.info("Running fixture self-test for '\(ruleId)'...")
+    let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "add_\(ruleId)"
+
     for target in manifest.targets {
       let cases = try FixtureDiscoverer.discover(
         ruleDirectory: ruleDir,
@@ -53,7 +55,7 @@ package enum AddRuleWorkflow {
         let violations = try await runner.execute(
           target: target,
           ruleDirectory: ruleDir,
-          ruleTreeHash: "add_preview",
+          ruleTreeHash: ruleTreeHash,
           request: req
         )
 
@@ -93,7 +95,7 @@ package enum AddRuleWorkflow {
       let violations = try await runner.execute(
         target: target,
         ruleDirectory: ruleDir,
-        ruleTreeHash: "add_preview",
+        ruleTreeHash: ruleTreeHash,
         request: req
       )
       repoViolationsCount += violations.count

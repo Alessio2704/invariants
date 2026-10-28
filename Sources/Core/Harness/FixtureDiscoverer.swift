@@ -128,6 +128,9 @@ public enum FixtureDiscoverer: Sendable {
 
     let folderPath = folderURL.standardizedFileURL.path
     while let fileURL = enumerator?.nextObject() as? URL {
+      let isRegular = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
+      guard isRegular else { continue }
+
       let path = fileURL.standardizedFileURL.path
       if fileURL.lastPathComponent == "expect" || fileURL.pathExtension == "expect" { continue }
 

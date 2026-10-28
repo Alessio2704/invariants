@@ -2,6 +2,7 @@ package import Core
 package import Foundation
 
 package enum RuleScaffoldError: LocalizedError, Sendable {
+  case invalidRuleId(String)
   case ruleAlreadyExists(String)
   case invalidTarget(String)
   case noTargetsSpecified
@@ -11,6 +12,9 @@ package enum RuleScaffoldError: LocalizedError, Sendable {
 
   package var errorDescription: String? {
     switch self {
+    case .invalidRuleId(let id):
+      return "Invalid rule ID '\(id)'. Rule IDs must match '^[a-z0-9]+(-[a-z0-9]+)*$' "
+        + "and contain no path traversal characters."
     case .ruleAlreadyExists(let path):
       return "Rule directory already exists at \(path)"
     case .invalidTarget(let target):
@@ -38,7 +42,18 @@ package enum RuleScaffoldManager {
     targets: [TargetLanguage],
     in repoRoot: URL
   ) throws {
-    let ruleDir = repoRoot.appendingPathComponent("invariants/rules/\(id)")
+    // SEC-07a: Validate ruleId against schema pattern to prevent path traversal
+    let idPattern = #"^[a-z0-9]+(-[a-z0-9]+)*$"#
+    guard id.range(of: idPattern, options: .regularExpression) != nil else {
+      throw RuleScaffoldError.invalidRuleId(id)
+    }
+
+    let rulesDir = repoRoot.appendingPathComponent("invariants/rules").standardizedFileURL
+    let ruleDir = rulesDir.appendingPathComponent(id).standardizedFileURL
+    guard ruleDir.path.hasPrefix(rulesDir.path + "/") else {
+      throw RuleScaffoldError.invalidRuleId(id)
+    }
+
     let fm = FileManager.default
 
     guard !fm.fileExists(atPath: ruleDir.path) else {

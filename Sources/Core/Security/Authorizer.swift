@@ -67,6 +67,18 @@ public enum Authorizer: Sendable {
   /// Returns an unforgeable `ElevationToken`.
   public static func authorizeElevation(
     reason: String = "Root privileges required",
+    expirationInterval: TimeInterval = 300.0
+  ) async throws(SystemError) -> ElevationToken {
+    try await authorizeElevation(
+      reason: reason,
+      expirationInterval: expirationInterval,
+      elevationValidator: nil
+    )
+  }
+
+  /// Package-internal overload restricted to test suites.
+  package static func authorizeElevation(
+    reason: String = "Root privileges required",
     expirationInterval: TimeInterval = 300.0,
     elevationValidator: (@Sendable () async throws(SystemError) -> Void)? = nil
   ) async throws(SystemError) -> ElevationToken {
@@ -76,11 +88,15 @@ public enum Authorizer: Sendable {
 
     if let elevationValidator {
       try await elevationValidator()
+      let isPermittedTest = reason.lowercased().contains("test")
+      return ElevationToken(
+        authorizedAt: isPermittedTest ? Date() : .distantPast,
+        expirationInterval: isPermittedTest ? expirationInterval : 0
+      )
     } else {
       try await prewarmSudo(reason: reason)
+      return ElevationToken(authorizedAt: Date(), expirationInterval: expirationInterval)
     }
-
-    return ElevationToken(authorizedAt: Date(), expirationInterval: expirationInterval)
   }
 
   /// Pre-warms the sudo timestamp cache via `/usr/bin/sudo -v`.

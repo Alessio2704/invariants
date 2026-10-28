@@ -126,7 +126,7 @@ package enum UpdateRuleWorkflow {
       newCases: newCases
     )
 
-    let (oldViolations, newViolations) = await collectRepoViolations(context: context, runner: runner)
+    let (oldViolations, newViolations) = try await collectRepoViolations(context: context, runner: runner)
     let dropped = Set(oldViolations).subtracting(Set(newViolations))
 
     if !dropped.isEmpty {
@@ -178,47 +178,63 @@ package enum UpdateRuleWorkflow {
   private static func collectRepoViolations(
     context: WeakeningContext,
     runner: RuleRunner
-  ) async -> (oldViolations: [ReportedViolation], newViolations: [ReportedViolation]) {
+  ) async throws -> (oldViolations: [ReportedViolation], newViolations: [ReportedViolation]) {
     var oldViolations: [ReportedViolation] = []
     var newViolations: [ReportedViolation] = []
 
-    for target in context.newManifest.targets {
-      guard let scope = context.newManifest.scope[target] else { continue }
-      let scopedFiles = ManifestValidator.resolveScopedFiles(scope: scope, target: target)
+    let allTargets = Array(Set(context.oldManifest.targets).union(context.newManifest.targets)).sorted {
+      $0.rawValue < $1.rawValue
+    }
+    let newTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: context.input.id)) ?? "update_preview"
 
-      let oldReq = RuleRequest(
-        mode: "repo",
-        repoRoot: RepoLocator.current.path,
-        ruleDir: context.tempOldSnapshot.path,
-        files: scopedFiles.map { $0.path },
-        languages: context.registry.languages
-      )
-      let newReq = RuleRequest(
-        mode: "repo",
-        repoRoot: RepoLocator.current.path,
-        ruleDir: context.ruleDir.path,
-        files: scopedFiles.map { $0.path },
-        languages: context.registry.languages
-      )
+    for target in allTargets {
+      // SEC-06c: Old violations must be evaluated against oldManifest.scope
+      let isOldTarget = context.oldManifest.targets.contains(target)
+      let oldScope = context.oldManifest.scope[target]
+      if isOldTarget, let oldScope {
+        let oldScopedFiles = ManifestValidator.resolveScopedFiles(scope: oldScope, target: target)
+        if !oldScopedFiles.isEmpty {
+          let oldReq = RuleRequest(
+            mode: "repo",
+            repoRoot: RepoLocator.current.path,
+            ruleDir: context.tempOldSnapshot.path,
+            files: oldScopedFiles.map { $0.path },
+            languages: context.registry.languages
+          )
+          // SEC-06a: Do not swallow runner execution errors with try? ?? []
+          let oldRes = try await runner.execute(
+            target: target,
+            ruleDirectory: context.tempOldSnapshot,
+            ruleTreeHash: context.oldSignedTreeHash,
+            request: oldReq
+          )
+          oldViolations.append(contentsOf: oldRes)
+        }
+      }
 
-      let oldRes =
-        (try? await runner.execute(
-          target: target,
-          ruleDirectory: context.tempOldSnapshot,
-          ruleTreeHash: context.oldSignedTreeHash,
-          request: oldReq
-        )) ?? []
-
-      let newRes =
-        (try? await runner.execute(
-          target: target,
-          ruleDirectory: context.ruleDir,
-          ruleTreeHash: "update_preview",
-          request: newReq
-        )) ?? []
-
-      oldViolations.append(contentsOf: oldRes)
-      newViolations.append(contentsOf: newRes)
+      // New violations evaluated against newManifest.scope
+      let isNewTarget = context.newManifest.targets.contains(target)
+      let newScope = context.newManifest.scope[target]
+      if isNewTarget, let newScope {
+        let newScopedFiles = ManifestValidator.resolveScopedFiles(scope: newScope, target: target)
+        if !newScopedFiles.isEmpty {
+          let newReq = RuleRequest(
+            mode: "repo",
+            repoRoot: RepoLocator.current.path,
+            ruleDir: context.ruleDir.path,
+            files: newScopedFiles.map { $0.path },
+            languages: context.registry.languages
+          )
+          // SEC-06a: Do not swallow runner execution errors with try? ?? []
+          let newRes = try await runner.execute(
+            target: target,
+            ruleDirectory: context.ruleDir,
+            ruleTreeHash: newTreeHash,
+            request: newReq
+          )
+          newViolations.append(contentsOf: newRes)
+        }
+      }
     }
     return (oldViolations, newViolations)
   }
@@ -233,6 +249,7 @@ package enum UpdateRuleWorkflow {
     let runner = RuleRunner(environment: env)
     Terminal.line("")
     Terminal.info("Verifying fixtures for '\(ruleId)'...")
+    let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "update_\(ruleId)"
 
     for target in manifest.targets {
       let cases = try FixtureDiscoverer.discover(ruleDirectory: ruleDir, target: target, manifestCodes: manifest.codes)
@@ -247,7 +264,7 @@ package enum UpdateRuleWorkflow {
         let violations = try await runner.execute(
           target: target,
           ruleDirectory: ruleDir,
-          ruleTreeHash: "update_preview",
+          ruleTreeHash: ruleTreeHash,
           request: req
         )
 

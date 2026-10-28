@@ -43,6 +43,7 @@ package enum TestRuleWorkflow {
     var hasFailures = false
     var totalCases = 0
     var passedCases = 0
+    let ruleTreeHash = (try? await FingerprintEngine.computeFingerprint(ruleId: ruleId)) ?? "rule_\(ruleId)"
 
     for target in manifest.targets {
       let cases: [FixtureCase]
@@ -82,7 +83,7 @@ package enum TestRuleWorkflow {
           reportedViolations = try await runner.execute(
             target: target,
             ruleDirectory: ruleDir,
-            ruleTreeHash: "working_tree",
+            ruleTreeHash: ruleTreeHash,
             request: req
           )
         } catch let runnerErr {

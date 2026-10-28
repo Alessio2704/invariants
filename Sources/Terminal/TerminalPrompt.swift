@@ -230,7 +230,7 @@ package final class RawTerminalSession {
   package func readKey() -> TerminalKey {
     var firstByte: UInt8 = 0
     let bytesRead = read(STDIN_FILENO, &firstByte, 1)
-    guard bytesRead > 0 else { return .unknown }
+    guard bytesRead > 0 else { return .eof }
 
     var bytes: [UInt8] = [firstByte]
 

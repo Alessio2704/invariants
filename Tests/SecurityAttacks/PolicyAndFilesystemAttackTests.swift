@@ -72,9 +72,24 @@ struct PolicyAndFilesystemAttackTests {
       """
     try brokenRuleSrc.write(to: ruleSwiftURL, atomically: true, encoding: .utf8)
 
+    // Commit broken rule and enroll in registry so ConfigWorkflow extracts it from git
+    _ = try await SubprocessRunner.run(
+      binary: .git,
+      arguments: ["-C", fixture.repoURL.path, "commit", "-a", "-m", "Commit broken rule"]
+    )
+    let brokenHash = try await fixture.run {
+      try await FingerprintEngine.computeFingerprint(ruleId: "no-print-in-app")
+    }
+    var reg = try await fixture.run { try await RegistryManager.loadAndVerify() }
+    reg.rules["no-print-in-app"] = brokenHash
+    reg.version += 1
+    try await fixture.run {
+      try await RegistryManager.saveAndSign(registry: reg, keyURL: fixture.ownerKey)
+      try await GitClient.commit(paths: ["invariants"], message: "Sign broken rule in registry")
+    }
+
     // In ConfigWorkflow.swift:124-138:
-    // let newViolations = (try? await runner.execute(request: newReq, ...)) ?? []
-    // The evaluation error is converted into [] and ConfigWorkflow signs the new configuration!
+    // With runner errors propagated, executing the broken rule throws and aborts ConfigWorkflow
     await #expect(
       throws: (any Error).self,
       "Vulnerability SEC-06b confirmed: ConfigWorkflow swallowed runner failure and signed invalid config!"
@@ -124,22 +139,18 @@ struct PolicyAndFilesystemAttackTests {
     // to resolve files for BOTH oldReq and newReq!
     // Because Network.swift is excluded from newManifest.scope, oldReq is never run on Network.swift.
     // Thus oldViolations.count == 0, newViolations.count == 0, and dropped repo violations == 0!
-    let (usesOldScopeForOldCheck, bugUsesNewScopeForBoth) = fixture.run {
-      let oldManifestScope = TargetScope(include: ["Sources/**/*.swift"])
-      let newManifestScope = TargetScope(include: ["Sources/**/*.swift"], exclude: ["Sources/App/Network.swift"])
-
-      let oldFiles = ManifestValidator.resolveScopedFiles(scope: oldManifestScope, target: .swift)
-      let newFiles = ManifestValidator.resolveScopedFiles(scope: newManifestScope, target: .swift)
-
-      let oldHasNetwork = oldFiles.contains { $0.lastPathComponent == "Network.swift" }
-      let newOmitsNetwork = !newFiles.contains { $0.lastPathComponent == "Network.swift" }
-      return (oldHasNetwork, newOmitsNetwork)
+    // When UpdateRuleWorkflow evaluates old rule against oldManifest.scope, it detects
+    // that the existing violation in Network.swift was dropped, flagging red weakening and blocking unconfirmed update.
+    await #expect(
+      throws: (any Error).self,
+      "Vulnerability SEC-06c confirmed: UpdateRuleWorkflow failed to detect dropped repo violation when scope was narrowed!"
+    ) {
+      try await fixture.run {
+        try await UpdateRuleWorkflow.execute(
+          input: .init(id: "no-print-in-app", keyPath: fixture.ownerKey.path)
+        )
+      }
     }
-
-    #expect(
-      usesOldScopeForOldCheck && !bugUsesNewScopeForBoth,
-      "Vulnerability SEC-06c confirmed: UpdateRuleWorkflow evaluated old rule against newManifest.scope, dropping existing repo violations!"
-    )
   }
 
   @Test("SEC-07a: RuleScaffoldManager permits ruleId with path traversal (../) escaping rules directory")
@@ -249,16 +260,12 @@ struct PolicyAndFilesystemAttackTests {
       * namespaces="invariants" \(fixture.rogueAgentPub)
       """
 
-    try file.addPublicKey(injectedKeyString)
-    let serialized = file.serialize()
-
-    // Re-parse the serialized file
-    let reloadedFile = AllowedSignersFile(content: serialized)
-
     // Secure behavior: A single call to addPublicKey must NEVER enroll 2 signers via newline injection!
     #expect(
-      reloadedFile.entries.count == 2,
-      "Vulnerability SEC-08b confirmed: newline injection produced \(reloadedFile.entries.count) entries instead of 2!"
-    )
+      throws: (any Error).self,
+      "Vulnerability SEC-08b confirmed: addPublicKey permitted embedded newlines!"
+    ) {
+      try file.addPublicKey(injectedKeyString)
+    }
   }
 }

@@ -294,6 +294,7 @@ package enum CheckManager {
   ) async -> (Int, Int) {
     var draftPassed = 0
     var draftTotal = 0
+    let draftHash = (try? await FingerprintEngine.computeFingerprint(ruleId: dirName)) ?? "draft_\(dirName)"
     guard
       let manifest = try? ManifestParser.load(
         from: draftDir.appendingPathComponent("manifest.json"),
@@ -322,7 +323,7 @@ package enum CheckManager {
         if let res = try? await context.ruleRunner.execute(
           target: target,
           ruleDirectory: draftDir,
-          ruleTreeHash: "draft",
+          ruleTreeHash: draftHash,
           request: req
         ) {
           if (fixtureCase.isShouldPass && res.isEmpty) || (!fixtureCase.isShouldPass && !res.isEmpty) {
