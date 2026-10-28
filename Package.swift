@@ -112,5 +112,10 @@ let package = Package(
             dependencies: ["Core", "Extensions", "InvariantKit", "Managers", "Terminal", "Workflows"],
             swiftSettings: swiftSettings
         ),
+        .testTarget(
+            name: "SecurityAttacks",
+            dependencies: ["Core", "Extensions", "InvariantKit", "Managers", "Terminal", "Workflows"],
+            swiftSettings: swiftSettings
+        ),
     ]
 )
