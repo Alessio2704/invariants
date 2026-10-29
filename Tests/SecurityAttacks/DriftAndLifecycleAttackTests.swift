@@ -81,11 +81,11 @@ struct DriftAndLifecycleAttackTests {
 
     let manifest1: [String: Any] = [
       "id": "draft-rule-1", "summary": "Draft 1", "targets": ["swift"],
-      "scope": ["swift": ["include": ["Sources/**/*.swift"]]], "codes": ["DRAFT-01": "D1"],
+      "scope": ["swift": ["main": ["include": ["Sources/**/*.swift"]]]], "codes": ["DRAFT-01": "D1"],
     ]
     let manifest2: [String: Any] = [
       "id": "draft-rule-2", "summary": "Draft 2", "targets": ["swift"],
-      "scope": ["swift": ["include": ["Sources/**/*.swift"]]], "codes": ["DRAFT-02": "D2"],
+      "scope": ["swift": ["main": ["include": ["Sources/**/*.swift"]]]], "codes": ["DRAFT-02": "D2"],
     ]
 
     try JSONSerialization.data(withJSONObject: manifest1).write(to: draft1Dir.appendingPathComponent("manifest.json"))

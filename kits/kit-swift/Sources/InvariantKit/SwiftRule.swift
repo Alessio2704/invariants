@@ -15,16 +15,22 @@ private struct InternalSwiftConfig: Decodable {
   let indexStore: String?
 }
 
+private struct InternalASTConfig: Decodable {
+  let swift: [String: InternalSwiftConfig]?
+}
+
 private struct InternalLanguages: Decodable {
   let swift: InternalSwiftConfig?
 }
 
 private struct InternalRuleRequest: Decodable {
-  let mode: String
-  let repoRoot: String
-  let ruleDir: String
-  let files: [String]
-  let languages: InternalLanguages
+  let mode: String?
+  let repoRoot: String?
+  let ruleDir: String?
+  let files: [String]?
+  let unitFiles: [String: [String]]?
+  let ast: InternalASTConfig?
+  let languages: InternalLanguages?
 }
 
 extension SwiftRule {
@@ -68,16 +74,41 @@ extension SwiftRule {
     }
 
     let mode: RuleMode = (request.mode == "fixture") ? .fixture : .repo
-    let repoRoot = URL(fileURLWithPath: request.repoRoot)
-    let ruleDir = URL(fileURLWithPath: request.ruleDir)
-    let fileURLs = request.files.map { URL(fileURLWithPath: $0) }
-    let indexStorePath = request.languages.swift?.indexStore
+    let repoRoot = URL(fileURLWithPath: request.repoRoot ?? FileManager.default.currentDirectoryPath)
+    let ruleDir = URL(fileURLWithPath: request.ruleDir ?? FileManager.default.currentDirectoryPath)
+    let fileURLs = (request.files ?? []).map { URL(fileURLWithPath: $0) }
+
+    var astUnits: [String: SwiftASTUnit] = [:]
+    if let unitFiles = request.unitFiles, !unitFiles.isEmpty {
+      for (unitName, paths) in unitFiles {
+        let urls = paths.map { URL(fileURLWithPath: $0) }
+        let store = request.ast?.swift?[unitName]?.indexStore ?? request.languages?.swift?.indexStore
+        astUnits[unitName] = SwiftASTUnit(
+          name: unitName,
+          repoRoot: repoRoot,
+          files: urls,
+          indexStorePath: store,
+          mode: mode
+        )
+      }
+    } else {
+      let store =
+        request.ast?.swift?["main"]?.indexStore ?? request.ast?.swift?.values.first?.indexStore
+        ?? request.languages?.swift?.indexStore
+      astUnits["main"] = SwiftASTUnit(
+        name: "main",
+        repoRoot: repoRoot,
+        files: fileURLs,
+        indexStorePath: store,
+        mode: mode
+      )
+    }
 
     let ctx = RuleContext(
       repoRoot: repoRoot,
       ruleDir: ruleDir,
       files: fileURLs,
-      projectIndexStorePath: indexStorePath,
+      ast: astUnits,
       mode: mode
     )
 

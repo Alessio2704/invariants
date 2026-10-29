@@ -9,7 +9,7 @@ enum InvalidManifestCase: String, CaseIterable, Sendable {
       "id": "toy",
       "summary": "Toy rule",
       "targets": ["swift"],
-      "scope": { "swift": { "include": ["**/*.swift"] } },
+      "scope": { "swift": { "main": { "include": ["**/*.swift"] } } },
       "codes": { "C1": "Code 1" },
       "extraUnknownKey": true
     }
@@ -35,12 +35,22 @@ enum InvalidManifestCase: String, CaseIterable, Sendable {
     }
     """
 
+  case emptyTargetUnits = """
+    {
+      "id": "toy",
+      "summary": "Toy rule",
+      "targets": ["swift"],
+      "scope": { "swift": {} },
+      "codes": { "C1": "Code 1" }
+    }
+    """
+
   case emptyCodes = """
     {
       "id": "toy",
       "summary": "Toy rule",
       "targets": ["swift"],
-      "scope": { "swift": { "include": ["**/*.swift"] } },
+      "scope": { "swift": { "main": { "include": ["**/*.swift"] } } },
       "codes": {}
     }
     """
@@ -50,7 +60,7 @@ enum InvalidManifestCase: String, CaseIterable, Sendable {
       "id": "toy",
       "summary": "Toy rule",
       "targets": ["swift"],
-      "scope": { "swift": { "include": ["**/*.swift"], "forbiddenField": 123 } },
+      "scope": { "swift": { "main": { "include": ["**/*.swift"], "forbiddenField": 123 } } },
       "codes": { "C1": "Code 1" }
     }
     """
@@ -58,7 +68,7 @@ enum InvalidManifestCase: String, CaseIterable, Sendable {
 
 @Suite("Manifest & Schema", .tags(.unit))
 struct ManifestTests {
-  @Test("Valid manifest parses correctly")
+  @Test("Valid manifest parses correctly with unit-scoped targets")
   func validManifestParsing() throws {
     let json = """
       {
@@ -66,8 +76,14 @@ struct ManifestTests {
         "summary": "A sample toy rule",
         "targets": ["swift", "ts"],
         "scope": {
-          "swift": { "include": ["App/**/*.swift"], "exclude": ["App/Previews/**"] },
-          "ts": { "include": ["src/**/*.ts"] }
+          "swift": {
+            "ios": { "include": ["App/**/*.swift"], "exclude": ["App/Previews/**"] },
+            "vapor": { "include": ["Server/**/*.swift"] }
+          },
+          "ts": {
+            "web": { "include": ["src/**/*.ts"] },
+            "bff": { "include": ["bff/**/*.ts"] }
+          }
         },
         "codes": {
           "TOY-01": "Toy violation 1",
@@ -80,8 +96,11 @@ struct ManifestTests {
     #expect(manifest.id == "toy")
     #expect(manifest.targets == [.swift, .ts])
     #expect(manifest.codes.count == 2)
-    #expect(manifest.scope[.swift]?.include == ["App/**/*.swift"])
-    #expect(manifest.scope[.swift]?.exclude == ["App/Previews/**"])
+    #expect(manifest.scope[.swift]?["ios"]?.include == ["App/**/*.swift"])
+    #expect(manifest.scope[.swift]?["ios"]?.exclude == ["App/Previews/**"])
+    #expect(manifest.scope[.swift]?["vapor"]?.include == ["Server/**/*.swift"])
+    #expect(manifest.scope[.ts]?["web"]?.include == ["src/**/*.ts"])
+    #expect(manifest.scope[.ts]?["bff"]?.include == ["bff/**/*.ts"])
   }
 
   @Test("ID mismatch is rejected")
@@ -91,7 +110,7 @@ struct ManifestTests {
         "id": "toy",
         "summary": "Toy",
         "targets": ["swift"],
-        "scope": { "swift": { "include": ["**/*.swift"] } },
+        "scope": { "swift": { "main": { "include": ["**/*.swift"] } } },
         "codes": { "C1": "Desc" }
       }
       """
@@ -105,6 +124,77 @@ struct ManifestTests {
     let data = Data(invalidCase.rawValue.utf8)
     #expect(throws: ManifestError.self) {
       try ManifestParser.parse(data: data)
+    }
+  }
+
+  @Test("ManifestValidator rejects unit missing from registry.ast")
+  func manifestValidatorMissingUnitInAST() throws {
+    let manifest = RuleManifest(
+      id: "rule1",
+      summary: "Rule",
+      targets: [.swift],
+      scope: [.swift: ["vapor": TargetScope(include: ["Server/**/*.swift"])]],
+      codes: ["C1": "Code 1"]
+    )
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["ios": SwiftLanguage.Config(indexStore: "ios/store")]
+    let reg = Registry(languages: [.swift], ast: ast)
+
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    // Create rule.swift and fixture folders
+    try Data("// rule".utf8).write(to: tmpDir.appendingPathComponent("rule.swift"))
+    let passDir = tmpDir.appendingPathComponent("should_pass/swift")
+    let failDir = tmpDir.appendingPathComponent("should_fail/swift")
+    try FileManager.default.createDirectory(at: passDir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: failDir, withIntermediateDirectories: true)
+    try Data("// pass".utf8).write(to: passDir.appendingPathComponent("case1.swift"))
+    try Data("// fail".utf8).write(to: failDir.appendingPathComponent("case1.swift"))
+
+    #expect {
+      try ManifestValidator.validateStructure(
+        ruleDirectory: tmpDir,
+        manifest: manifest,
+        registry: reg,
+        isFixtureMode: false
+      )
+    } throws: { error in
+      guard let err = error as? ManifestError, case .missingUnitInRegistryAST(let target, let unit) = err else {
+        return false
+      }
+      return target == .swift && unit == "vapor"
+    }
+  }
+
+  @Test("resolveScopedFilesByUnit accurately isolates files per unit")
+  func resolveScopedFilesByUnitIsolation() throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    let iosDir = tmpDir.appendingPathComponent("ios/App")
+    let vaporDir = tmpDir.appendingPathComponent("vapor/Sources")
+    try fm.createDirectory(at: iosDir, withIntermediateDirectories: true)
+    try fm.createDirectory(at: vaporDir, withIntermediateDirectories: true)
+
+    let iosFile = iosDir.appendingPathComponent("Client.swift")
+    let vaporFile = vaporDir.appendingPathComponent("Server.swift")
+    try Data("import Foundation".utf8).write(to: iosFile)
+    try Data("import Vapor".utf8).write(to: vaporFile)
+
+    RepoLocator.withRepoRoot(tmpDir) {
+      let scopes: [String: TargetScope] = [
+        "ios": TargetScope(include: ["ios/**/*.swift"]),
+        "vapor": TargetScope(include: ["vapor/**/*.swift"]),
+      ]
+      let resolved = ManifestValidator.resolveScopedFilesByUnit(scopes: scopes, target: .swift)
+      #expect(resolved["ios"]?.count == 1)
+      #expect(resolved["ios"]?.first?.lastPathComponent == "Client.swift")
+      #expect(resolved["vapor"]?.count == 1)
+      #expect(resolved["vapor"]?.first?.lastPathComponent == "Server.swift")
     }
   }
 
@@ -144,7 +234,7 @@ struct ManifestTests {
       id: "rule1",
       summary: "Rule",
       targets: [.swift],
-      scope: [.swift: TargetScope(include: ["**/*.swift"])],
+      scope: [.swift: ["main": TargetScope(include: ["**/*.swift"])]],
       codes: ["C1": "Code 1", "C2": "Code 2"]
     )
     #expect {
@@ -164,7 +254,7 @@ struct ManifestTests {
       id: "rule1",
       summary: "Rule",
       targets: [.swift],
-      scope: [.swift: TargetScope(include: ["**/*.swift"])],
+      scope: [.swift: ["main": TargetScope(include: ["**/*.swift"])]],
       codes: ["C1": "Code 1"]
     )
     let badViolation = ReportedViolation(

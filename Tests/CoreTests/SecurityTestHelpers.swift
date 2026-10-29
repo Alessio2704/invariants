@@ -35,9 +35,10 @@ extension Registry {
     version: Int = 1,
     engine: String = "^1.0.0",
     defaultBranch: String = "main",
-    languages: LanguagesConfig = {
-      var config = LanguagesConfig()
-      config[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    languages: [SupportedLanguage] = [.swift],
+    ast: ASTConfig = {
+      var config = ASTConfig()
+      config[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
       return config
     }(),
     rules: [String: String] = [:],
@@ -48,6 +49,7 @@ extension Registry {
       engine: engine,
       defaultBranch: defaultBranch,
       languages: languages,
+      ast: ast,
       rules: rules,
       signersHash: signersHash
     )

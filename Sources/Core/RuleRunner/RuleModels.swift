@@ -6,20 +6,23 @@ public struct RuleRequest: Sendable, Codable {
   public let repoRoot: String
   public let ruleDir: String
   public let files: [String]
-  public let languages: LanguagesConfig
+  public let unitFiles: [String: [String]]
+  public let ast: ASTConfig
 
   public init(
     mode: String,
     repoRoot: String,
     ruleDir: String,
     files: [String],
-    languages: LanguagesConfig
+    unitFiles: [String: [String]] = [:],
+    ast: ASTConfig = ASTConfig()
   ) {
     self.mode = mode
     self.repoRoot = repoRoot
     self.ruleDir = ruleDir
     self.files = files
-    self.languages = languages
+    self.unitFiles = unitFiles
+    self.ast = ast
   }
 }
 

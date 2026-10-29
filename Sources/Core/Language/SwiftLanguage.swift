@@ -45,8 +45,10 @@ public enum SwiftLanguage: LanguageSpec {
     }
   }
 
-  public static func describeConfig(in languages: LanguagesConfig) -> String {
-    languages[Self.self]?.indexStore ?? "none"
+  public static func describeConfig(in ast: ASTConfig) -> String {
+    let units = ast[Self.self]
+    guard !units.isEmpty else { return "none" }
+    return units.sorted(by: { $0.key < $1.key }).map { "\($0.key) (\($0.value.indexStore))" }.joined(separator: ", ")
   }
 
   public static func discoverAnalysisInputs() -> [String] {
@@ -63,7 +65,11 @@ public enum SwiftLanguage: LanguageSpec {
       while let fileURL = enumerator.nextObject() as? URL {
         let path = fileURL.resolvingSymlinksInPath().path
         if SupportedLanguage.shouldSkipAny(url: fileURL) {
-          if fileURL.lastPathComponent == "build" {
+          let isIndexDir =
+            fileURL.lastPathComponent == "build"
+            || fileURL.lastPathComponent == "Index.noindex"
+            || fileURL.path.contains("Index.noindex")
+          if isIndexDir {
             // Allow searching within build directory for Index.noindex/DataStore
           } else {
             enumerator.skipDescendants()
@@ -97,12 +103,19 @@ public enum SwiftLanguage: LanguageSpec {
     noInputsFoundMessage: "Swift sources detected, but no index store was found "
       + "(e.g. build/Index.noindex/DataStore, .build/out, or .build/debug/index/store).",
     manualPromptQuestion: "Enter index store path (press Enter to skip / configure later)",
-    selectionStyle: .single(selectionTitle: "Discovered Swift index store inputs:")
+    manualFallbackQuestion: "Enter index store path (press Enter to skip)",
+    selectionStyle: .multiple(confirmationQuestion: "Use discovered Swift index store inputs")
   )
 
+  public static func makeUnitConfig(from path: String) -> (any LanguageConfiguration)? {
+    guard !path.isEmpty else { return nil }
+    return Config(indexStore: path)
+  }
+
+  // periphery:ignore
   public static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)? {
     guard let first = paths.first, !first.isEmpty else { return nil }
-    return Config(indexStore: first)
+    return makeUnitConfig(from: first)
   }
 
   public static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile] {

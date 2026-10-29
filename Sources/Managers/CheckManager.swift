@@ -137,7 +137,7 @@ package enum CheckManager {
         manifest: manifest,
         ruleDirectory: tempSnapshotDir,
         ruleTreeHash: signedTreeHash,
-        languages: context.registry.languages,
+        ast: context.registry.ast,
         runner: context.ruleRunner
       )
       if let failure = outcome.failures.first {
@@ -160,18 +160,28 @@ package enum CheckManager {
     var repoViolations: [ReportedViolation] = []
 
     for target in ruleCtx.manifest.targets {
-      guard let targetScope = ruleCtx.manifest.scope[target] else { continue }
-      let scopedFiles = ManifestValidator.resolveScopedFiles(
-        scope: targetScope,
+      guard let targetScopes = ruleCtx.manifest.scope[target] else { continue }
+      let unitFilesURLs = ManifestValidator.resolveScopedFilesByUnit(
+        scopes: targetScopes,
         target: target
       )
+      var unitFiles: [String: [String]] = [:]
+      var allFiles: [String] = []
+      for (unit, urls) in unitFilesURLs {
+        let paths = urls.map(\.path)
+        unitFiles[unit] = paths
+        allFiles.append(contentsOf: paths)
+      }
+      var seen = Set<String>()
+      let dedupedFiles = allFiles.filter { seen.insert($0).inserted }
 
       let req = RuleRequest(
         mode: "repo",
         repoRoot: RepoLocator.current.path,
         ruleDir: ruleCtx.tempSnapshotDir.path,
-        files: scopedFiles.map { $0.path },
-        languages: context.registry.languages
+        files: dedupedFiles,
+        unitFiles: unitFiles,
+        ast: context.registry.ast
       )
 
       do {
@@ -258,7 +268,7 @@ package enum CheckManager {
         manifest: manifest,
         ruleDirectory: draftDir,
         ruleTreeHash: draftHash,
-        languages: context.registry.languages,
+        ast: context.registry.ast,
         runner: context.ruleRunner
       )
     else {

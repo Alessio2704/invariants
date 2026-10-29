@@ -4,18 +4,18 @@ public struct FixtureContext: Sendable {
   public let manifest: RuleManifest
   public let ruleDirectory: URL
   public let ruleTreeHash: String
-  public let languages: LanguagesConfig
+  public let ast: ASTConfig
 
   public init(
     manifest: RuleManifest,
     ruleDirectory: URL,
     ruleTreeHash: String,
-    languages: LanguagesConfig
+    ast: ASTConfig = ASTConfig()
   ) {
     self.manifest = manifest
     self.ruleDirectory = ruleDirectory
     self.ruleTreeHash = ruleTreeHash
-    self.languages = languages
+    self.ast = ast
   }
 }
 
@@ -78,14 +78,14 @@ public enum FixtureExecutionService {
     manifest: RuleManifest,
     ruleDirectory: URL,
     ruleTreeHash: String,
-    languages: LanguagesConfig,
+    ast: ASTConfig = ASTConfig(),
     runner: RuleRunner
   ) async throws(HarnessError) {
     let outcome = try await evaluateFixtures(
       manifest: manifest,
       ruleDirectory: ruleDirectory,
       ruleTreeHash: ruleTreeHash,
-      languages: languages,
+      ast: ast,
       runner: runner
     )
     if !outcome.isAllPassed {
@@ -119,12 +119,40 @@ public enum FixtureExecutionService {
 
     var results: [FixtureCaseExecutionResult] = []
     for fixtureCase in cases {
+      let declaredUnits = context.manifest.scope[target]?.keys.sorted() ?? []
+      var unitFiles: [String: [String]] = [:]
+
+      var matchedSubdir = false
+      for unit in declaredUnits {
+        let unitSubdir = fixtureCase.rootURL.appendingPathComponent(unit).standardizedFileURL.path
+        let matching = fixtureCase.files
+          .filter {
+            let p = $0.standardizedFileURL.path
+            return p.hasPrefix(unitSubdir + "/") || p == unitSubdir
+          }
+          .map(\.path)
+        if !matching.isEmpty {
+          unitFiles[unit] = matching
+          matchedSubdir = true
+        } else {
+          unitFiles[unit] = []
+        }
+      }
+
+      if !matchedSubdir {
+        let allPaths = fixtureCase.files.map(\.path)
+        for unit in declaredUnits {
+          unitFiles[unit] = allPaths
+        }
+      }
+
       let req = RuleRequest(
         mode: "fixture",
         repoRoot: fixtureCase.rootURL.path,
         ruleDir: context.ruleDirectory.path,
         files: fixtureCase.files.map(\.path),
-        languages: context.languages
+        unitFiles: unitFiles,
+        ast: context.ast
       )
 
       let violations: [ReportedViolation]
@@ -193,14 +221,14 @@ public enum FixtureExecutionService {
     manifest: RuleManifest,
     ruleDirectory: URL,
     ruleTreeHash: String,
-    languages: LanguagesConfig,
+    ast: ASTConfig = ASTConfig(),
     runner: RuleRunner
   ) async throws(HarnessError) -> FixtureExecutionOutcome {
     let context = FixtureContext(
       manifest: manifest,
       ruleDirectory: ruleDirectory,
       ruleTreeHash: ruleTreeHash,
-      languages: languages
+      ast: ast
     )
     return try await evaluateFixtures(context: context, runner: runner)
   }

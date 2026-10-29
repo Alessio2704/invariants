@@ -12,7 +12,10 @@ struct WeakeningTests {
       summary: "summary",
       targets: [.swift, .ts],
       scope: [
-        .swift: TargetScope(include: ["App/**/*.swift"], exclude: ["App/Previews/**"])
+        .swift: [
+          "ios": TargetScope(include: ["App/**/*.swift"], exclude: ["App/Previews/**"]),
+          "vapor": TargetScope(include: ["Server/**/*.swift"]),
+        ]
       ],
       codes: [
         "RAW-TEXT": "Desc",
@@ -20,13 +23,15 @@ struct WeakeningTests {
       ]
     )
 
-    // Weakened new manifest: removed OLD-CODE, removed TS target, added exclude
+    // Weakened new manifest: removed OLD-CODE, removed TS target, removed vapor unit, added exclude to ios
     let newManifest = RuleManifest(
       id: "no-raw-text",
       summary: "summary",
       targets: [.swift],
       scope: [
-        .swift: TargetScope(include: ["App/**/*.swift"], exclude: ["App/Previews/**", "App/SneakyExclude/**"])
+        .swift: [
+          "ios": TargetScope(include: ["App/**/*.swift"], exclude: ["App/Previews/**", "App/SneakyExclude/**"])
+        ]
       ],
       codes: [
         "RAW-TEXT": "Desc"
@@ -72,7 +77,8 @@ struct WeakeningTests {
 
     #expect(redMessages.contains(where: { $0.contains("OLD-CODE") }))
     #expect(redMessages.contains(where: { $0.contains("ts") }))
-    #expect(redMessages.contains(where: { $0.contains("App/SneakyExclude/**") }))
+    #expect(redMessages.contains(where: { $0.contains("[swift.vapor] unit scope was removed") }))
+    #expect(redMessages.contains(where: { $0.contains("[swift.ios] exclude pattern added: 'App/SneakyExclude/**'") }))
     #expect(redMessages.contains(where: { $0.contains("case1.swift:20") }))
     #expect(redMessages.contains(where: { $0.contains("Repo violation count dropped") }))
   }
@@ -83,7 +89,7 @@ struct WeakeningTests {
       id: "no-raw-text",
       summary: "summary",
       targets: [.swift],
-      scope: [.swift: TargetScope(include: ["**/*.swift"])],
+      scope: [.swift: ["main": TargetScope(include: ["**/*.swift"])]],
       codes: ["RAW-TEXT": "Desc"]
     )
 
@@ -107,7 +113,6 @@ struct WeakeningTests {
 
     #expect(!report.hasRedFlags)
     #expect(report.hasGreenFlags)
-    #expect(report.items[0].severity == .green)
-    #expect(report.items[0].message.contains("should_pass case added"))
+    #expect(report.items.contains { $0.category == "Fixture" && $0.message.contains("legit_case") })
   }
 }

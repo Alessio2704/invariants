@@ -7,12 +7,36 @@ import Terminal
 package enum NewRuleWorkflow {
   /// Scaffolds a new draft rule, creates directory templates, and displays next steps.
   package static func execute(id: String, targets: [TargetLanguage] = []) throws {
-    let configured = try loadConfiguredLanguages()
+    let registry = try loadRegistry()
+    let configured = registry.languages
+    guard !configured.isEmpty else {
+      throw RuleScaffoldError.noConfiguredLanguages
+    }
     let declaredTargets = try resolveTargets(id: id, explicitTargets: targets, configured: configured)
+
+    var targetUnits: [TargetLanguage: [String]] = [:]
+    for target in declaredTargets {
+      let availableUnits = registry.ast.units(for: target)
+      if availableUnits.count <= 1 {
+        targetUnits[target] = availableUnits.isEmpty ? ["main"] : availableUnits
+      } else {
+        if Terminal.isInteractive {
+          let options = availableUnits.map { TerminalPrompt.Option(value: $0, label: $0) }
+          let selected = try TerminalPrompt.promptMultiSelection(
+            title: "Select AST unit(s) for '\(target.rawValue)' targeted by rule '\(id)':",
+            options: options
+          )
+          targetUnits[target] = selected.isEmpty ? availableUnits : selected
+        } else {
+          targetUnits[target] = availableUnits
+        }
+      }
+    }
 
     try RuleScaffoldManager.scaffoldRule(
       id: id,
       targets: declaredTargets,
+      targetUnits: targetUnits,
       in: RepoLocator.current
     )
 
@@ -24,7 +48,7 @@ package enum NewRuleWorkflow {
     Terminal.info("  4. Run 'invariants rule add \(id)' to lock and activate with Touch ID.")
   }
 
-  private static func loadConfiguredLanguages() throws -> [TargetLanguage] {
+  private static func loadRegistry() throws -> Registry {
     let lockURL = RegistryManager.registryURL()
     guard FileManager.default.fileExists(atPath: lockURL.path) else {
       throw RuleScaffoldError.notInitialized
@@ -34,11 +58,7 @@ package enum NewRuleWorkflow {
     else {
       throw RuleScaffoldError.notInitialized
     }
-    let configured = registry.languages.configuredLanguages
-    guard !configured.isEmpty else {
-      throw RuleScaffoldError.noConfiguredLanguages
-    }
-    return configured
+    return registry
   }
 
   private static func resolveTargets(

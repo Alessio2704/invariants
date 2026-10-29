@@ -69,7 +69,7 @@ package enum UpdateRuleWorkflow {
         ruleId: input.id,
         ruleDir: ruleDir,
         manifest: newManifest,
-        languages: registry.languages,
+        ast: registry.ast,
         env: env
       )
 
@@ -179,16 +179,27 @@ package enum UpdateRuleWorkflow {
     for target in allTargets {
       // SEC-06c: Old violations must be evaluated against oldManifest.scope
       let isOldTarget = context.oldManifest.targets.contains(target)
-      let oldScope = context.oldManifest.scope[target]
-      if isOldTarget, let oldScope {
-        let oldScopedFiles = ManifestValidator.resolveScopedFiles(scope: oldScope, target: target)
-        if !oldScopedFiles.isEmpty {
+      let oldScopes = context.oldManifest.scope[target]
+      if isOldTarget, let oldScopes {
+        let oldScopedFilesByUnit = ManifestValidator.resolveScopedFilesByUnit(scopes: oldScopes, target: target)
+        var oldUnitFiles: [String: [String]] = [:]
+        var oldFiles: [String] = []
+        for (unit, urls) in oldScopedFilesByUnit {
+          let paths = urls.map(\.path)
+          oldUnitFiles[unit] = paths
+          oldFiles.append(contentsOf: paths)
+        }
+        var seenOld = Set<String>()
+        let dedupedOldFiles = oldFiles.filter { seenOld.insert($0).inserted }
+
+        if !dedupedOldFiles.isEmpty {
           let oldReq = RuleRequest(
             mode: "repo",
             repoRoot: RepoLocator.current.path,
             ruleDir: context.tempOldSnapshot.path,
-            files: oldScopedFiles.map { $0.path },
-            languages: context.registry.languages
+            files: dedupedOldFiles,
+            unitFiles: oldUnitFiles,
+            ast: context.registry.ast
           )
           // SEC-06a: Do not swallow runner execution errors with try? ?? []
           let oldRes = try await runner.execute(
@@ -203,16 +214,27 @@ package enum UpdateRuleWorkflow {
 
       // New violations evaluated against newManifest.scope
       let isNewTarget = context.newManifest.targets.contains(target)
-      let newScope = context.newManifest.scope[target]
-      if isNewTarget, let newScope {
-        let newScopedFiles = ManifestValidator.resolveScopedFiles(scope: newScope, target: target)
-        if !newScopedFiles.isEmpty {
+      let newScopes = context.newManifest.scope[target]
+      if isNewTarget, let newScopes {
+        let newScopedFilesByUnit = ManifestValidator.resolveScopedFilesByUnit(scopes: newScopes, target: target)
+        var newUnitFiles: [String: [String]] = [:]
+        var newFiles: [String] = []
+        for (unit, urls) in newScopedFilesByUnit {
+          let paths = urls.map(\.path)
+          newUnitFiles[unit] = paths
+          newFiles.append(contentsOf: paths)
+        }
+        var seenNew = Set<String>()
+        let dedupedNewFiles = newFiles.filter { seenNew.insert($0).inserted }
+
+        if !dedupedNewFiles.isEmpty {
           let newReq = RuleRequest(
             mode: "repo",
             repoRoot: RepoLocator.current.path,
             ruleDir: context.ruleDir.path,
-            files: newScopedFiles.map { $0.path },
-            languages: context.registry.languages
+            files: dedupedNewFiles,
+            unitFiles: newUnitFiles,
+            ast: context.registry.ast
           )
           // SEC-06a: Do not swallow runner execution errors with try? ?? []
           let newRes = try await runner.execute(
@@ -232,7 +254,7 @@ package enum UpdateRuleWorkflow {
     ruleId: String,
     ruleDir: URL,
     manifest: RuleManifest,
-    languages: LanguagesConfig,
+    ast: ASTConfig,
     env: SystemEnvironment
   ) async throws {
     let runner = RuleRunner(environment: env)
@@ -245,7 +267,7 @@ package enum UpdateRuleWorkflow {
         manifest: manifest,
         ruleDirectory: ruleDir,
         ruleTreeHash: ruleTreeHash,
-        languages: languages,
+        ast: ast,
         runner: runner
       )
     } catch {

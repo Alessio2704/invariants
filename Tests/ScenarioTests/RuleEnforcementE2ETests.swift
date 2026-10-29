@@ -3,6 +3,8 @@ import Testing
 
 @testable import Core
 @testable import InvariantKit
+@testable import Managers
+@testable import Workflows
 
 @Suite("Rule Enforcement End-to-End Simulation Tests", .tags(.integration), .tags(.scenario))
 struct RuleEnforcementE2ETests {
@@ -10,8 +12,8 @@ struct RuleEnforcementE2ETests {
   func e2eSwiftRuleLifecycle() async throws {
     let repo = try await TestRepo()
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
 
     let ruleSwiftBody = """
       let sources = SourceFileCollection(files: ctx.files, repoRoot: ctx.repoRoot)
@@ -41,13 +43,13 @@ struct RuleEnforcementE2ETests {
       "id": "no-fatal-error",
       "summary": "Forbid fatalError calls",
       "targets": ["swift"],
-      "scope": ["swift": ["include": ["App/**/*.swift"]]],
+      "scope": ["swift": ["main": ["include": ["App/**/*.swift"]]]],
       "codes": ["NO-FATAL-ERROR": "fatalError() calls are strictly prohibited"],
     ]
     let manifestData = try JSONSerialization.data(withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
     try manifestData.write(to: manifestURL)
 
-    try await repo.signed(version: 1, languages: languages)
+    try await repo.signed(version: 1, languages: [.swift], ast: ast)
 
     let reg = try await repo.run {
       try await RegistryManager.loadAndVerify()
@@ -57,12 +59,12 @@ struct RuleEnforcementE2ETests {
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-fatal-error")
     let runner = RuleRunner()
 
+    let manifest = try ManifestParser.parse(data: manifestData)
     try await verifyFixtures(
+      manifest: manifest,
       ruleDir: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      target: .swift,
-      manifestCodes: ["NO-FATAL-ERROR": "fatalError() calls are strictly prohibited"],
-      languages: languages
+      ast: ast
     )
 
     let cleanReq = RuleRequest(
@@ -70,7 +72,8 @@ struct RuleEnforcementE2ETests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["App/SafeService.swift"],
-      languages: languages
+      unitFiles: ["main": ["App/SafeService.swift"]],
+      ast: ast
     )
     let cleanViolations = try await runner.execute(
       target: .swift,
@@ -88,7 +91,8 @@ struct RuleEnforcementE2ETests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["App/SafeService.swift", "App/CrashingService.swift"],
-      languages: languages
+      unitFiles: ["main": ["App/SafeService.swift", "App/CrashingService.swift"]],
+      ast: ast
     )
     let repoViolations = try await runner.execute(
       target: .swift,
@@ -117,12 +121,12 @@ struct RuleEnforcementE2ETests {
   func e2eDualTargetRuleSimultaneously() async throws {
     let repo = try await TestRepo()
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
+    ast[TypeScriptLanguage.self] = ["main": TypeScriptLanguage.Config(tsconfig: "tsconfig.json")]
 
-    #expect(languages.isConfigured(.swift))
-    #expect(languages.isConfigured(.ts))
+    #expect(ast.isConfigured(.swift))
+    #expect(ast.isConfigured(.ts))
 
     let ruleSwiftBody = """
       let sources = SourceFileCollection(files: ctx.files, repoRoot: ctx.repoRoot)
@@ -179,15 +183,15 @@ struct RuleEnforcementE2ETests {
       "summary": "Forbid dynamic eval across platforms",
       "targets": ["swift", "ts"],
       "scope": [
-        "swift": ["include": ["Sources/**/*.swift"]],
-        "ts": ["include": ["src/**/*.ts"]],
+        "swift": ["main": ["include": ["Sources/**/*.swift"]]],
+        "ts": ["main": ["include": ["src/**/*.ts"]]],
       ],
       "codes": ["NO-EVAL": "eval() is strictly forbidden"],
     ]
     let manifestData = try JSONSerialization.data(withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
     try manifestData.write(to: manifestURL)
 
-    try await repo.signed(version: 1, languages: languages)
+    try await repo.signed(version: 1, languages: [.swift, .ts], ast: ast)
 
     let reg = try await repo.run {
       try await RegistryManager.loadAndVerify()
@@ -197,22 +201,21 @@ struct RuleEnforcementE2ETests {
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/no-eval")
     let runner = RuleRunner()
 
-    for target in [TargetLanguage.swift, TargetLanguage.ts] {
-      try await verifyFixtures(
-        ruleDir: ruleDir,
-        ruleTreeHash: ruleTreeHash,
-        target: target,
-        manifestCodes: ["NO-EVAL": "eval() is strictly forbidden"],
-        languages: languages
-      )
-    }
+    let manifest = try ManifestParser.parse(data: manifestData)
+    try await verifyFixtures(
+      manifest: manifest,
+      ruleDir: ruleDir,
+      ruleTreeHash: ruleTreeHash,
+      ast: ast
+    )
 
     let swiftCleanReq = RuleRequest(
       mode: "repo",
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["Sources/App/Engine.swift"],
-      languages: languages
+      unitFiles: ["main": ["Sources/App/Engine.swift"]],
+      ast: ast
     )
     let swiftCleanViolations = try await runner.execute(
       target: .swift,
@@ -227,7 +230,8 @@ struct RuleEnforcementE2ETests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["src/parser/engine.ts"],
-      languages: languages
+      unitFiles: ["main": ["src/parser/engine.ts"]],
+      ast: ast
     )
     let tsCleanViolations = try await runner.execute(
       target: .ts,
@@ -248,7 +252,8 @@ struct RuleEnforcementE2ETests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["Sources/App/Engine.swift", "Sources/App/Dangerous.swift"],
-      languages: languages
+      unitFiles: ["main": ["Sources/App/Engine.swift", "Sources/App/Dangerous.swift"]],
+      ast: ast
     )
     let swiftViolations = try await runner.execute(
       target: .swift,
@@ -266,7 +271,8 @@ struct RuleEnforcementE2ETests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["src/parser/engine.ts", "src/parser/dangerous.ts"],
-      languages: languages
+      unitFiles: ["main": ["src/parser/engine.ts", "src/parser/dangerous.ts"]],
+      ast: ast
     )
     let tsViolations = try await runner.execute(
       target: .ts,
@@ -300,35 +306,18 @@ struct RuleEnforcementE2ETests {
   }
 
   private func verifyFixtures(
+    manifest: RuleManifest,
     ruleDir: URL,
     ruleTreeHash: String,
-    target: TargetLanguage,
-    manifestCodes: [String: String],
-    languages: LanguagesConfig
+    ast: ASTConfig
   ) async throws {
     let runner = RuleRunner()
-    let cases = try FixtureDiscoverer.discover(
+    try await FixtureExecutionService.verifyAllFixtures(
+      manifest: manifest,
       ruleDirectory: ruleDir,
-      target: target,
-      manifestCodes: manifestCodes
+      ruleTreeHash: ruleTreeHash,
+      ast: ast,
+      runner: runner
     )
-    #expect(cases.count == 2)
-    for fixtureCase in cases {
-      let req = RuleRequest(
-        mode: "fixture",
-        repoRoot: fixtureCase.rootURL.path,
-        ruleDir: ruleDir.path,
-        files: fixtureCase.files.map { $0.path },
-        languages: languages
-      )
-      let violations = try await runner.execute(
-        target: target,
-        ruleDirectory: ruleDir,
-        ruleTreeHash: ruleTreeHash,
-        request: req
-      )
-      let fixtureError = fixtureCase.evaluateExpectations(reportedViolations: violations)
-      #expect(fixtureError == nil)
-    }
   }
 }

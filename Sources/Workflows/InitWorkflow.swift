@@ -33,11 +33,11 @@ package enum InitWorkflow {
     )
 
     // 2. Detect language inputs interactively or via flags
-    let languagesConfig = try LanguageConfigWorkflow.resolveConfigurations(
+    let (resolvedLanguages, astConfig) = try LanguageConfigWorkflow.resolveConfigurations(
       explicitLanguages: input.languages
     )
 
-    guard !languagesConfig.isEmpty else {
+    guard !resolvedLanguages.isEmpty else {
       throw InitWorkflowError.noLanguagesConfigured
     }
 
@@ -54,7 +54,8 @@ package enum InitWorkflow {
     // 4. Initialize repository
     let options = InitOptions(
       defaultBranch: defaultBranch,
-      languages: languagesConfig,
+      languages: resolvedLanguages,
+      ast: astConfig,
       keyURL: session.privateKeyURL
     )
 

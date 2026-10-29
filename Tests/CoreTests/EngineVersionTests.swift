@@ -29,7 +29,7 @@ struct EngineVersionTests {
     let semverRange = SemverRange(range)
     #expect(semverRange.satisfies(EngineVersion.semver))
 
-    let registry = Registry(languages: LanguagesConfig())
+    let registry = Registry(languages: [.swift])
     #expect(registry.engine == EngineVersion.defaultRange)
   }
 }

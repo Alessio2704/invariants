@@ -7,14 +7,23 @@ package enum LanguageConfigWorkflow {
   /// Resolves language configurations for project initialization, querying the user interactively if needed.
   package static func resolveConfigurations(
     explicitLanguages: [SupportedLanguage],
-    baseConfig: LanguagesConfig = LanguagesConfig()
-  ) throws -> LanguagesConfig {
+    baseLanguages: [SupportedLanguage] = [],
+    baseAST: ASTConfig = ASTConfig()
+  ) throws -> (languages: [SupportedLanguage], ast: ASTConfig) {
     guard explicitLanguages.isEmpty else {
-      return try configure(languages: explicitLanguages, baseConfig: baseConfig)
+      return try configure(
+        languages: explicitLanguages,
+        baseLanguages: baseLanguages,
+        baseAST: baseAST
+      )
     }
 
     let targetLanguages = try resolveDiscoveredOrInteractiveLanguages()
-    return try configure(languages: targetLanguages, baseConfig: baseConfig)
+    return try configure(
+      languages: targetLanguages,
+      baseLanguages: baseLanguages,
+      baseAST: baseAST
+    )
   }
 
   private static func resolveDiscoveredOrInteractiveLanguages() throws -> [SupportedLanguage] {
@@ -24,6 +33,10 @@ package enum LanguageConfigWorkflow {
       Terminal.line("")
       Terminal.warning("No known source files detected in repository.")
       return try promptForLanguageSelection()
+    }
+
+    if !Terminal.isInteractive {
+      return detected
     }
 
     Terminal.line("")
@@ -47,13 +60,15 @@ package enum LanguageConfigWorkflow {
   /// Interactively configures a collection of languages and returns the updated project configuration.
   package static func configure(
     languages: [SupportedLanguage],
-    baseConfig: LanguagesConfig = LanguagesConfig()
-  ) throws -> LanguagesConfig {
-    var languagesConfig = baseConfig
+    baseLanguages: [SupportedLanguage] = [],
+    baseAST: ASTConfig = ASTConfig()
+  ) throws -> (languages: [SupportedLanguage], ast: ASTConfig) {
+    var astConfig = baseAST
     for lang in languages {
-      try configureLanguage(lang, into: &languagesConfig)
+      try configureLanguage(lang, into: &astConfig)
     }
-    return languagesConfig
+    let allLangs = Array(Set(baseLanguages + languages)).sorted(by: { $0.rawValue < $1.rawValue })
+    return (languages: allLangs, ast: astConfig)
   }
 
   /// Prompts the user to select from available languages.
@@ -67,57 +82,68 @@ package enum LanguageConfigWorkflow {
 
   private static func configureLanguage(
     _ language: SupportedLanguage,
-    into languagesConfig: inout LanguagesConfig
+    into astConfig: inout ASTConfig
   ) throws {
-    if let config = try promptForConfig(for: language) {
-      languagesConfig[language] = config
-    }
-  }
-
-  private static func promptForConfig(
-    for language: SupportedLanguage
-  ) throws -> (any LanguageConfiguration)? {
     let spec = language.spec
     let inputs = spec.discoverAnalysisInputs()
     let descriptor = spec.configPromptDescriptor
 
+    var existingNames = Set(astConfig.units(for: language))
+    var selectedPaths: [String] = []
+
     if inputs.isEmpty {
-      Terminal.line("")
-      Terminal.warning(descriptor.noInputsFoundMessage)
-      let choice = try TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
-      guard !choice.isEmpty else { return nil }
-      return spec.makeConfig(from: [choice])
-    }
-
-    switch descriptor.selectionStyle {
-    case .single(let selectionTitle):
-      if inputs.count == 1, let first = inputs.first {
-        return spec.makeConfig(from: [first])
+      if Terminal.isInteractive {
+        Terminal.line("")
+        Terminal.warning(descriptor.noInputsFoundMessage)
+        let choice = try TerminalPrompt.prompt(question: descriptor.manualPromptQuestion)
+        if !choice.isEmpty {
+          selectedPaths.append(choice)
+        }
       }
-      let options = inputs.map { TerminalPrompt.Option(value: $0, label: $0) }
-      if let choice = try TerminalPrompt.promptSelection(
-        title: selectionTitle,
-        options: options,
-        default: 0,
-        customHandler: { $0 }
-      ) {
-        return spec.makeConfig(from: [choice])
-      }
-      return nil
-
-    case .multiple(let confirmationQuestion):
-      let joined = inputs.joined(separator: ", ")
-      let confirm = try TerminalPrompt.promptConfirmation(
-        question: "\(confirmationQuestion) (\(joined))?",
-        default: true
-      )
-      if confirm {
-        return spec.makeConfig(from: inputs)
+    } else {
+      if !Terminal.isInteractive {
+        selectedPaths = inputs
       } else {
-        let custom = try TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
-        guard !custom.isEmpty else { return nil }
-        return spec.makeConfig(from: [custom])
+        switch descriptor.selectionStyle {
+        case .single(let selectionTitle):
+          if inputs.count == 1, let first = inputs.first {
+            selectedPaths = [first]
+          } else {
+            let options = inputs.map { TerminalPrompt.Option(value: $0, label: $0) }
+            if let choice = try TerminalPrompt.promptSelection(
+              title: selectionTitle,
+              options: options,
+              default: 0,
+              customHandler: { $0 }
+            ) {
+              selectedPaths = [choice]
+            }
+          }
+        case .multiple(let confirmationQuestion):
+          let joined = inputs.joined(separator: ", ")
+          let confirm = try TerminalPrompt.promptConfirmation(
+            question: "\(confirmationQuestion) (\(joined))?",
+            default: true
+          )
+          if confirm {
+            selectedPaths = inputs
+          } else {
+            let custom = try TerminalPrompt.prompt(question: descriptor.manualFallbackQuestion)
+            if !custom.isEmpty {
+              selectedPaths = [custom]
+            }
+          }
+        }
       }
     }
+
+    var units = astConfig[language]
+    for path in selectedPaths {
+      guard let unitConfig = spec.makeUnitConfig(from: path) else { continue }
+      let unitName = spec.inferDefaultUnitName(for: path, existingNames: existingNames)
+      existingNames.insert(unitName)
+      units[unitName] = unitConfig
+    }
+    astConfig[language] = units
   }
 }

@@ -2,9 +2,10 @@ strict: true
 included:
   - Sources
   - Tests
-  - kits/kit-swift
+  - kits/kit-swift/Sources
 excluded:
   - .build
+  - kits/kit-swift/.build
   - kits/kit-ts
   - invariants/.dev
 disabled_rules:

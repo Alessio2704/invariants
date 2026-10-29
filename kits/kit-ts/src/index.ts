@@ -15,6 +15,17 @@ export interface Violation {
 }
 
 /**
+ * A compilation/AST unit for TypeScript analysis.
+ */
+export interface TsAstUnit {
+  readonly name: string;
+  readonly files: readonly string[];
+  readonly tsconfig?: string | undefined;
+  sourceFile(filePath: string): unknown;
+  readonly checker: unknown | undefined;
+}
+
+/**
  * Execution context passed to rule.check().
  */
 export interface RuleContext {
@@ -22,13 +33,7 @@ export interface RuleContext {
   readonly repoRoot: string;
   readonly ruleDir: string;
   readonly files: readonly string[];
-  readonly languages: {
-    readonly ts?:
-      | {
-          readonly tsconfig?: readonly string[] | undefined;
-        }
-      | undefined;
-  };
+  readonly ast: Readonly<Record<string, TsAstUnit>>;
 
   /**
    * Returns the TypeScript AST SourceFile for the given path.

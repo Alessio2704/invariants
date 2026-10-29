@@ -16,14 +16,14 @@ public struct RuleManifest: Sendable, Equatable {
   public var id: String
   public var summary: String
   public var targets: [TargetLanguage]
-  public var scope: [TargetLanguage: TargetScope]
+  public var scope: [TargetLanguage: [String: TargetScope]]
   public var codes: [String: String]
 
   public init(
     id: String,
     summary: String,
     targets: [TargetLanguage],
-    scope: [TargetLanguage: TargetScope],
+    scope: [TargetLanguage: [String: TargetScope]],
     codes: [String: String]
   ) {
     self.id = id
@@ -43,8 +43,10 @@ public enum ManifestError: Error, Equatable, Sendable, CustomStringConvertible {
   case emptyTargets
   case invalidTarget(String)
   case missingTargetScope(TargetLanguage)
-  case emptyScopeInclude(TargetLanguage)
-  case scopeMatchesNoFiles(TargetLanguage, [String])
+  case emptyTargetUnitScopes(TargetLanguage)
+  case missingUnitInRegistryAST(target: TargetLanguage, unit: String)
+  case emptyScopeInclude(TargetLanguage, unit: String)
+  case scopeMatchesNoFiles(TargetLanguage, unit: String, [String])
   case missingRuleFile(TargetLanguage, String)
   case forbiddenRuleFile(TargetLanguage, String)
   case missingFixtureFolder(String)
@@ -72,10 +74,14 @@ public enum ManifestError: Error, Equatable, Sendable, CustomStringConvertible {
       return "Invalid target language: '\(target)'"
     case .missingTargetScope(let target):
       return "Missing scope configuration for target '\(target.rawValue)'"
-    case .emptyScopeInclude(let target):
-      return "Scope include patterns for target '\(target.rawValue)' cannot be empty"
-    case .scopeMatchesNoFiles(let target, let patterns):
-      return "Scope for target '\(target.rawValue)' matches no files with patterns: \(patterns)"
+    case .emptyTargetUnitScopes(let target):
+      return "Target '\(target.rawValue)' must define at least one unit scope"
+    case .missingUnitInRegistryAST(let target, let unit):
+      return "Unit '\(unit)' for target '\(target.rawValue)' is not configured in registry.ast"
+    case .emptyScopeInclude(let target, let unit):
+      return "Scope include patterns for target '\(target.rawValue)' unit '\(unit)' cannot be empty"
+    case .scopeMatchesNoFiles(let target, let unit, let patterns):
+      return "Scope for target '\(target.rawValue)' unit '\(unit)' matches no files with patterns: \(patterns)"
     case .missingRuleFile(let target, let filename):
       return "Missing required rule implementation for \(target.rawValue): '\(filename)'"
     case .forbiddenRuleFile(let target, let filename):

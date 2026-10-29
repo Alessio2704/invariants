@@ -340,4 +340,181 @@ export default defineRule({
       );
     }
   });
+
+  it("isolates ctx.ast['web'] and ctx.ast['bff'] with independent TypeCheckers", () => {
+    const webDir = path.join(tmpDir, "web");
+    const bffDir = path.join(tmpDir, "bff");
+    fs.mkdirSync(webDir, { recursive: true });
+    fs.mkdirSync(bffDir, { recursive: true });
+
+    const webFile = path.join(webDir, "app.ts");
+    const bffFile = path.join(bffDir, "service.ts");
+    fs.writeFileSync(webFile, "export interface WebApp { id: string; }\n");
+    fs.writeFileSync(bffFile, "export interface BffService { port: number; }\n");
+
+    const webTsconfig = path.join(webDir, "tsconfig.json");
+    const bffTsconfig = path.join(bffDir, "tsconfig.json");
+    fs.writeFileSync(
+      webTsconfig,
+      JSON.stringify({
+        compilerOptions: { target: "ES2022", module: "NodeNext" },
+        files: [webFile],
+      }),
+    );
+    fs.writeFileSync(
+      bffTsconfig,
+      JSON.stringify({
+        compilerOptions: { target: "ES2022", module: "NodeNext" },
+        files: [bffFile],
+      }),
+    );
+
+    const ruleFile = path.join(tmpDir, "multi_unit_checker_rule.js");
+    fs.writeFileSync(
+      ruleFile,
+      `export default {
+  check(ctx) {
+    const violations = [];
+    const webUnit = ctx.ast["web"];
+    const bffUnit = ctx.ast["bff"];
+
+    if (!webUnit || !bffUnit) {
+      violations.push({ code: "ERR-UNITS", file: "app.ts", line: 1, column: 1, message: "Missing unit", fix: "" });
+      return violations;
+    }
+
+    const webSf = webUnit.sourceFile("web/app.ts");
+    const bffSf = bffUnit.sourceFile("bff/service.ts");
+    if (!webSf) violations.push({ code: "ERR-WEB-SF", file: "web/app.ts", line: 1, column: 1, message: "No web sf", fix: "" });
+    if (!bffSf) violations.push({ code: "ERR-BFF-SF", file: "bff/service.ts", line: 1, column: 1, message: "No bff sf", fix: "" });
+
+    // Verify distinct type checkers per project
+    if (!webUnit.checker) violations.push({ code: "ERR-WEB-CHECKER", file: "web/app.ts", line: 1, column: 1, message: "No web checker", fix: "" });
+    if (!bffUnit.checker) violations.push({ code: "ERR-BFF-CHECKER", file: "bff/service.ts", line: 1, column: 1, message: "No bff checker", fix: "" });
+    if (webUnit.checker === bffUnit.checker) {
+      violations.push({ code: "ERR-SAME-CHECKER", file: "web/app.ts", line: 1, column: 1, message: "Checkers must be isolated", fix: "" });
+    }
+
+    return violations;
+  }
+};
+`,
+    );
+
+    const requestFile = path.join(tmpDir, "request.json");
+    fs.writeFileSync(
+      requestFile,
+      JSON.stringify({
+        mode: "repo",
+        repoRoot: tmpDir,
+        ruleDir: tmpDir,
+        files: ["web/app.ts", "bff/service.ts"],
+        unitFiles: {
+          web: ["web/app.ts"],
+          bff: ["bff/service.ts"],
+        },
+        ast: {
+          ts: {
+            web: { tsconfig: "web/tsconfig.json" },
+            bff: { tsconfig: "bff/tsconfig.json" },
+          },
+        },
+      }),
+    );
+
+    const stdout = execFileSync(process.execPath, [runnerPath, ruleFile, requestFile], {
+      encoding: "utf8",
+    });
+
+    const violations = JSON.parse(stdout);
+    expect(violations).toHaveLength(0);
+  });
+
+  it("synthesizes separate tsconfig projects in fixture mode for multi-unit rules", () => {
+    const webFile = path.join(tmpDir, "web_sample.ts");
+    const bffFile = path.join(tmpDir, "bff_sample.ts");
+    fs.writeFileSync(webFile, "export const a = 1;\n");
+    fs.writeFileSync(bffFile, "export const b = 2;\n");
+
+    const ruleFile = path.join(tmpDir, "fixture_rule.js");
+    fs.writeFileSync(
+      ruleFile,
+      `export default {
+  check(ctx) {
+    const violations = [];
+    if (!ctx.ast["web"] || !ctx.ast["bff"]) {
+      violations.push({ code: "MISSING-AST-UNITS", file: "test.ts", line: 1, column: 1, message: "Missing units", fix: "" });
+    }
+    return violations;
+  }
+};
+`,
+    );
+
+    const requestFile = path.join(tmpDir, "request.json");
+    fs.writeFileSync(
+      requestFile,
+      JSON.stringify({
+        mode: "fixture",
+        repoRoot: tmpDir,
+        ruleDir: tmpDir,
+        files: ["web_sample.ts", "bff_sample.ts"],
+        unitFiles: {
+          web: ["web_sample.ts"],
+          bff: ["bff_sample.ts"],
+        },
+        ast: {
+          ts: {
+            web: { tsconfig: "web/tsconfig.json" },
+            bff: { tsconfig: "bff/tsconfig.json" },
+          },
+        },
+      }),
+    );
+
+    const stdout = execFileSync(process.execPath, [runnerPath, ruleFile, requestFile], {
+      encoding: "utf8",
+    });
+
+    const violations = JSON.parse(stdout);
+    expect(violations).toHaveLength(0);
+  });
+
+  it("exits with status 2 and INDEX STALE when any scoped unit tsconfig is missing in repo mode", () => {
+    const ruleFile = path.join(tmpDir, "rule.js");
+    fs.writeFileSync(ruleFile, "export default { check() { return []; } };\n");
+
+    const requestFile = path.join(tmpDir, "request.json");
+    fs.writeFileSync(
+      requestFile,
+      JSON.stringify({
+        mode: "repo",
+        repoRoot: tmpDir,
+        ruleDir: tmpDir,
+        files: ["app.ts"],
+        unitFiles: {
+          web: ["app.ts"],
+        },
+        ast: {
+          ts: {
+            web: { tsconfig: "nonexistent/web/tsconfig.json" },
+          },
+        },
+      }),
+    );
+
+    try {
+      execFileSync(process.execPath, [runnerPath, ruleFile, requestFile], {
+        encoding: "utf8",
+        stdio: "pipe",
+      });
+      expect.unreachable(
+        "Runner should have exited with code 2 for missing unit tsconfig in repo mode",
+      );
+    } catch (err: unknown) {
+      const error = err as { status: number; stderr: string };
+      expect(error.status).toBe(2);
+      expect(error.stderr).toContain("INDEX STALE: Configured tsconfig does not exist");
+    }
+  });
 });

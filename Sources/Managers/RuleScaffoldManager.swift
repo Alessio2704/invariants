@@ -40,6 +40,7 @@ package enum RuleScaffoldManager {
   package static func scaffoldRule(
     id: String,
     targets: [TargetLanguage],
+    targetUnits: [TargetLanguage: [String]] = [:],
     in repoRoot: URL
   ) throws {
     // SEC-07a: Validate ruleId against schema pattern to prevent path traversal
@@ -62,11 +63,16 @@ package enum RuleScaffoldManager {
 
     try fm.createDirectory(at: ruleDir, withIntermediateDirectories: true)
 
-    // 1. Generate manifest.json
+    // 1. Generate manifest.json with unit-scoped targets
     var scopeDict: [String: Any] = [:]
     for t in targets {
+      let units = (targetUnits[t]?.isEmpty == false) ? (targetUnits[t] ?? ["main"]) : ["main"]
       let defaultInclude = (t == .swift) ? ["**/*.swift"] : ["**/*.ts"]
-      scopeDict[t.rawValue] = ["include": defaultInclude]
+      var unitScopes: [String: Any] = [:]
+      for unit in units {
+        unitScopes[unit] = ["include": defaultInclude]
+      }
+      scopeDict[t.rawValue] = unitScopes
     }
 
     let manifestObj: [String: Any] = [
@@ -102,16 +108,6 @@ package enum RuleScaffoldManager {
           }
           """
         try ruleSwift.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.swift"))
-
-        let passCase = "// Legitimate pattern\n"
-        try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.swift"))
-
-        let failCase = """
-          // Violating pattern
-          // expect: SAMPLE-01
-          let x = "violation"
-          """
-        try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.swift"))
       } else if t == .ts {
         let ruleTs = """
           import { defineRule } from "@invariants/kit";
@@ -124,16 +120,59 @@ package enum RuleScaffoldManager {
           });
           """
         try ruleTs.data(using: .utf8)?.write(to: ruleDir.appendingPathComponent("rule.ts"))
+      }
 
-        let passCase = "// Legitimate pattern\n"
-        try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.ts"))
-
-        let failCase = """
-          // Violating pattern
-          // expect: SAMPLE-01
-          const x = "violation";
-          """
-        try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.ts"))
+      let units = (targetUnits[t]?.isEmpty == false) ? (targetUnits[t] ?? ["main"]) : ["main"]
+      if units.count > 1 {
+        // Multi-unit: scaffold folder fixtures should_pass/<lang>/case1/<unit>/...
+        let passCaseDir = passDir.appendingPathComponent("case1")
+        let failCaseDir = failDir.appendingPathComponent("case1")
+        for unit in units {
+          let unitPassDir = passCaseDir.appendingPathComponent(unit)
+          let unitFailDir = failCaseDir.appendingPathComponent(unit)
+          try fm.createDirectory(at: unitPassDir, withIntermediateDirectories: true)
+          try fm.createDirectory(at: unitFailDir, withIntermediateDirectories: true)
+          if t == .swift {
+            let passCase = "// Legitimate pattern for unit '\(unit)'\n"
+            try passCase.data(using: .utf8)?.write(to: unitPassDir.appendingPathComponent("Code.swift"))
+            let failCase = """
+              // Violating pattern for unit '\(unit)'
+              // expect: SAMPLE-01
+              let x = "violation"
+              """
+            try failCase.data(using: .utf8)?.write(to: unitFailDir.appendingPathComponent("Code.swift"))
+          } else {
+            let passCase = "// Legitimate pattern for unit '\(unit)'\n"
+            try passCase.data(using: .utf8)?.write(to: unitPassDir.appendingPathComponent("code.ts"))
+            let failCase = """
+              // Violating pattern for unit '\(unit)'
+              // expect: SAMPLE-01
+              const x = "violation";
+              """
+            try failCase.data(using: .utf8)?.write(to: unitFailDir.appendingPathComponent("code.ts"))
+          }
+        }
+      } else {
+        // Single unit: flat files
+        if t == .swift {
+          let passCase = "// Legitimate pattern\n"
+          try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.swift"))
+          let failCase = """
+            // Violating pattern
+            // expect: SAMPLE-01
+            let x = "violation"
+            """
+          try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.swift"))
+        } else {
+          let passCase = "// Legitimate pattern\n"
+          try passCase.data(using: .utf8)?.write(to: passDir.appendingPathComponent("case1.ts"))
+          let failCase = """
+            // Violating pattern
+            // expect: SAMPLE-01
+            const x = "violation";
+            """
+          try failCase.data(using: .utf8)?.write(to: failDir.appendingPathComponent("case1.ts"))
+        }
       }
     }
   }

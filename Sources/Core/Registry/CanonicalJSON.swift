@@ -6,23 +6,51 @@ public enum CanonicalJSON {
   public static func serialize(_ registry: Registry) -> String {
     var lines: [String] = ["{"]
 
-    // 1. "default_branch"
+    // 1. "ast" (nested by sorted language key, then sorted unit name)
+    let astLangs = registry.ast.configuredLanguages
+    if astLangs.isEmpty {
+      lines.append("  \"ast\": {},")
+    } else {
+      lines.append("  \"ast\": {")
+      for (langIdx, lang) in astLangs.enumerated() {
+        let langComma = (langIdx < astLangs.count - 1) ? "," : ""
+        let units = registry.ast[lang]
+        let sortedUnitKeys = units.keys.sorted()
+        if sortedUnitKeys.isEmpty {
+          lines.append("    \"\(escape(lang.rawValue))\": {}\(langComma)")
+        } else {
+          lines.append("    \"\(escape(lang.rawValue))\": {")
+          for (unitIdx, unitKey) in sortedUnitKeys.enumerated() {
+            guard let config = units[unitKey], let configJSON = config.toCanonicalJSON() else { continue }
+            let unitComma = (unitIdx < sortedUnitKeys.count - 1) ? "," : ""
+            lines.append("      \"\(escape(unitKey))\": \(configJSON)\(unitComma)")
+          }
+          lines.append("    }\(langComma)")
+        }
+      }
+      lines.append("  },")
+    }
+
+    // 2. "default_branch"
     lines.append("  \"default_branch\": \"\(escape(registry.defaultBranch))\",")
 
-    // 2. "engine"
+    // 3. "engine"
     lines.append("  \"engine\": \"\(escape(registry.engine))\",")
 
-    // 3. "languages"
-    lines.append("  \"languages\": {")
-    let languages = registry.languages.configuredLanguages
-    for (idx, lang) in languages.enumerated() {
-      guard let jsonString = registry.languages.canonicalJSON(for: lang) else { continue }
-      let comma = (idx < languages.count - 1) ? "," : ""
-      lines.append("    \"\(escape(lang.rawValue))\": \(jsonString)\(comma)")
+    // 4. "languages" (sorted JSON array ["swift", "ts"])
+    if registry.languages.isEmpty {
+      lines.append("  \"languages\": [],")
+    } else {
+      lines.append("  \"languages\": [")
+      let sortedLangs = registry.languages.map(\.rawValue).sorted()
+      for (idx, lang) in sortedLangs.enumerated() {
+        let comma = (idx < sortedLangs.count - 1) ? "," : ""
+        lines.append("    \"\(escape(lang))\"\(comma)")
+      }
+      lines.append("  ],")
     }
-    lines.append("  },")
 
-    // 4. "rules"
+    // 5. "rules"
     if registry.rules.isEmpty {
       lines.append("  \"rules\": {},")
     } else {
@@ -36,12 +64,12 @@ public enum CanonicalJSON {
       lines.append("  },")
     }
 
-    // 5. "signers_hash" (optional)
+    // 6. "signers_hash" (optional)
     if let signersHash = registry.signersHash, !signersHash.isEmpty {
       lines.append("  \"signers_hash\": \"\(escape(signersHash))\",")
     }
 
-    // 6. "version"
+    // 7. "version"
     lines.append("  \"version\": \(registry.version)")
 
     lines.append("}\n")

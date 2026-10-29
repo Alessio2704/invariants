@@ -80,27 +80,14 @@ public struct SwiftContext: Sendable {
   }
 }
 
-/// Execution context provided to each rule invocation.
-public final class RuleContext: @unchecked Sendable {
-  /// The project repository root URL.
+/// A compilation/AST unit for Swift analysis.
+public final class SwiftASTUnit: @unchecked Sendable {
+  public let name: String
   public let repoRoot: URL
-
-  /// The rule directory URL.
-  public let ruleDir: URL
-
-  /// In-scope source files to analyze.
   public let files: [URL]
-
-  /// Project-wide analysis inputs from registry.
-  public let projectIndexStorePath: String?
-
-  /// Evaluation mode: `.repo` or `.fixture`.
+  public let indexStorePath: String?
   public let mode: RuleMode
 
-  /// Rule data accessor.
-  public let data: RuleDataAccessor
-
-  /// Swift AST pipeline.
   public lazy var swift: SwiftContext = {
     SwiftContext(files: SourceFileCollection(files: files, repoRoot: repoRoot))
   }()
@@ -115,20 +102,18 @@ public final class RuleContext: @unchecked Sendable {
     }
   }
 
-  /// Initializes a RuleContext.
   public init(
+    name: String,
     repoRoot: URL,
-    ruleDir: URL,
     files: [URL],
-    projectIndexStorePath: String? = nil,
+    indexStorePath: String? = nil,
     mode: RuleMode = .repo
   ) {
+    self.name = name
     self.repoRoot = repoRoot
-    self.ruleDir = ruleDir
     self.files = files
-    self.projectIndexStorePath = projectIndexStorePath
+    self.indexStorePath = indexStorePath
     self.mode = mode
-    self.data = RuleDataAccessor(ruleDir: ruleDir)
   }
 
   /// Parses a Swift source file into a SwiftSyntax tree.
@@ -141,7 +126,17 @@ public final class RuleContext: @unchecked Sendable {
     }
   }
 
-  /// Accesses the IndexStoreDB database, opened lazily and verified for freshness.
+  /// Returns the parsed `SourceFile` for a given file URL if present in this unit.
+  public func sourceFile(_ file: URL) -> SourceFile? {
+    swift.files.files.first { $0.url == file }
+  }
+
+  /// Returns the parsed `SourceFile` for a given path if present in this unit.
+  public func sourceFile(_ path: String) -> SourceFile? {
+    swift.files.files.first { $0.url.path == path || $0.relativePath == path }
+  }
+
+  /// Accesses the unit's IndexStoreDB database, opened lazily and verified for freshness.
   public var index: IndexStoreDB {
     get throws(RuleError) {
       indexLock.lock()
@@ -170,7 +165,6 @@ public final class RuleContext: @unchecked Sendable {
       tempDirsToClean.append(tmpStore)
       tempDirsToClean.append(tempDbDir)
 
-      // Run swiftc -typecheck -index-store-path
       let process = Process()
       process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
       var args = ["swiftc", "-typecheck", "-index-store-path", storePath]
@@ -179,8 +173,8 @@ public final class RuleContext: @unchecked Sendable {
       try? process.run()
       process.waitUntilExit()
     } else {
-      guard let relIndex = projectIndexStorePath, !relIndex.isEmpty else {
-        throw RuleError.indexStale("INDEX STALE — no indexStore configured in registry.languages.swift")
+      guard let relIndex = indexStorePath, !relIndex.isEmpty else {
+        throw RuleError.indexStale("INDEX STALE — no indexStore configured in registry.ast.swift.\(name)")
       }
       let fullPath = repoRoot.appendingPathComponent(relIndex).standardizedFileURL.path
       guard FileManager.default.fileExists(atPath: fullPath) else {
@@ -191,7 +185,7 @@ public final class RuleContext: @unchecked Sendable {
       tempDirsToClean.append(tempDbDir)
     }
 
-    guard let libPath = Self.locateLibIndexStore() else {
+    guard let libPath = RuleContext.locateLibIndexStore() else {
       throw RuleError.evaluationError(
         "libIndexStore.dylib not found in active developer toolchain. Run xcode-select or install Command Line Tools."
       )
@@ -224,8 +218,102 @@ public final class RuleContext: @unchecked Sendable {
 
     return db
   }
+}
 
-  private static func locateLibIndexStore() -> String? {
+/// Execution context provided to each rule invocation.
+public final class RuleContext: @unchecked Sendable {
+  /// The project repository root URL.
+  public let repoRoot: URL
+
+  /// The rule directory URL.
+  public let ruleDir: URL
+
+  /// In-scope source files to analyze.
+  public let files: [URL]
+
+  /// Named AST units.
+  public let ast: [String: SwiftASTUnit]
+
+  /// Evaluation mode: `.repo` or `.fixture`.
+  public let mode: RuleMode
+
+  /// Rule data accessor.
+  public let data: RuleDataAccessor
+
+  /// Swift AST pipeline across all in-scope files.
+  public lazy var swift: SwiftContext = {
+    SwiftContext(files: SourceFileCollection(files: files, repoRoot: repoRoot))
+  }()
+
+  /// Initializes a RuleContext with named AST units.
+  public init(
+    repoRoot: URL,
+    ruleDir: URL,
+    files: [URL],
+    ast: [String: SwiftASTUnit] = [:],
+    mode: RuleMode = .repo
+  ) {
+    self.repoRoot = repoRoot
+    self.ruleDir = ruleDir
+    self.files = files
+    self.ast = ast
+    self.mode = mode
+    self.data = RuleDataAccessor(ruleDir: ruleDir)
+  }
+
+  /// Convenience initializer for single-unit or legacy calls.
+  public convenience init(
+    repoRoot: URL,
+    ruleDir: URL,
+    files: [URL],
+    projectIndexStorePath: String?,
+    mode: RuleMode = .repo
+  ) {
+    let unit = SwiftASTUnit(
+      name: "main",
+      repoRoot: repoRoot,
+      files: files,
+      indexStorePath: projectIndexStorePath,
+      mode: mode
+    )
+    self.init(
+      repoRoot: repoRoot,
+      ruleDir: ruleDir,
+      files: files,
+      ast: ["main": unit],
+      mode: mode
+    )
+  }
+
+  /// Backward-compatible accessor for primary unit's index store path.
+  public var projectIndexStorePath: String? {
+    ast.values.min(by: { $0.name < $1.name })?.indexStorePath
+  }
+
+  /// Parses a Swift source file into a SwiftSyntax tree.
+  public func syntax(_ file: URL) throws(RuleError) -> SourceFileSyntax {
+    for unit in ast.values where unit.files.contains(file) {
+      return try unit.syntax(file)
+    }
+    do {
+      let content = try String(contentsOf: file, encoding: .utf8)
+      return Parser.parse(source: content)
+    } catch {
+      throw RuleError.ioError("Failed to parse SwiftSyntax for \(file.path): \(error.localizedDescription)")
+    }
+  }
+
+  /// Accesses the IndexStoreDB database from the primary configured AST unit.
+  public var index: IndexStoreDB {
+    get throws(RuleError) {
+      if let primary = ast.values.min(by: { $0.name < $1.name }) {
+        return try primary.index
+      }
+      throw RuleError.indexStale("INDEX STALE — no Swift AST units available")
+    }
+  }
+
+  package static func locateLibIndexStore() -> String? {
     let fm = FileManager.default
 
     // 1. Try querying xcode-select -p

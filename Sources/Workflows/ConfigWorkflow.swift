@@ -2,7 +2,7 @@ package import Core
 import Foundation
 import Terminal
 
-/// Interactive CLI workflow for modifying language analysis configuration in registry.languages with impact verification.
+/// Interactive CLI workflow for modifying language analysis configuration in registry.languages and registry.ast with impact verification.
 package enum ConfigWorkflow {
   package static func execute(
     languages: [SupportedLanguage],
@@ -22,16 +22,18 @@ package enum ConfigWorkflow {
       let targetLanguages = try resolveTargetLanguages(
         explicitLanguages: languages,
         defaultBranch: defaultBranch,
-        languages: registry.languages
+        ast: registry.ast
       )
     else {
       return
     }
 
     let oldLanguages = registry.languages
-    let newLanguages = try LanguageConfigWorkflow.configure(
+    let oldAST = registry.ast
+    let (newLanguages, newAST) = try LanguageConfigWorkflow.configure(
       languages: targetLanguages,
-      baseConfig: oldLanguages
+      baseLanguages: oldLanguages,
+      baseAST: oldAST
     )
 
     guard !newLanguages.isEmpty else {
@@ -39,7 +41,7 @@ package enum ConfigWorkflow {
       return
     }
 
-    guard newLanguages != oldLanguages || defaultBranch != nil else {
+    guard newLanguages != oldLanguages || newAST != oldAST || defaultBranch != nil else {
       Terminal.info("No configuration changes made.")
       return
     }
@@ -51,8 +53,8 @@ package enum ConfigWorkflow {
 
     Terminal.header("Language Configuration Diff:")
     for lang in SupportedLanguage.allCases {
-      let oldDesc = lang.spec.describeConfig(in: oldLanguages)
-      let newDesc = lang.spec.describeConfig(in: newLanguages)
+      let oldDesc = lang.spec.describeConfig(in: oldAST)
+      let newDesc = lang.spec.describeConfig(in: newAST)
       Terminal.field("\(lang.spec.displayName):", value: "\(oldDesc) → \(newDesc)", width: 17)
     }
     if let defaultBranch {
@@ -64,13 +66,13 @@ package enum ConfigWorkflow {
     var hasBlindingIssue = false
     for (ruleId, signedTreeHash) in registry.rules.sorted(by: { $0.key < $1.key }) {
       try await RuleSnapshotService.withSnapshot(treeHash: signedTreeHash) { tempSnapshot, manifest in
-        // 1. Fixtures must still pass with newLanguages (strictly enforcing should_pass and should_fail)
+        // 1. Fixtures must still pass with newAST (strictly enforcing should_pass and should_fail)
         do {
           try await FixtureExecutionService.verifyAllFixtures(
             manifest: manifest,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            languages: newLanguages,
+            ast: newAST,
             runner: runner
           )
         } catch {
@@ -79,23 +81,34 @@ package enum ConfigWorkflow {
 
         // 2. Repo check: compare old vs new files and violations
         for target in manifest.targets {
-          guard let targetScope = manifest.scope[target] else { continue }
-          let scopedFiles = ManifestValidator.resolveScopedFiles(
-            scope: targetScope, target: target)
+          guard let targetScopes = manifest.scope[target] else { continue }
+          let unitFilesURLs = ManifestValidator.resolveScopedFilesByUnit(
+            scopes: targetScopes, target: target)
+          var unitFiles: [String: [String]] = [:]
+          var allFiles: [String] = []
+          for (unit, urls) in unitFilesURLs {
+            let paths = urls.map(\.path)
+            unitFiles[unit] = paths
+            allFiles.append(contentsOf: paths)
+          }
+          var seen = Set<String>()
+          let dedupedFiles = allFiles.filter { seen.insert($0).inserted }
 
           let reqOld = RuleRequest(
             mode: "repo",
             repoRoot: repoRootURL.path,
             ruleDir: tempSnapshot.path,
-            files: scopedFiles.map { $0.path },
-            languages: oldLanguages
+            files: dedupedFiles,
+            unitFiles: unitFiles,
+            ast: oldAST
           )
           let reqNew = RuleRequest(
             mode: "repo",
             repoRoot: repoRootURL.path,
             ruleDir: tempSnapshot.path,
-            files: scopedFiles.map { $0.path },
-            languages: newLanguages
+            files: dedupedFiles,
+            unitFiles: unitFiles,
+            ast: newAST
           )
 
           // SEC-06b: Propagate runner execution errors instead of swallowing with try? ?? []
@@ -142,6 +155,7 @@ package enum ConfigWorkflow {
     }
 
     registry.languages = newLanguages
+    registry.ast = newAST
     registry.version += 1
 
     Terminal.info("Updating language analysis configuration in registry v\(registry.version)...")
@@ -164,7 +178,7 @@ package enum ConfigWorkflow {
   private static func resolveTargetLanguages(
     explicitLanguages: [SupportedLanguage],
     defaultBranch: String?,
-    languages: LanguagesConfig
+    ast: ASTConfig
   ) throws -> [SupportedLanguage]? {
     guard explicitLanguages.isEmpty else {
       return explicitLanguages
@@ -175,7 +189,7 @@ package enum ConfigWorkflow {
     }
 
     let options = SupportedLanguage.allCases.map { lang in
-      let currentDesc = lang.spec.describeConfig(in: languages)
+      let currentDesc = lang.spec.describeConfig(in: ast)
       return TerminalPrompt.Option(value: lang, label: lang.spec.displayName, annotation: "current: \(currentDesc)")
     }
     let selected = try TerminalPrompt.promptMultiSelection(

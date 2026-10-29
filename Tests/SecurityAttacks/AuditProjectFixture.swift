@@ -216,7 +216,7 @@ final class AuditProjectFixture: @unchecked Sendable {
       "id": id,
       "summary": summary,
       "targets": ["swift"],
-      "scope": ["swift": ["include": ["Sources/**/*.swift"]]],
+      "scope": ["swift": ["main": ["include": ["Sources/**/*.swift"]]]],
       "codes": [code: message],
     ]
     let manifestData = try JSONSerialization.data(withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
@@ -263,7 +263,7 @@ final class AuditProjectFixture: @unchecked Sendable {
       "id": id,
       "summary": summary,
       "targets": ["ts"],
-      "scope": ["ts": ["include": ["web/src/**/*.ts"]]],
+      "scope": ["ts": ["web": ["include": ["web/src/**/*.ts"]]]],
       "codes": [code: message],
     ]
     let manifestData = try JSONSerialization.data(withJSONObject: manifestObj, options: [.prettyPrinted, .sortedKeys])
@@ -315,15 +315,16 @@ final class AuditProjectFixture: @unchecked Sendable {
       ruleMap[dir] = hash
     }
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["web/tsconfig.json"])
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
+    ast[TypeScriptLanguage.self] = ["web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json")]
 
     let reg = Registry(
       version: 1,
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
-      languages: languages,
+      languages: [.swift, .ts],
+      ast: ast,
       rules: ruleMap
     )
 

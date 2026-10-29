@@ -69,31 +69,50 @@ public enum WeakeningDetector: Sendable {
     }
 
     // 3. Scopes
-    for (target, oldScope) in oldManifest.scope {
-      guard let newScope = newManifest.scope[target] else { continue }
+    for (target, oldUnits) in oldManifest.scope {
+      guard let newUnits = newManifest.scope[target] else { continue }
 
-      // Narrowed includes
-      let oldIncludes = Set(oldScope.include)
-      let newIncludes = Set(newScope.include)
-      for removed in oldIncludes.subtracting(newIncludes) {
+      let oldUnitNames = Set(oldUnits.keys)
+      let newUnitNames = Set(newUnits.keys)
+
+      // Unit removed
+      for removedUnit in oldUnitNames.subtracting(newUnitNames).sorted() {
         items.append(
           WeakeningItem(
             severity: .red,
             category: "Scope",
-            message: "[\(target.rawValue)] include pattern removed: '\(removed)'"
-          ))
+            message: "[\(target.rawValue).\(removedUnit)] unit scope was removed"
+          )
+        )
       }
 
-      // Broadened excludes
-      let oldExcludes = Set(oldScope.exclude ?? [])
-      let newExcludes = Set(newScope.exclude ?? [])
-      for added in newExcludes.subtracting(oldExcludes) {
-        items.append(
-          WeakeningItem(
-            severity: .red,
-            category: "Scope",
-            message: "[\(target.rawValue)] exclude pattern added: '\(added)'"
-          ))
+      // Check units present in both
+      for unitName in oldUnitNames.intersection(newUnitNames).sorted() {
+        guard let oldScope = oldUnits[unitName], let newScope = newUnits[unitName] else { continue }
+
+        // Narrowed includes
+        let oldIncludes = Set(oldScope.include)
+        let newIncludes = Set(newScope.include)
+        for removed in oldIncludes.subtracting(newIncludes).sorted() {
+          items.append(
+            WeakeningItem(
+              severity: .red,
+              category: "Scope",
+              message: "[\(target.rawValue).\(unitName)] include pattern removed: '\(removed)'"
+            ))
+        }
+
+        // Broadened excludes
+        let oldExcludes = Set(oldScope.exclude ?? [])
+        let newExcludes = Set(newScope.exclude ?? [])
+        for added in newExcludes.subtracting(oldExcludes).sorted() {
+          items.append(
+            WeakeningItem(
+              severity: .red,
+              category: "Scope",
+              message: "[\(target.rawValue).\(unitName)] exclude pattern added: '\(added)'"
+            ))
+        }
       }
     }
 

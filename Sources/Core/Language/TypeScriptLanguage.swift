@@ -25,23 +25,23 @@ public enum TypeScriptLanguage: LanguageSpec {
     )
   )
 
-  /// TypeScript requires an array of relative tsconfig.json paths for compiler API / ts-morph.
+  /// TypeScript requires a relative tsconfig.json path per unit for compiler API / ts-morph.
   public struct Config: LanguageConfiguration, Equatable {
-    public var tsconfig: [String]
+    public var tsconfig: String
 
-    public init(tsconfig: [String]) {
+    public init(tsconfig: String) {
       self.tsconfig = tsconfig
     }
 
     public func toCanonicalJSON() -> String? {
-      let formatted = tsconfig.map { "\"\(CanonicalJSON.escape($0))\"" }.joined(separator: ", ")
-      return "{ \"tsconfig\": [\(formatted)] }"
+      "{ \"tsconfig\": \"\(CanonicalJSON.escape(tsconfig))\" }"
     }
   }
 
-  public static func describeConfig(in languages: LanguagesConfig) -> String {
-    let list = languages[Self.self]?.tsconfig ?? []
-    return list.isEmpty ? "none" : list.joined(separator: ", ")
+  public static func describeConfig(in ast: ASTConfig) -> String {
+    let units = ast[Self.self]
+    guard !units.isEmpty else { return "none" }
+    return units.sorted(by: { $0.key < $1.key }).map { "\($0.key) (\($0.value.tsconfig))" }.joined(separator: ", ")
   }
 
   public static func discoverAnalysisInputs() -> [String] {
@@ -80,10 +80,15 @@ public enum TypeScriptLanguage: LanguageSpec {
     selectionStyle: .multiple(confirmationQuestion: "Use discovered tsconfig paths")
   )
 
+  public static func makeUnitConfig(from path: String) -> (any LanguageConfiguration)? {
+    guard !path.isEmpty else { return nil }
+    return Config(tsconfig: path)
+  }
+
+  // periphery:ignore
   public static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)? {
-    let filtered = paths.filter { !$0.isEmpty }
-    guard !filtered.isEmpty else { return nil }
-    return Config(tsconfig: filtered)
+    guard let first = paths.first, !first.isEmpty else { return nil }
+    return makeUnitConfig(from: first)
   }
 
   public static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile] {

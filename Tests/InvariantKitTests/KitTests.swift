@@ -1,4 +1,5 @@
 import Foundation
+import SwiftSyntax
 import Testing
 
 @testable import InvariantKit
@@ -118,5 +119,85 @@ struct KitTests {
 
     #expect(matchesByFullCallee.count == 1)
     #expect(matchesByFullCallee[0].line == 2)
+  }
+
+  @Test("Multi-unit RuleContext isolates files, AST and syntax per unit while aggregating at top level")
+  func multiUnitContextIsolation() throws {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let fm = FileManager.default
+    let iosDir = tmpDir.appendingPathComponent("ios")
+    let vaporDir = tmpDir.appendingPathComponent("vapor")
+    try fm.createDirectory(at: iosDir, withIntermediateDirectories: true)
+    try fm.createDirectory(at: vaporDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    let iosFile = iosDir.appendingPathComponent("View.swift")
+    let vaporFile = vaporDir.appendingPathComponent("Controller.swift")
+    try Data("struct MyView { let t = Text(\"Hello\") }".utf8).write(to: iosFile)
+    try Data("struct MyController { let t = Text(\"World\") }".utf8).write(to: vaporFile)
+
+    let iosUnit = SwiftASTUnit(
+      name: "ios",
+      repoRoot: tmpDir,
+      files: [iosFile],
+      indexStorePath: "ios/store",
+      mode: .repo
+    )
+    let vaporUnit = SwiftASTUnit(
+      name: "vapor",
+      repoRoot: tmpDir,
+      files: [vaporFile],
+      indexStorePath: "vapor/store",
+      mode: .repo
+    )
+
+    let ctx = RuleContext(
+      repoRoot: tmpDir,
+      ruleDir: tmpDir,
+      files: [iosFile, vaporFile],
+      ast: ["ios": iosUnit, "vapor": vaporUnit],
+      mode: .repo
+    )
+
+    // Unit isolation
+    let iosAst = try #require(ctx.ast["ios"])
+    let vaporAst = try #require(ctx.ast["vapor"])
+    #expect(iosAst.files == [iosFile])
+    #expect(vaporAst.files == [vaporFile])
+    #expect(ctx.files.count == 2)
+
+    // Fluent query pipeline isolated to each unit
+    let iosCalls = iosAst.swift.files.calls(named: "Text").violations(
+      code: "C", message: { _ in "" }, fix: "")
+    #expect(iosCalls.count == 1)
+    #expect(iosCalls[0].file.contains("ios/View.swift"))
+
+    let vaporCalls = vaporAst.swift.files.calls(named: "Text").violations(
+      code: "C", message: { _ in "" }, fix: "")
+    #expect(vaporCalls.count == 1)
+    #expect(vaporCalls[0].file.contains("vapor/Controller.swift"))
+
+    // Aggregated top-level query
+    let allCalls = ctx.swift.files.calls(named: "Text").violations(code: "C", message: { _ in "" }, fix: "")
+    #expect(allCalls.count == 2)
+
+    // Per-unit syntax tree
+    let iosSyntax = try iosAst.syntax(iosFile)
+    #expect(iosSyntax.statements.count == 1)
+
+    // Per-unit lazy indexStore resolution and INDEX STALE error reporting
+    #expect {
+      try iosAst.index
+    } throws: { error in
+      guard let ruleErr = error as? RuleError, case .indexStale(let msg) = ruleErr else { return false }
+      return msg.contains("ios") || msg.contains("index store not found")
+    }
+
+    #expect {
+      try vaporAst.index
+    } throws: { error in
+      guard let ruleErr = error as? RuleError, case .indexStale(let msg) = ruleErr else { return false }
+      return msg.contains("vapor") || msg.contains("index store not found")
+    }
   }
 }

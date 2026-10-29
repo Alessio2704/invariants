@@ -2,14 +2,23 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { API } from "typescript/unstable/sync";
-import type { RuleContext, RuleDefinition } from "./index.js";
+import type { RuleContext, RuleDefinition, TsAstUnit } from "./index.js";
+
+interface TsUnitConfig {
+  readonly tsconfig: string;
+}
 
 interface RequestPayload {
   readonly mode: "repo" | "fixture";
   readonly repoRoot: string;
   readonly ruleDir: string;
   readonly files: readonly string[];
-  readonly languages: {
+  readonly unitFiles?: Readonly<Record<string, readonly string[]>>;
+  readonly ast?: {
+    readonly ts?: Readonly<Record<string, TsUnitConfig>>;
+    readonly swift?: Readonly<Record<string, { readonly indexStore: string }>>;
+  };
+  readonly languages?: {
     readonly ts?: {
       readonly tsconfig?: readonly string[];
     };
@@ -40,64 +49,168 @@ async function main(): Promise<void> {
   let tempConfigDir: string | undefined;
 
   try {
-    const resolvedConfigPaths: string[] = [];
+    const resolvedProjects: Array<{
+      unitName: string;
+      configPath: string;
+      relConfig?: string;
+      files: readonly string[];
+    }> = [];
+
+    // Determine unit files mapping
+    let unitFiles: Record<string, readonly string[]> = {};
+    if (request.unitFiles && Object.keys(request.unitFiles).length > 0) {
+      unitFiles = { ...request.unitFiles };
+    } else if (request.ast?.ts && Object.keys(request.ast.ts).length > 0) {
+      for (const unitName of Object.keys(request.ast.ts)) {
+        unitFiles[unitName] = request.files;
+      }
+    } else {
+      unitFiles = { main: request.files };
+    }
 
     if (request.mode === "repo") {
-      const tsConfig = request.languages.ts;
-      if (!tsConfig || !Array.isArray(tsConfig.tsconfig) || tsConfig.tsconfig.length === 0) {
-        process.stderr.write(
-          "INDEX STALE: TypeScript analysis requires at least one configured tsconfig in registry.lock\n",
-        );
-        process.exit(2);
-      }
-
-      for (const relConfig of tsConfig.tsconfig) {
-        if (typeof relConfig !== "string" || relConfig.trim().length === 0) {
-          process.stderr.write("INDEX STALE: Invalid tsconfig path in configuration\n");
+      const tsAst = request.ast?.ts;
+      if (!tsAst || Object.keys(tsAst).length === 0) {
+        // Fallback to legacy request.languages.ts if present
+        const legacyTs = request.languages?.ts;
+        if (!legacyTs || !Array.isArray(legacyTs.tsconfig) || legacyTs.tsconfig.length === 0) {
+          process.stderr.write(
+            "INDEX STALE: TypeScript analysis requires at least one configured tsconfig in registry.lock\n",
+          );
           process.exit(2);
         }
-        const candidate = path.resolve(request.repoRoot, relConfig);
-        if (!fs.existsSync(candidate)) {
-          process.stderr.write(`INDEX STALE: Configured tsconfig does not exist: ${candidate}\n`);
-          process.exit(2);
+        for (const [idx, relConfig] of legacyTs.tsconfig.entries()) {
+          const candidate = path.resolve(request.repoRoot, relConfig);
+          if (!fs.existsSync(candidate)) {
+            process.stderr.write(`INDEX STALE: Configured tsconfig does not exist: ${candidate}\n`);
+            process.exit(2);
+          }
+          resolvedProjects.push({
+            unitName: idx === 0 ? "main" : `unit_${idx}`,
+            configPath: candidate,
+            relConfig,
+            files: request.files,
+          });
         }
-        resolvedConfigPaths.push(candidate);
+      } else {
+        for (const [unitName, files] of Object.entries(unitFiles)) {
+          const unitConfig = tsAst[unitName];
+          if (
+            !unitConfig ||
+            typeof unitConfig.tsconfig !== "string" ||
+            unitConfig.tsconfig.trim().length === 0
+          ) {
+            process.stderr.write(
+              `INDEX STALE: Missing or invalid tsconfig for unit '${unitName}' in registry.ast.ts\n`,
+            );
+            process.exit(2);
+          }
+          const candidate = path.resolve(request.repoRoot, unitConfig.tsconfig);
+          if (!fs.existsSync(candidate)) {
+            process.stderr.write(`INDEX STALE: Configured tsconfig does not exist: ${candidate}\n`);
+            process.exit(2);
+          }
+          resolvedProjects.push({
+            unitName,
+            configPath: candidate,
+            relConfig: unitConfig.tsconfig,
+            files,
+          });
+        }
       }
     } else if (request.mode === "fixture") {
-      // Synthesize minimal tsconfig scoped strictly to the fixture files under test
+      // Synthesize minimal tsconfig per active unit scoped to that unit's fixture files
       tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "inv_ts_"));
-      const syntheticConfigPath = path.join(tempConfigDir, "tsconfig.json");
-      const syntheticConfig = {
-        compilerOptions: {
-          target: "ES2022",
-          module: "NodeNext",
-          moduleResolution: "NodeNext",
-        },
-        files: request.files.map((f) => path.resolve(request.repoRoot, f)),
-      };
-      fs.writeFileSync(syntheticConfigPath, JSON.stringify(syntheticConfig, null, 2));
-      resolvedConfigPaths.push(syntheticConfigPath);
+      for (const [unitName, files] of Object.entries(unitFiles)) {
+        if (files.length === 0) continue;
+        const syntheticConfigPath = path.join(tempConfigDir, `tsconfig_${unitName}.json`);
+        const syntheticConfig = {
+          compilerOptions: {
+            target: "ES2022",
+            module: "NodeNext",
+            moduleResolution: "NodeNext",
+          },
+          files: files.map((f) => (path.isAbsolute(f) ? f : path.resolve(request.repoRoot, f))),
+        };
+        fs.writeFileSync(syntheticConfigPath, JSON.stringify(syntheticConfig, null, 2));
+        resolvedProjects.push({
+          unitName,
+          configPath: syntheticConfigPath,
+          files,
+        });
+      }
     } else {
       throw new Error(`Invalid request mode: ${String((request as { mode?: unknown }).mode)}`);
     }
 
-    const snapshot = api.updateSnapshot({ openProjects: resolvedConfigPaths });
-    const projects = snapshot.getProjects();
-    const primaryProject = projects[0];
+    const openProjects = resolvedProjects.map((p) => p.configPath);
+    const snapshot = api.updateSnapshot({ openProjects });
+    const allProjects = snapshot.getProjects();
+
+    const astUnits: Record<string, TsAstUnit> = {};
+    for (const [i, projInfo] of resolvedProjects.entries()) {
+      // Match project by configFileName or index
+      const project =
+        allProjects.find(
+          (p) => path.resolve(p.configFileName) === path.resolve(projInfo.configPath),
+        ) ?? allProjects[i];
+
+      astUnits[projInfo.unitName] = {
+        name: projInfo.unitName,
+        files: projInfo.files,
+        tsconfig: projInfo.relConfig,
+        sourceFile(filePath: string) {
+          const full = path.isAbsolute(filePath)
+            ? filePath
+            : path.resolve(request.repoRoot, filePath);
+          let sf = project?.program?.getSourceFile(full);
+          if (sf) return sf;
+          if (fs.existsSync(full)) {
+            try {
+              const real = fs.realpathSync(full);
+              sf = project?.program?.getSourceFile(real);
+              if (sf) return sf;
+            } catch {}
+          }
+          return undefined;
+        },
+        checker: project?.checker,
+      };
+    }
+
+    for (const [unitName, files] of Object.entries(unitFiles)) {
+      if (!astUnits[unitName]) {
+        astUnits[unitName] = {
+          name: unitName,
+          files: files ?? [],
+          sourceFile: () => undefined,
+          checker: undefined,
+        };
+      }
+    }
+
+    const primaryProject = allProjects[0];
 
     const ctx: RuleContext = {
       mode: request.mode,
       repoRoot: request.repoRoot,
       ruleDir: request.ruleDir,
       files: request.files,
-      languages: request.languages,
+      ast: astUnits,
       sourceFile(filePath: string) {
         const full = path.isAbsolute(filePath)
           ? filePath
           : path.resolve(request.repoRoot, filePath);
-        for (const proj of projects) {
-          const sf = proj.program?.getSourceFile(full);
+        for (const proj of allProjects) {
+          let sf = proj.program?.getSourceFile(full);
           if (sf) return sf;
+          if (fs.existsSync(full)) {
+            try {
+              const real = fs.realpathSync(full);
+              sf = proj.program?.getSourceFile(real);
+              if (sf) return sf;
+            } catch {}
+          }
         }
         return undefined;
       },

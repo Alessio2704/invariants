@@ -46,7 +46,8 @@ struct IntegrationTests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["App/CleanService.swift"],
-      languages: TestRepo.defaultLanguages
+      unitFiles: ["main": ["App/CleanService.swift"]],
+      ast: TestRepo.defaultAST
     )
     let cleanViolations = try await runner.execute(
       target: .swift,
@@ -62,7 +63,8 @@ struct IntegrationTests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["App/ViolatingService.swift"],
-      languages: TestRepo.defaultLanguages
+      unitFiles: ["main": ["App/ViolatingService.swift"]],
+      ast: TestRepo.defaultAST
     )
     let violations = try await runner.execute(
       target: .swift,
@@ -117,8 +119,8 @@ struct IntegrationTests {
     let ruleDir = repo.repoURL.appendingPathComponent("invariants/rules/forbid-console")
     let runner = RuleRunner()
 
-    var tsLangs = LanguagesConfig()
-    tsLangs[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var tsAST = ASTConfig()
+    tsAST[TypeScriptLanguage.self] = ["main": TypeScriptLanguage.Config(tsconfig: "tsconfig.json")]
 
     // 1. Execute on clean file -> 0 violations
     let cleanReq = RuleRequest(
@@ -126,7 +128,8 @@ struct IntegrationTests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["src/CleanModule.ts"],
-      languages: tsLangs
+      unitFiles: ["main": ["src/CleanModule.ts"]],
+      ast: tsAST
     )
     let cleanViolations = try await runner.execute(
       target: .ts,
@@ -142,7 +145,8 @@ struct IntegrationTests {
       repoRoot: repo.repoURL.path,
       ruleDir: ruleDir.path,
       files: ["src/ViolatingModule.ts"],
-      languages: tsLangs
+      unitFiles: ["main": ["src/ViolatingModule.ts"]],
+      ast: tsAST
     )
     let violations = try await runner.execute(
       target: .ts,

@@ -73,23 +73,34 @@ public enum ManifestParser {
       throw ManifestError.missingField("scope")
     }
 
-    var scope: [TargetLanguage: TargetScope] = [:]
+    var scope: [TargetLanguage: [String: TargetScope]] = [:]
     for target in targets {
-      guard let targetScopeObj = scopeDict[target.rawValue] as? [String: Any] else {
+      guard let targetUnitsObj = scopeDict[target.rawValue] as? [String: Any] else {
         throw ManifestError.missingTargetScope(target)
       }
-
-      let allowedScopeKeys: Set<String> = ["include", "exclude"]
-      for key in targetScopeObj.keys where !allowedScopeKeys.contains(key) {
-        throw ManifestError.unknownKey("scope.\(target.rawValue).\(key)")
+      guard !targetUnitsObj.isEmpty else {
+        throw ManifestError.emptyTargetUnitScopes(target)
       }
 
-      guard let include = targetScopeObj["include"] as? [String], !include.isEmpty else {
-        throw ManifestError.emptyScopeInclude(target)
-      }
+      var unitScopes: [String: TargetScope] = [:]
+      for (unitName, unitValue) in targetUnitsObj {
+        guard let unitDict = unitValue as? [String: Any] else {
+          throw ManifestError.invalidJSON("Scope for '\(target.rawValue).\(unitName)' must be an object")
+        }
 
-      let exclude = targetScopeObj["exclude"] as? [String]
-      scope[target] = TargetScope(include: include, exclude: exclude)
+        let allowedScopeKeys: Set<String> = ["include", "exclude"]
+        for key in unitDict.keys where !allowedScopeKeys.contains(key) {
+          throw ManifestError.unknownKey("scope.\(target.rawValue).\(unitName).\(key)")
+        }
+
+        guard let include = unitDict["include"] as? [String], !include.isEmpty else {
+          throw ManifestError.emptyScopeInclude(target, unit: unitName)
+        }
+
+        let exclude = unitDict["exclude"] as? [String]
+        unitScopes[unitName] = TargetScope(include: include, exclude: exclude)
+      }
+      scope[target] = unitScopes
     }
 
     // Check for undeclared targets in scope object

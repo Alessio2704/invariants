@@ -43,7 +43,7 @@ package enum AddRuleWorkflow {
         manifest: manifest,
         ruleDirectory: ruleDir,
         ruleTreeHash: ruleTreeHash,
-        languages: registry.languages,
+        ast: registry.ast,
         runner: runner
       )
     } catch {
@@ -54,14 +54,28 @@ package enum AddRuleWorkflow {
     // 5. Repo impact preview
     var repoViolationsCount = 0
     for target in manifest.targets {
-      guard let targetScope = manifest.scope[target] else { continue }
-      let files = ManifestValidator.resolveScopedFiles(scope: targetScope, target: target)
+      guard let targetScopes = manifest.scope[target] else { continue }
+      let unitFilesURLs = ManifestValidator.resolveScopedFilesByUnit(
+        scopes: targetScopes,
+        target: target
+      )
+      var unitFiles: [String: [String]] = [:]
+      var allFiles: [String] = []
+      for (unit, urls) in unitFilesURLs {
+        let paths = urls.map(\.path)
+        unitFiles[unit] = paths
+        allFiles.append(contentsOf: paths)
+      }
+      var seen = Set<String>()
+      let dedupedFiles = allFiles.filter { seen.insert($0).inserted }
+
       let req = RuleRequest(
         mode: "repo",
         repoRoot: repoRootURL.path,
         ruleDir: ruleDir.path,
-        files: files.map { $0.path },
-        languages: registry.languages
+        files: dedupedFiles,
+        unitFiles: unitFiles,
+        ast: registry.ast
       )
       let violations = try await runner.execute(
         target: target,

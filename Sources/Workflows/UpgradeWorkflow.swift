@@ -28,7 +28,7 @@ package enum UpgradeWorkflow {
             manifest: manifest,
             ruleDirectory: tempSnapshot,
             ruleTreeHash: signedTreeHash,
-            languages: registry.languages,
+            ast: registry.ast,
             runner: runner
           )
         } catch {
@@ -37,14 +37,25 @@ package enum UpgradeWorkflow {
 
         // Check repo scope
         for target in manifest.targets {
-          guard let scope = manifest.scope[target] else { continue }
-          let scopedFiles = ManifestValidator.resolveScopedFiles(scope: scope, target: target)
+          guard let targetScopes = manifest.scope[target] else { continue }
+          let unitFilesURLs = ManifestValidator.resolveScopedFilesByUnit(scopes: targetScopes, target: target)
+          var unitFiles: [String: [String]] = [:]
+          var allFiles: [String] = []
+          for (unit, urls) in unitFilesURLs {
+            let paths = urls.map(\.path)
+            unitFiles[unit] = paths
+            allFiles.append(contentsOf: paths)
+          }
+          var seen = Set<String>()
+          let dedupedFiles = allFiles.filter { seen.insert($0).inserted }
+
           let req = RuleRequest(
             mode: "repo",
             repoRoot: repoRootURL.path,
             ruleDir: tempSnapshot.path,
-            files: scopedFiles.map { $0.path },
-            languages: registry.languages
+            files: dedupedFiles,
+            unitFiles: unitFiles,
+            ast: registry.ast
           )
           _ = try await runner.execute(
             target: target,

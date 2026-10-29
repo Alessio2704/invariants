@@ -94,7 +94,15 @@ extension FixtureCase {
       return nil
     }
 
-    let expectedSet = Set(expectedViolations)
+    let normalizedExpected = expectedViolations.map {
+      ExpectedViolation(
+        relativePath: URL(fileURLWithPath: $0.relativePath).lastPathComponent,
+        line: $0.line,
+        code: $0.code
+      )
+    }
+
+    let expectedSet = Set(normalizedExpected)
     let reportedSet = Set(reported)
 
     let missing = Array(expectedSet.subtracting(reportedSet))

@@ -43,7 +43,7 @@ public enum ManifestValidator: Sendable {
 
         // In repo mode: verify target is configured in registry.languages
         if !isFixtureMode, let registry {
-          guard registry.languages.isConfigured(target) else {
+          guard registry.languages.contains(target) else {
             throw ManifestError.missingTargetInRegistryLanguages(target)
           }
         }
@@ -55,18 +55,38 @@ public enum ManifestValidator: Sendable {
       }
     }
 
-    // 2. In repo mode, verify each declared scope matches >= 1 real file
+    // 2. In repo mode, verify each declared scope matches >= 1 real file and unit exists in registry.ast
     if !isFixtureMode {
       for target in manifest.targets {
-        guard let targetScope = manifest.scope[target] else {
-          throw ManifestError.missingTargetScope(target)
+        guard let targetUnits = manifest.scope[target], !targetUnits.isEmpty else {
+          throw ManifestError.emptyTargetUnitScopes(target)
         }
-        let matchingFiles = resolveScopedFiles(scope: targetScope, target: target)
-        if matchingFiles.isEmpty {
-          throw ManifestError.scopeMatchesNoFiles(target, targetScope.include)
+        for (unitName, unitScope) in targetUnits {
+          if let registry {
+            let configuredUnits = registry.ast[target]
+            guard configuredUnits[unitName] != nil else {
+              throw ManifestError.missingUnitInRegistryAST(target: target, unit: unitName)
+            }
+          }
+          let matchingFiles = resolveScopedFiles(scope: unitScope, target: target)
+          if matchingFiles.isEmpty {
+            throw ManifestError.scopeMatchesNoFiles(target, unit: unitName, unitScope.include)
+          }
         }
       }
     }
+  }
+
+  /// Resolves scoped files grouped by unit name.
+  public static func resolveScopedFilesByUnit(
+    scopes: [String: TargetScope],
+    target: TargetLanguage? = nil
+  ) -> [String: [URL]] {
+    var result: [String: [URL]] = [:]
+    for (unitName, unitScope) in scopes {
+      result[unitName] = resolveScopedFiles(scope: unitScope, target: target)
+    }
+    return result
   }
 
   /// Resolves all files in repoRoot matching the include patterns and not excluded.

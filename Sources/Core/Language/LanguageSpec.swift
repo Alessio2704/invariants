@@ -23,9 +23,11 @@ public protocol AnyLanguageSpec: Sendable {
   /// Checks if a file URL should be skipped for this language.
   static func shouldSkip(url: URL) -> Bool
 
+  // periphery:ignore
   /// Decodes this language's configuration polymorphically from a decoder.
   static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)?
 
+  // periphery:ignore
   /// Encodes this language's configuration polymorphically to an encoder.
   static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws
 
@@ -38,11 +40,15 @@ public protocol AnyLanguageSpec: Sendable {
   /// Specification descriptor for interactive terminal configuration prompts.
   static var configPromptDescriptor: LanguageConfigPromptDescriptor { get }
 
+  /// Constructs a unit configuration instance polymorphically from a path.
+  static func makeUnitConfig(from path: String) -> (any LanguageConfiguration)?
+
+  // periphery:ignore
   /// Constructs a configuration instance polymorphically from selected path(s).
   static func makeConfig(from paths: [String]) -> (any LanguageConfiguration)?
 
   /// Returns a human-readable description of this language's configured inputs.
-  static func describeConfig(in languages: LanguagesConfig) -> String
+  static func describeConfig(in ast: ASTConfig) -> String
 
   /// Returns editor/IDE development files to scaffold in `invariants/.dev/` for authoring rules in this language.
   static func devWorkspaceFiles(environment: SystemEnvironment) -> [DevWorkspaceFile]
@@ -51,6 +57,32 @@ public protocol AnyLanguageSpec: Sendable {
 extension AnyLanguageSpec {
   public static var defaultIgnoredPaths: [String] { [] }
   public static var defaultIgnoredExtensions: [String] { [] }
+
+  public static func inferDefaultUnitName(for path: String, existingNames: Set<String> = []) -> String {
+    let normalized = path.hasPrefix("/") ? String(path.dropFirst()) : path
+    let components = normalized.split(separator: "/").map(String.init)
+    var base = "main"
+    if components.count > 1 {
+      let first = components[0]
+      if first == ".build" || first == "build" {
+        base = "main"
+      } else {
+        let isContainer = first == "apps" || first == "packages" || first == "services" || first == "modules"
+        if isContainer && components.count > 2 {
+          base = components[1]
+        } else {
+          base = first
+        }
+      }
+    }
+    var candidate = base
+    var counter = 2
+    while existingNames.contains(candidate) {
+      candidate = "\(base)_\(counter)"
+      counter += 1
+    }
+    return candidate
+  }
 
   public static func matchesIgnoredPath(relativePath: String, ignoredPattern: String) -> Bool {
     let normalized = relativePath.hasPrefix("/") ? String(relativePath.dropFirst()) : relativePath
@@ -127,10 +159,12 @@ public protocol LanguageSpec: AnyLanguageSpec {
 }
 
 extension LanguageSpec {
+  // periphery:ignore
   public static func decodeConfig(from decoder: any Decoder) throws -> (any LanguageConfiguration)? {
     try Config(from: decoder)
   }
 
+  // periphery:ignore
   public static func encodeConfig(_ config: any LanguageConfiguration, to encoder: any Encoder) throws {
     guard let typed = config as? Config else { return }
     try typed.encode(to: encoder)

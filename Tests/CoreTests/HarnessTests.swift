@@ -83,4 +83,41 @@ struct HarnessTests {
       )
     }
   }
+
+  @Test("Multi-unit fixture mapping for folder cases vs flat cases")
+  func multiUnitFixtureMapping() throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    // Multi-unit folder case: should_fail/swift/dto_mismatch/{ios,vapor}
+    let failDir = tmpDir.appendingPathComponent("should_fail/swift/dto_mismatch")
+    let iosDir = failDir.appendingPathComponent("ios")
+    let vaporDir = failDir.appendingPathComponent("vapor")
+    try fm.createDirectory(at: iosDir, withIntermediateDirectories: true)
+    try fm.createDirectory(at: vaporDir, withIntermediateDirectories: true)
+
+    let clientFile = iosDir.appendingPathComponent("Client.swift")
+    let serverFile = vaporDir.appendingPathComponent("Server.swift")
+    try Data("// expect: DTO-01\nlet client = 1".utf8).write(to: clientFile)
+    try Data("// Server code".utf8).write(to: serverFile)
+
+    // Flat should_pass case: should_pass/swift/case1.swift
+    let passDir = tmpDir.appendingPathComponent("should_pass/swift")
+    try fm.createDirectory(at: passDir, withIntermediateDirectories: true)
+    let flatPass = passDir.appendingPathComponent("case1.swift")
+    try Data("// Legitimate".utf8).write(to: flatPass)
+
+    let cases = try FixtureDiscoverer.discover(
+      ruleDirectory: tmpDir,
+      target: .swift,
+      manifestCodes: ["DTO-01": "Desc"]
+    )
+    #expect(cases.count == 2)
+
+    let folderCase = try #require(cases.first { !$0.isShouldPass })
+    #expect(folderCase.id == "dto_mismatch")
+    #expect(folderCase.files.count == 2)
+  }
 }

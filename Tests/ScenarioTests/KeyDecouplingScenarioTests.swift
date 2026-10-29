@@ -267,10 +267,10 @@ struct KeyDecouplingScenarioTests {
     }
 
     // 2. Initialize with swift and ts configured
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
-    try await repo.signed(version: 1, languages: languages)
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build")]
+    ast[TypeScriptLanguage.self] = ["main": TypeScriptLanguage.Config(tsconfig: "tsconfig.json")]
+    try await repo.signed(version: 1, languages: [.swift, .ts], ast: ast)
 
     // 3. Scaffolds draft rule with targets
     try repo.run {

@@ -64,7 +64,7 @@ final class TestRepo: @unchecked Sendable {
 
     var scopeDict: [String: Any] = [:]
     for t in targets {
-      scopeDict[t.rawValue] = ["include": [t == .swift ? "**/*.swift" : "**/*.ts"]]
+      scopeDict[t.rawValue] = ["main": ["include": [t == .swift ? "**/*.swift" : "**/*.ts"]]]
     }
 
     let manifestObj: [String: Any] = [
@@ -122,9 +122,13 @@ final class TestRepo: @unchecked Sendable {
     return self
   }
 
-  static var defaultLanguages: LanguagesConfig {
-    var config = LanguagesConfig()
-    config[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+  static var defaultLanguages: [SupportedLanguage] {
+    [.swift]
+  }
+
+  static var defaultAST: ASTConfig {
+    var config = ASTConfig()
+    config[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
     return config
   }
 
@@ -134,7 +138,8 @@ final class TestRepo: @unchecked Sendable {
     version: Int = 1,
     engine: String = EngineVersion.defaultRange,
     defaultBranch: String = "main",
-    languages: LanguagesConfig = TestRepo.defaultLanguages
+    languages: [SupportedLanguage] = TestRepo.defaultLanguages,
+    ast: ASTConfig = TestRepo.defaultAST
   ) async throws -> TestRepo {
     try await RepoLocator.withRepoRoot(repoURL) {
       var ruleMap: [String: String] = [:]
@@ -152,6 +157,7 @@ final class TestRepo: @unchecked Sendable {
         engine: engine,
         defaultBranch: defaultBranch,
         languages: languages,
+        ast: ast,
         rules: ruleMap
       )
 
@@ -187,7 +193,8 @@ extension Registry {
     version: Int = 1,
     engine: String = "^1.0.0",
     defaultBranch: String = "main",
-    languages: LanguagesConfig = TestRepo.defaultLanguages,
+    languages: [SupportedLanguage] = TestRepo.defaultLanguages,
+    ast: ASTConfig = TestRepo.defaultAST,
     rules: [String: String] = [:],
     signersHash: String? = nil
   ) -> Registry {
@@ -196,6 +203,7 @@ extension Registry {
       engine: engine,
       defaultBranch: defaultBranch,
       languages: languages,
+      ast: ast,
       rules: rules,
       signersHash: signersHash
     )

@@ -124,8 +124,10 @@ struct PolicyAndFilesystemAttackTests {
       "targets": ["swift"],
       "scope": [
         "swift": [
-          "include": ["Sources/**/*.swift"],
-          "exclude": ["Sources/App/Network.swift"],
+          "main": [
+            "include": ["Sources/**/*.swift"],
+            "exclude": ["Sources/App/Network.swift"],
+          ]
         ]
       ],
       "codes": ["NO-PRINT": "print is forbidden"],

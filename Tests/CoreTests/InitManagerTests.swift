@@ -29,13 +29,14 @@ struct InitManagerTests {
     // Generate throwaway key
     try SigningClient.generateThrowawayKey(at: keyURL)
 
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
+    ast[TypeScriptLanguage.self] = ["main": TypeScriptLanguage.Config(tsconfig: "tsconfig.json")]
 
     let options = InitOptions(
       engine: "^1.0.0",
-      languages: languages,
+      languages: [.swift, .ts],
+      ast: ast,
       keyURL: keyURL
     )
 
@@ -60,8 +61,9 @@ struct InitManagerTests {
       let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.version == 1)
       #expect(loaded.defaultBranch == "main")
-      #expect(loaded.languages[SwiftLanguage.self]?.indexStore == "build/Index.noindex/DataStore")
-      #expect(loaded.languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+      #expect(loaded.languages == [.swift, .ts])
+      #expect(loaded.ast[SwiftLanguage.self]["main"]?.indexStore == "build/Index.noindex/DataStore")
+      #expect(loaded.ast[TypeScriptLanguage.self]["main"]?.tsconfig == "tsconfig.json")
     }
 
     // 4. Verify .gitignore updated with invariants/.dev/
@@ -112,13 +114,14 @@ struct InitManagerTests {
       let detected = (await GitClient.discoverRepoInfo()).branches.first?.name
       #expect(detected == "develop")
 
-      var languages = LanguagesConfig()
-      languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
+      var ast = ASTConfig()
+      ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
 
       let options = InitOptions(
         engine: "^1.0.0",
         defaultBranch: "develop",
-        languages: languages,
+        languages: [.swift],
+        ast: ast,
         keyURL: keyURL
       )
 
@@ -126,6 +129,8 @@ struct InitManagerTests {
 
       let loaded = try await RegistryManager.loadAndVerify()
       #expect(loaded.defaultBranch == "develop")
+      #expect(loaded.languages == [.swift])
+      #expect(loaded.ast[SwiftLanguage.self]["main"]?.indexStore == "build/Index.noindex/DataStore")
     }
   }
 
@@ -151,7 +156,8 @@ struct InitManagerTests {
 
     try await RepoLocator.withRepoRoot(repoURL) {
       let options = InitOptions(
-        languages: LanguagesConfig(),
+        languages: [.swift],
+        ast: ASTConfig(),
         keyURL: keyURL
       )
 

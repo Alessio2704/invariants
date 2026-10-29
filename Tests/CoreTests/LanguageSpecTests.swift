@@ -48,9 +48,8 @@ struct LanguageSpecTests {
     #expect(TypeScriptLanguage.sourceExtensions.contains("tsx"))
     #expect(TypeScriptLanguage.ruleFileName == "rule.ts")
 
-    let config = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json", "packages/web/tsconfig.json"])
-    #expect(config.tsconfig.count == 2)
-    #expect(config.tsconfig[0] == "tsconfig.json")
+    let config = TypeScriptLanguage.Config(tsconfig: "tsconfig.json")
+    #expect(config.tsconfig == "tsconfig.json")
 
     // Test auto-discovery in temporary repo
     let fm = FileManager.default
@@ -67,71 +66,129 @@ struct LanguageSpecTests {
 
     let discovered = RepoLocator.withRepoRoot(tmpDir) {
       let inputs = TypeScriptLanguage.discoverAnalysisInputs()
-      return TypeScriptLanguage.makeConfig(from: inputs) as? TypeScriptLanguage.Config
+      return TypeScriptLanguage.makeUnitConfig(from: inputs.first ?? "") as? TypeScriptLanguage.Config
     }
     #expect(discovered != nil)
-    let paths = discovered?.tsconfig ?? []
-    #expect(paths.contains("tsconfig.json"))
-    #expect(paths.contains("packages/api/tsconfig.json"))
+    #expect(discovered?.tsconfig == "packages/api/tsconfig.json" || discovered?.tsconfig == "tsconfig.json")
   }
 
-  @Test("LanguagesConfig type-safe subscripting and configuration state")
-  func languagesConfigSubscripting() {
-    var languages = LanguagesConfig()
-    #expect(languages.isEmpty)
-    #expect(!languages.isConfigured(.swift))
-    #expect(!languages.isConfigured(.ts))
-    #expect(languages[SwiftLanguage.self] == nil)
-    #expect(languages[TypeScriptLanguage.self] == nil)
+  @Test("ASTConfig type-safe subscripting and configuration state")
+  func astConfigSubscripting() {
+    var ast = ASTConfig()
+    #expect(ast.isEmpty)
+    #expect(!ast.isConfigured(.swift))
+    #expect(!ast.isConfigured(.ts))
+    #expect(ast[SwiftLanguage.self].isEmpty)
+    #expect(ast[TypeScriptLanguage.self].isEmpty)
 
     // Set Swift config
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "DataStore")
-    #expect(!languages.isEmpty)
-    #expect(languages.isConfigured(.swift))
-    #expect(!languages.isConfigured(.ts))
-    #expect(languages[SwiftLanguage.self]?.indexStore == "DataStore")
+    ast[SwiftLanguage.self] = ["ios": SwiftLanguage.Config(indexStore: "DataStore")]
+    #expect(!ast.isEmpty)
+    #expect(ast.isConfigured(.swift))
+    #expect(!ast.isConfigured(.ts))
+    #expect(ast[SwiftLanguage.self]["ios"]?.indexStore == "DataStore")
 
     // Set TypeScript config
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
-    #expect(languages.isConfigured(.swift))
-    #expect(languages.isConfigured(.ts))
-    #expect(languages[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json"])
+    ast[TypeScriptLanguage.self] = ["web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json")]
+    #expect(ast.isConfigured(.swift))
+    #expect(ast.isConfigured(.ts))
+    #expect(ast[TypeScriptLanguage.self]["web"]?.tsconfig == "web/tsconfig.json")
 
     // Remove Swift config via subscript
-    languages[SwiftLanguage.self] = nil
-    #expect(!languages.isConfigured(.swift))
-    #expect(languages.isConfigured(.ts))
-    #expect(languages[SwiftLanguage.self] == nil)
+    ast[SwiftLanguage.self] = [:]
+    #expect(!ast.isConfigured(.swift))
+    #expect(ast.isConfigured(.ts))
+    #expect(ast[SwiftLanguage.self].isEmpty)
 
     // Polymorphic subscripting by SupportedLanguage
-    languages[.swift] = SwiftLanguage.Config(indexStore: "DataStore")
-    #expect(languages.isConfigured(.swift))
-    let swiftCfg = languages[.swift] as? SwiftLanguage.Config
-    #expect(swiftCfg?.indexStore == "DataStore")
+    ast[.swift] = ["vapor": SwiftLanguage.Config(indexStore: "VaporStore")]
+    #expect(ast.isConfigured(.swift))
+    let swiftCfg = ast[.swift]["vapor"] as? SwiftLanguage.Config
+    #expect(swiftCfg?.indexStore == "VaporStore")
 
-    languages[.swift] = nil
-    #expect(!languages.isConfigured(.swift))
-    #expect(languages[.swift] == nil)
+    ast[.swift] = [:]
+    #expect(!ast.isConfigured(.swift))
+    #expect(ast[.swift].isEmpty)
   }
 
-  @Test("LanguagesConfig JSON serialization round-trip")
-  func languagesConfigCodable() throws {
-    var original = LanguagesConfig()
-    original[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/DataStore")
-    original[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: [
-      "tsconfig.json", "tsconfig.node.json",
-    ])
+  @Test("ASTConfig JSON serialization round-trip")
+  func astConfigCodable() throws {
+    var original = ASTConfig()
+    original[SwiftLanguage.self] = [
+      "ios": SwiftLanguage.Config(indexStore: "ios/Index/DataStore"),
+      "vapor": SwiftLanguage.Config(indexStore: "vapor/.build/debug/index/store"),
+    ]
+    original[TypeScriptLanguage.self] = [
+      "bff": TypeScriptLanguage.Config(tsconfig: "bff/tsconfig.json"),
+      "web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json"),
+    ]
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
     let data = try encoder.encode(original)
 
     let decoder = JSONDecoder()
-    let decoded = try decoder.decode(LanguagesConfig.self, from: data)
+    let decoded = try decoder.decode(ASTConfig.self, from: data)
 
     #expect(decoded == original)
-    #expect(decoded[SwiftLanguage.self]?.indexStore == "build/DataStore")
-    #expect(decoded[TypeScriptLanguage.self]?.tsconfig == ["tsconfig.json", "tsconfig.node.json"])
+    #expect(decoded[SwiftLanguage.self]["ios"]?.indexStore == "ios/Index/DataStore")
+    #expect(decoded[SwiftLanguage.self]["vapor"]?.indexStore == "vapor/.build/debug/index/store")
+    #expect(decoded[TypeScriptLanguage.self]["bff"]?.tsconfig == "bff/tsconfig.json")
+    #expect(decoded[TypeScriptLanguage.self]["web"]?.tsconfig == "web/tsconfig.json")
+  }
+
+  @Test("Default unit name inference from paths and collision handling")
+  func defaultUnitNameInference() {
+    // Root level inputs
+    #expect(SwiftLanguage.inferDefaultUnitName(for: "build/Index.noindex/DataStore") == "main")
+    #expect(SwiftLanguage.inferDefaultUnitName(for: ".build/debug/index/store") == "main")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "tsconfig.json") == "main")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "tsconfig.base.json") == "main")
+
+    // Nested inputs
+    #expect(SwiftLanguage.inferDefaultUnitName(for: "ios/build/Index.noindex/DataStore") == "ios")
+    #expect(SwiftLanguage.inferDefaultUnitName(for: "vapor/.build/debug/index/store") == "vapor")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "web/tsconfig.json") == "web")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "bff/tsconfig.json") == "bff")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "apps/web/tsconfig.json") == "web")
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "packages/api/tsconfig.json") == "api")
+
+    // Collision handling
+    #expect(TypeScriptLanguage.inferDefaultUnitName(for: "web/tsconfig.json", existingNames: ["web"]) == "web_2")
+    #expect(
+      TypeScriptLanguage.inferDefaultUnitName(for: "web/tsconfig.json", existingNames: ["web", "web_2"]) == "web_3")
+  }
+
+  @Test("Multi-input discovery across subdirectories")
+  func multiInputDiscovery() throws {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: tmpDir) }
+
+    // Swift inputs: ios and vapor
+    let iosStore = tmpDir.appendingPathComponent("ios/build/Index.noindex/DataStore")
+    try fm.createDirectory(at: iosStore, withIntermediateDirectories: true)
+    let vaporStore = tmpDir.appendingPathComponent("vapor/build/Index.noindex/DataStore")
+    try fm.createDirectory(at: vaporStore, withIntermediateDirectories: true)
+
+    // TS inputs: web and bff
+    let webDir = tmpDir.appendingPathComponent("web")
+    try fm.createDirectory(at: webDir, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: webDir.appendingPathComponent("tsconfig.json"))
+    let bffDir = tmpDir.appendingPathComponent("bff")
+    try fm.createDirectory(at: bffDir, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: bffDir.appendingPathComponent("tsconfig.json"))
+
+    RepoLocator.withRepoRoot(tmpDir) {
+      let swiftInputs = SwiftLanguage.discoverAnalysisInputs()
+      #expect(swiftInputs.contains("ios/build/Index.noindex/DataStore"))
+      #expect(swiftInputs.contains("vapor/build/Index.noindex/DataStore"))
+
+      let tsInputs = TypeScriptLanguage.discoverAnalysisInputs()
+      #expect(tsInputs.contains("bff/tsconfig.json"))
+      #expect(tsInputs.contains("web/tsconfig.json"))
+    }
   }
 
   @Test(
@@ -169,14 +226,16 @@ struct LanguageSpecTests {
       #expect(TypeScriptLanguage.hasSources())
     }
   }
+}
 
+extension LanguageSpecTests {
   @Test(
     "describeConfig returns fallback for unconfigured projects across all languages",
     arguments: SupportedLanguage.allCases
   )
   func describeConfigOutputs(language: SupportedLanguage) {
-    let languages = LanguagesConfig()
-    #expect(language.spec.describeConfig(in: languages) == "none")
+    let ast = ASTConfig()
+    #expect(language.spec.describeConfig(in: ast) == "none")
   }
 
   @Test(

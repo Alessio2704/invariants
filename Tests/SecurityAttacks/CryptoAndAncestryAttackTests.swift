@@ -27,6 +27,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
     try await fixture.run {
@@ -41,6 +42,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
 
@@ -130,6 +132,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
 
@@ -173,6 +176,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
     try await fixture.run {
@@ -300,6 +304,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
     try await fixture.run {
@@ -326,6 +331,7 @@ struct CryptoAndAncestryAttackTests {
       engine: EngineVersion.defaultRange,
       defaultBranch: "main",
       languages: AuditProjectFixture.defaultLanguages,
+      ast: AuditProjectFixture.defaultAST,
       rules: [:]
     )
     try await fixture.run {
@@ -359,10 +365,14 @@ struct CryptoAndAncestryAttackTests {
 }
 
 extension AuditProjectFixture {
-  static var defaultLanguages: LanguagesConfig {
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["web/tsconfig.json"])
-    return languages
+  static var defaultLanguages: [SupportedLanguage] {
+    [.swift, .ts]
+  }
+
+  static var defaultAST: ASTConfig {
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "build/Index.noindex/DataStore")]
+    ast[TypeScriptLanguage.self] = ["web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json")]
+    return ast
   }
 }

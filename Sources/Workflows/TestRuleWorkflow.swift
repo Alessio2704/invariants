@@ -48,7 +48,7 @@ package enum TestRuleWorkflow {
       manifest: manifest,
       ruleDirectory: ruleDir,
       ruleTreeHash: ruleTreeHash,
-      languages: registry.languages
+      ast: registry.ast
     )
 
     for target in manifest.targets {

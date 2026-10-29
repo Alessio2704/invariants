@@ -7,14 +7,15 @@ import Testing
 struct RegistryTests {
   @Test("Canonical JSON serialization produces deterministic sorted keys")
   func canonicalJSONOrdering() {
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
-    languages[TypeScriptLanguage.self] = TypeScriptLanguage.Config(tsconfig: ["tsconfig.json"])
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "Index/DataStore")]
+    ast[TypeScriptLanguage.self] = ["main": TypeScriptLanguage.Config(tsconfig: "tsconfig.json")]
 
     let reg = Registry(
       version: 8,
       engine: "^1.2.0",
-      languages: languages,
+      languages: [.swift, .ts],
+      ast: ast,
       rules: [
         "tooling": "77de4e10",
         "no-raw-text": "a81b02d4",
@@ -25,12 +26,20 @@ struct RegistryTests {
 
     let expected = """
       {
+        "ast": {
+          "swift": {
+            "main": { "indexStore": "Index/DataStore" }
+          },
+          "ts": {
+            "main": { "tsconfig": "tsconfig.json" }
+          }
+        },
         "default_branch": "main",
         "engine": "^1.2.0",
-        "languages": {
-          "swift": { "indexStore": "Index/DataStore" },
-          "ts": { "tsconfig": ["tsconfig.json"] }
-        },
+        "languages": [
+          "swift",
+          "ts"
+        ],
         "rules": {
           "no-raw-text": "a81b02d4",
           "tooling": "77de4e10"
@@ -44,12 +53,13 @@ struct RegistryTests {
 
   @Test("Canonical JSON round-trip serialization is identical")
   func canonicalJSONRoundTrip() throws {
-    var languages = LanguagesConfig()
-    languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "Index/DataStore")]
     let original = Registry(
       version: 3,
       engine: "^1.0.0",
-      languages: languages,
+      languages: [.swift],
+      ast: ast,
       rules: ["toy": "abc12345"]
     )
     let jsonStr = CanonicalJSON.serialize(original)
@@ -62,6 +72,74 @@ struct RegistryTests {
     #expect(parsed == original)
     let reSerialized = CanonicalJSON.serialize(parsed)
     #expect(reSerialized == jsonStr)
+  }
+
+  @Test("Round-trip serialization for single-language multi-unit Swift repo (ios + vapor)")
+  func swiftMultiUnitRoundTrip() throws {
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = [
+      "ios": SwiftLanguage.Config(indexStore: "ios/build/Index.noindex/DataStore"),
+      "vapor": SwiftLanguage.Config(indexStore: "vapor/.build/debug/index/store"),
+    ]
+    let reg = Registry(
+      version: 2,
+      engine: "^1.0.0",
+      languages: [.swift],
+      ast: ast,
+      rules: ["api-rule": "11223344"]
+    )
+    let json = CanonicalJSON.serialize(reg)
+    let parsed = try CanonicalJSON.parse(data: Data(json.utf8))
+    #expect(parsed == reg)
+    #expect(parsed.ast[SwiftLanguage.self]["ios"]?.indexStore == "ios/build/Index.noindex/DataStore")
+    #expect(parsed.ast[SwiftLanguage.self]["vapor"]?.indexStore == "vapor/.build/debug/index/store")
+  }
+
+  @Test("Round-trip serialization for single-language multi-unit TypeScript repo (web + bff)")
+  func tsMultiUnitRoundTrip() throws {
+    var ast = ASTConfig()
+    ast[TypeScriptLanguage.self] = [
+      "web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json"),
+      "bff": TypeScriptLanguage.Config(tsconfig: "bff/tsconfig.json"),
+    ]
+    let reg = Registry(
+      version: 2,
+      engine: "^1.0.0",
+      languages: [.ts],
+      ast: ast,
+      rules: ["no-db-in-web": "aabbccdd"]
+    )
+    let json = CanonicalJSON.serialize(reg)
+    let parsed = try CanonicalJSON.parse(data: Data(json.utf8))
+    #expect(parsed == reg)
+    #expect(parsed.ast[TypeScriptLanguage.self]["web"]?.tsconfig == "web/tsconfig.json")
+    #expect(parsed.ast[TypeScriptLanguage.self]["bff"]?.tsconfig == "bff/tsconfig.json")
+  }
+
+  @Test("Round-trip serialization for polyglot 2x2 monorepo (swift: ios + vapor, ts: web + bff)")
+  func polyglot2x2RoundTrip() throws {
+    var ast = ASTConfig()
+    ast[SwiftLanguage.self] = [
+      "ios": SwiftLanguage.Config(indexStore: "ios/build/Index.noindex/DataStore"),
+      "vapor": SwiftLanguage.Config(indexStore: "vapor/.build/debug/index/store"),
+    ]
+    ast[TypeScriptLanguage.self] = [
+      "bff": TypeScriptLanguage.Config(tsconfig: "bff/tsconfig.json"),
+      "web": TypeScriptLanguage.Config(tsconfig: "web/tsconfig.json"),
+    ]
+    let reg = Registry(
+      version: 5,
+      engine: "^1.0.0",
+      languages: [.swift, .ts],
+      ast: ast,
+      rules: ["sync-contract": "deadbeef"]
+    )
+    let json = CanonicalJSON.serialize(reg)
+    let parsed = try CanonicalJSON.parse(data: Data(json.utf8))
+    #expect(parsed == reg)
+    #expect(parsed.languages == [.swift, .ts])
+    #expect(parsed.ast[SwiftLanguage.self].count == 2)
+    #expect(parsed.ast[TypeScriptLanguage.self].count == 2)
   }
 
   @Test("CanonicalJSON.parse rejects malformed JSON with invalidCanonicalJSON")
@@ -128,9 +206,9 @@ struct RegistryTests {
       let signersContent = "* namespaces=\"invariants\" \(pubKeyStr)\n"
       try Data(signersContent.utf8).write(to: allowedSignersURL)
 
-      var languages = LanguagesConfig()
-      languages[SwiftLanguage.self] = SwiftLanguage.Config(indexStore: "Index/DataStore")
-      let reg = Registry(version: 1, engine: "^1.0.0", languages: languages)
+      var ast = ASTConfig()
+      ast[SwiftLanguage.self] = ["main": SwiftLanguage.Config(indexStore: "Index/DataStore")]
+      let reg = Registry(version: 1, engine: "^1.0.0", languages: [.swift], ast: ast)
       try await RegistryManager.saveAndSign(registry: reg, keyURL: keyURL)
 
       // Verify valid

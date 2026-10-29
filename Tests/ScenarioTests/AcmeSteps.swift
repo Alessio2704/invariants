@@ -20,7 +20,8 @@ enum AcmeSteps {
       let reg = try await RegistryManager.loadAndVerify()
       #expect(reg.version == 1)
       #expect(reg.defaultBranch == "main")
-      #expect(reg.languages[SwiftLanguage.self] != nil)
+      #expect(reg.languages.contains(.swift))
+      #expect(reg.ast[SwiftLanguage.self]["main"] != nil)
       #expect(reg.rules.isEmpty)
 
       let signers = try SignersManager.loadSigners()
@@ -40,7 +41,7 @@ enum AcmeSteps {
         "id": "no-print-in-sources",
         "summary": "Forbid print() calls in production sources",
         "targets": ["swift"],
-        "scope": ["swift": ["include": ["Sources/**/*.swift"]]],
+        "scope": ["swift": ["main": ["include": ["Sources/**/*.swift"]]]],
         "codes": ["NO-PRINT": "print() calls are forbidden in production code."],
       ]
       let manifestData = try JSONSerialization.data(
@@ -103,8 +104,10 @@ enum AcmeSteps {
         "targets": ["swift"],
         "scope": [
           "swift": [
-            "include": ["Sources/**/*.swift"],
-            "exclude": ["Sources/Debug/**"],
+            "main": [
+              "include": ["Sources/**/*.swift"],
+              "exclude": ["Sources/Debug/**"],
+            ]
           ]
         ],
         "codes": ["NO-PRINT": "print() calls are forbidden in production code."],
@@ -223,7 +226,8 @@ extension AcmeSteps {
 
       let reg = try await RegistryManager.loadAndVerify()
       #expect(reg.version == 4)
-      #expect(reg.languages[TypeScriptLanguage.self] != nil)
+      #expect(reg.languages.contains(.ts))
+      #expect(reg.ast[TypeScriptLanguage.self]["web"] != nil)
       try await FloorGuard.checkSignerAncestry(currentRegistry: reg)
     }
   }
@@ -259,7 +263,7 @@ extension AcmeSteps {
         "id": "isolate-ui-from-db",
         "summary": "Forbid direct database imports in web UI components",
         "targets": ["ts"],
-        "scope": ["ts": ["include": ["web/src/**/*.ts"]]],
+        "scope": ["ts": ["web": ["include": ["web/src/**/*.ts"]]]],
         "codes": ["UI-DB-IMPORT": "Direct DB access is forbidden in UI components."],
       ]
       let manifestData = try JSONSerialization.data(
@@ -349,7 +353,7 @@ extension AcmeSteps {
         "id": "no-print-in-sources",
         "summary": "Forbid print() and dump() calls in production sources",
         "targets": ["swift"],
-        "scope": ["swift": ["include": ["Sources/**/*.swift"]]],
+        "scope": ["swift": ["main": ["include": ["Sources/**/*.swift"]]]],
         "codes": [
           "NO-PRINT": "print() calls are forbidden in production code.",
           "NO-DUMP": "dump() calls are forbidden in production code.",
@@ -406,7 +410,7 @@ extension AcmeSteps {
         "id": "no-print-in-sources",
         "summary": "Forbid print() and dump() calls",
         "targets": ["swift"],
-        "scope": ["swift": ["include": ["Sources/AcmeCore/App.swift"]]],
+        "scope": ["swift": ["main": ["include": ["Sources/AcmeCore/App.swift"]]]],
         "codes": [
           "NO-PRINT": "print() calls are forbidden in production code.",
           "NO-DUMP": "dump() calls are forbidden in production code.",
